@@ -93,7 +93,7 @@ user_id="$(json "d['id']")"
 org_body='{"name":"smoke-org"}'
 call POST /api/v1/organizations 201 "${org_body}" "${login_access}"
 org_id="$(json "d['id']")"
-org_role="$(json "d['role']")"
+org_role="$(json "d['userRole']")"
 [ "${org_role}" = "Owner" ] || fail "creator's role in the new organization is ${org_role}, expected Owner"
 echo "Organization created: ${org_id} (creator role: ${org_role})"
 

@@ -61,7 +61,7 @@ is confirmed.
 | `POST /api/v1/auth/logout` | none; bearer | `200 {message}` | `AuthController.cs:849` |
 | `GET /api/v1/auth/me` | bearer | `200 UserInfoResponse` (`organizations: [{id, name, imageUrl, role}]`) | `AuthController.cs:350` |
 | `GET /api/v1/auth/consents/versions` | none | `200 {terms, privacy, cookies}` | `AuthController.cs:533` |
-| `POST /api/v1/organizations` | `{name, description?, imageUrl?}`; bearer (the whole controller is `[Authorize]`, line 20) | `201 OrganizationDto` with `role: Owner`; `Location` | `OrganizationsController.cs:158` |
+| `POST /api/v1/organizations` | `{name, description?, imageUrl?}`; bearer (the whole controller is `[Authorize]`, line 20) | `201 OrganizationDto` with `userRole: "Owner"` (the field is `UserRole`, not `role`); `Location` | `OrganizationsController.cs:158`, `DTOs/OrganizationDtos.cs:27` |
 | `GET /api/v1/organizations/{id}` | bearer | `200 OrganizationDetailDto` (members) | `OrganizationsController.cs:107` |
 | `POST /api/v1/organizations/{id}/invite` | `InviteMemberRequest`; bearer, Owner or Admin | invitation | `OrganizationsController.cs:371` |
 | `POST /api/v1/organizations/invitations/accept` | `AcceptInvitationRequest`; bearer | membership | `OrganizationsController.cs:475` |
@@ -135,8 +135,15 @@ Runtime values are recorded here only from a real run. Nothing below is copied f
   permission check, and there is no Docker daemon, so neither the container nor the local build ran there. The
   CI job `auth-smoke` runs `scripts/run-local-stack.sh up` and `scripts/smoke-auth.sh` on a fresh runner with a
   PostgreSQL service container. Its log holds the claim names and status codes for this table.
-- **To fill in from that run:** the status codes printed by `smoke-auth.sh`, the claim names printed under
-  "Claims on the refreshed token", and the JWKS key count.
+- **Observed in CI run 40353922349 (head 348fc89):** `GET /health/ready` 200, `GET /.well-known/jwks.json` 200 with 1 key,
+  `GET /api/v1/auth/consents/versions` 200, `POST /api/v1/auth/register` 200 (tokens at once: no sender is configured),
+  `POST /api/v1/auth/login` 200, `GET /api/v1/auth/me` 200, `POST /api/v1/organizations` 201.
+  `expiresIn` 3600 and `tokenType` `Bearer`.
+  Claim names on the token issued by register (before any organization): `aud`, `email`, `exp`, `iss`, `jti`, `sub`,
+  and the two ASP.NET URIs `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name` and
+  `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier`. No `organization` claim, as the source predicts.
+  `aud` and `iss` are present, which the source sets from `Jwt:Audience` and `Jwt:Issuer`; the table above does not list them.
+- **Still to observe:** the claim names after refresh (the `organization` and `organization:{id}:role` claims), `/api/v1/auth/logout`, and the refused refresh. The next CI run prints them.
 
 ## Not in scope here
 
