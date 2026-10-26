@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The shared kernel (P2): plumbing only. Telemetry, health, discovery, resilience, problem details,
+    the database context and the migration signal. No entities, DTOs, enums or user-facing strings.
+    Kept under 800 non-blank, non-comment lines by scripts/check-kernel-size.sh (CI kernel-size job).
+  -->
+  <PropertyGroup>
+    <Description>Shared kernel for PostmanClone services: telemetry, health, resilience, problem details, database wiring.</Description>
+    <RootNamespace>PostmanClone.ServiceDefaults</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+    <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+  </ItemGroup>
+</Project>
