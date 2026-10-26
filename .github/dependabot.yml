@@ -1,0 +1,52 @@
+# Dependency update automation (architecture-standards REPO-BASELINE §1).
+#
+# Weekly, grouped, and capped at two open pull requests per ecosystem. Security updates are a
+# repository setting and arrive on their own; restore fails on a known-vulnerable NuGet package
+# in any case (NuGetAudit in Directory.Build.props).
+#
+# Major versions that are a project decision are ignored here and moved deliberately: the .NET
+# major (target framework, SDK pin, ASP.NET Core, EF Core, Npgsql and the Microsoft.Extensions
+# family move together).
+
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      aspire:
+        patterns: ['Aspire.*']
+      aspnetcore-and-data:
+        patterns: ['Microsoft.AspNetCore.*', 'Microsoft.EntityFrameworkCore*', 'Npgsql*', 'Microsoft.Extensions.*']
+      observability:
+        patterns: ['OpenTelemetry*']
+      tests:
+        patterns: ['xunit*', 'Microsoft.NET.Test.Sdk', 'bunit', 'Microsoft.Playwright']
+    ignore:
+      - dependency-name: 'Microsoft.AspNetCore.*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'Microsoft.EntityFrameworkCore*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'Npgsql*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'Microsoft.Extensions.*'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: 'chore(ci)'
+    groups:
+      github-actions:
+        patterns: ['*']

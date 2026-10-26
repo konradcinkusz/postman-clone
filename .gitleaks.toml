@@ -1,0 +1,15 @@
+# gitleaks configuration — postman-clone (architecture-standards P5, REPO-BASELINE §2).
+#
+# Runs in two places: the pre-commit hook (scripts/hooks/pre-commit) and the CI job
+# (.github/workflows/secret-scan.yml). Both read this file, so a clean commit here means a
+# clean scan there.
+#
+# The upstream rule set (provider credentials: AWS, GitHub, Slack, Stripe, private keys, …)
+# is used unchanged. This repository adds no bespoke rule yet: WP00 holds no credential by
+# design. A secret-shaped variable introduced by a later work package gets its rule in the
+# same commit.
+
+title = "postman-clone secret scanning"
+
+[extend]
+useDefault = true

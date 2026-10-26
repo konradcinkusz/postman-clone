@@ -1,0 +1,36 @@
+# architecture-standards REPO-BASELINE §1: real rules, not the stock commented-out template.
+
+# Normalise line endings to LF in the repository; checkouts follow the platform default.
+* text=auto
+
+# Scripts that run under bash must stay LF everywhere, or they fail on Linux and macOS
+# with "bad interpreter: /bin/bash^M" — including the git hooks, which Git for Windows
+# runs with its bundled bash.
+*.sh              text eol=lf
+scripts/hooks/*   text eol=lf
+# Windows batch files need CRLF.
+*.bat             text eol=crlf
+*.cmd             text eol=crlf
+
+# Language-aware diffs.
+*.cs              diff=csharp
+*.md              diff=markdown
+
+# Generated files: collapsed in pull-request diffs and left out of language statistics.
+package-lock.json                     -diff linguist-generated=true
+**/Migrations/*.Designer.cs           linguist-generated=true
+**/Migrations/*ModelSnapshot.cs       linguist-generated=true
+
+# Binary assets.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.pdf   binary
+*.zip   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary

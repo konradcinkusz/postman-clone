@@ -1,0 +1,6 @@
+# Findings that already exist in this repository's history, one fingerprint per line, each
+# with the reason it is not a credential. Never allowlist by pasting a real value here.
+#
+# Format: <fingerprint>  # <reason, status, owner>
+#
+# (none yet — the baseline commit introduces no credential-shaped string)

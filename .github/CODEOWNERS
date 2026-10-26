@@ -1,0 +1,21 @@
+# Every path is owned by the maintainer (architecture-standards REPO-BASELINE §1).
+# In a single-maintainer repository this is a low bar, but it is the machine-readable answer
+# to "who reviews this": the paths below are where an unreviewed change is a security problem.
+
+*                                   @konradcinkusz
+
+# Supply chain, secrets, CI and dependency pins.
+/.github/                           @konradcinkusz
+/Directory.Build.props              @konradcinkusz
+/Directory.Packages.props           @konradcinkusz
+/global.json                        @konradcinkusz
+/.gitleaks.toml                     @konradcinkusz
+/.gitleaksignore                    @konradcinkusz
+/scripts/hooks/                     @konradcinkusz
+
+# Identity, sessions and the sender (ADR-0004, ADR-0005, ADR-0006, README §4).
+/src/PostmanClone.ServiceDefaults/  @konradcinkusz
+/src/PostmanClone.Web/              @konradcinkusz
+
+# Schema changes reach stored data.
+**/Migrations/                      @konradcinkusz

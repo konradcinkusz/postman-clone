@@ -1,0 +1,23 @@
+<Project>
+  <!--
+    Settings shared by every project in the solution (architecture-standards REPO-BASELINE §1).
+    Package versions live in Directory.Packages.props.
+  -->
+  <PropertyGroup>
+    <!-- One target framework for the whole solution: moving to the next LTS is a one-line change here. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <PropertyGroup>
+    <!-- Report known-vulnerable packages, direct and transitive, on every restore. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+    <!-- ...and fail the restore on them rather than printing a warning nobody reads. -->
+    <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <!-- The solution builds without warnings; keep it that way. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>
