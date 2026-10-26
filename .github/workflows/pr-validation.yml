@@ -180,9 +180,15 @@ jobs:
         if: always()
         run: scripts/run-local-stack.sh down
 
-      - name: authservice log (on failure)
+      - name: authservice logs (on failure)
         if: failure()
-        run: tail -n 200 .local-stack/authservice.log
+        run: |
+          for log in .local-stack/authservice-build.log .local-stack/authservice.log; do
+            if [ -f "$log" ]; then
+              echo "== $log"
+              tail -n 200 "$log"
+            fi
+          done
 
   docs-links:
     name: Markdown relative links

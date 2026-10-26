@@ -88,12 +88,20 @@ ensure_source() {
   if [ ! -d "${SRC_DIR}/.git" ]; then
     git clone --depth 1 --branch "${AUTHSERVICE_TAG}" "${AUTHSERVICE_REPO}" "${SRC_DIR}"
   fi
+  # The clone sits inside this repository, so MSBuild would import this repository's Directory.Build.props
+  # (warnings as errors, audit settings) and Directory.Packages.props (central package versions) into
+  # authservice. MSBuild imports only the nearest file, so empty files here shadow ours for the clone.
+  printf '<Project />\n' > "${SRC_DIR}/Directory.Build.props"
+  printf '<Project />\n' > "${SRC_DIR}/Directory.Packages.props"
 }
 
 build_authservice() {
-  dotnet build "${SRC_DIR}/src/AuthService/AuthService.csproj" -c Release -o "${BIN_DIR}" \
-    > "${STACK_DIR}/authservice-build.log" 2>&1 \
-    || { echo "authservice build failed; see ${STACK_DIR}/authservice-build.log" >&2; exit 1; }
+  local log="${STACK_DIR}/authservice-build.log"
+  if ! dotnet build "${SRC_DIR}/src/AuthService/AuthService.csproj" -c Release -o "${BIN_DIR}" > "${log}" 2>&1; then
+    echo "authservice build failed. Last 80 lines of ${log}:" >&2
+    tail -n 80 "${log}" >&2
+    exit 1
+  fi
 }
 
 is_running() {
