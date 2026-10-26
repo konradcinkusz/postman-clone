@@ -9,6 +9,8 @@ name: PR validation
 #  • dotnet         — restore, build (warnings are errors), test. Skipped until PostmanClone.sln exists.
 #  • docker-build   — one `docker build` (no push) per Dockerfile under src/. Skipped while there are none.
 #  • kernel-size    — scripts/check-kernel-size.sh (the kernel stays ≤ 800 lines, P2). Skipped until it exists.
+#  • auth-smoke     — authservice at its pinned tag, built from source against a PostgreSQL service container
+#                     (scripts/run-local-stack.sh up), then scripts/smoke-auth.sh (ADR-0004, docs/AUTH.md).
 #  • docs-links     — every relative link in the Markdown files resolves.
 #  • pr-validation  — the aggregate check. Its name is the one required status to configure
 #                     on `main` (owner action). It fails if any job above failed.
@@ -141,6 +143,53 @@ jobs:
       - name: Check the kernel stays within 800 lines
         run: bash scripts/check-kernel-size.sh
 
+  auth-smoke:
+    name: authservice smoke (no Docker)
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.solution == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # The throwaway CI database (same as the dotnet job). The value is not a credential.
+      PG_CONNECTION: Host=localhost;Username=postgres;Password=postgres # gitleaks:allow
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Start authservice at its pinned tag
+        run: scripts/run-local-stack.sh up
+
+      - name: Smoke test the authservice contract
+        run: scripts/smoke-auth.sh
+
+      - name: Stop authservice
+        if: always()
+        run: scripts/run-local-stack.sh down
+
+      - name: authservice logs (on failure)
+        if: failure()
+        run: |
+          for log in .local-stack/authservice-build.log .local-stack/authservice.log; do
+            if [ -f "$log" ]; then
+              echo "== $log"
+              tail -n 200 "$log"
+            fi
+          done
+
   docs-links:
     name: Markdown relative links
     needs: [detect-changes]
@@ -154,7 +203,7 @@ jobs:
 
   pr-validation:
     name: pr-validation
-    needs: [detect-changes, dotnet, docker-build, kernel-size, docs-links]
+    needs: [detect-changes, dotnet, docker-build, kernel-size, auth-smoke, docs-links]
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -165,6 +214,7 @@ jobs:
           DOTNET: ${{ needs.dotnet.result }}
           DOCKER: ${{ needs.docker-build.result }}
           KERNEL: ${{ needs.kernel-size.result }}
+          AUTH: ${{ needs.auth-smoke.result }}
           DOCS: ${{ needs.docs-links.result }}
         run: |
           {
@@ -176,9 +226,10 @@ jobs:
             echo "| .NET build and tests | ${DOTNET} |"
             echo "| Docker build | ${DOCKER} |"
             echo "| Kernel size | ${KERNEL} |"
+            echo "| authservice smoke | ${AUTH} |"
             echo "| Markdown links | ${DOCS} |"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$DETECT" "$DOTNET" "$DOCKER" "$KERNEL" "$DOCS"; do
+          for result in "$DETECT" "$DOTNET" "$DOCKER" "$KERNEL" "$AUTH" "$DOCS"; do
             case "$result" in
               success|skipped) ;;
               *) echo "A validation job ended with: ${result}"; exit 1 ;;

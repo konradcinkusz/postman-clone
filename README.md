@@ -33,7 +33,8 @@ The work packages (WP00–WP28), their dependencies and their acceptance criteri
 docs/implementation-plan/   the build plan: README, CONTRACTS (frozen HTTP contracts), PROTOCOL, WORK-PACKAGES
 docs/decisions/             architecture decision records
 docs/architecture/          DEVIATIONS.md: where the build departs from architecture-standards
-scripts/                    install-hooks.sh, hooks/pre-commit (secret scan), check-doc-links.sh
+scripts/                    install-hooks.sh, hooks/pre-commit (secret scan), check-doc-links.sh,
+                            gen-dev-secrets.sh, run-local-stack.sh (authservice without Docker), smoke-auth.sh
 .github/                    CI (pr-validation, secret-scan), CODEOWNERS, Dependabot, templates
 ```
 

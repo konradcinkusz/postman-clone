@@ -1,0 +1,17 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.4">
+  <!--
+    The composition root (P1). Development only: it starts PostgreSQL and the services for a local
+    Aspire run. It is never deployed (ADR-0007). Versions come from Directory.Packages.props.
+  -->
+  <PropertyGroup>
+    <Description>Aspire AppHost: composes PostgreSQL, authservice and the PostmanClone services for development.</Description>
+    <OutputType>Exe</OutputType>
+    <IsAspireHost>true</IsAspireHost>
+    <!-- ASPIRE010: the Aspire CLI bundle is not used; the dashboard and the AppHost run without it. -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+  </ItemGroup>
+</Project>
