@@ -1,0 +1,47 @@
+# .NET build output and tooling
+[Bb]in/
+[Oo]bj/
+**/bin/
+**/obj/
+[Tt]est[Rr]esults/
+**/TestResults/
+/artifacts/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.binlog
+*.nupkg
+*.snupkg
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+BenchmarkDotNet.Artifacts/
+*.log
+
+# Local secrets and the local stack (scripts/run-local-stack.sh, gen-dev-secrets.sh)
+.env
+.env.*
+!.env.example
+.local-stack/
+secrets.env
+
+# Per-developer Claude Code settings (the shared .claude/settings.json is committed)
+.claude/settings.local.json
+
+# Node / Playwright (E2E) output
+node_modules/
+test-results/
+playwright-report/
+.playwright/
+
+# Editors and OS files
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+~$*

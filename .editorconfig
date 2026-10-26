@@ -1,0 +1,55 @@
+# architecture-standards REPO-BASELINE §1: formatting decided once, not per IDE.
+# Code-style preferences are suggestions (IDE hints), not build errors: the build already
+# treats compiler warnings as errors (Directory.Build.props).
+
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Two trailing spaces are a markdown line break.
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{cs,csx}]
+indent_size = 4
+
+[*.{sln}]
+indent_style = tab
+
+[*.{csproj,props,targets,xml,config,nuspec,resx}]
+indent_size = 2
+
+[*.{ps1,psm1}]
+indent_size = 4
+
+[Makefile]
+indent_style = tab
+
+# ── C# conventions, as the code base already writes them ─────────────────────────────
+[*.cs]
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+csharp_style_namespace_declarations = file_scoped:suggestion
+csharp_prefer_braces = when_multiline:suggestion
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_prefer_primary_constructors = true:suggestion
+dotnet_style_qualification_for_field = false:suggestion
+dotnet_style_qualification_for_property = false:suggestion
+dotnet_style_qualification_for_method = false:suggestion
+dotnet_style_predefined_type_for_locals_parameters_members = true:suggestion
+csharp_new_line_before_open_brace = all
+
+# Private fields are _camelCase.
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel_case
+dotnet_naming_rule.private_fields_underscore.severity = suggestion
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel_case.capitalization = camel_case
+dotnet_naming_style.underscore_camel_case.required_prefix = _

@@ -1,0 +1,51 @@
+<Project>
+  <!--
+    Central package management (architecture-standards REPO-BASELINE §1): one version per
+    package for the whole solution. Projects list packages without versions.
+
+    WP00 lists only the packages WP01 needs, at the current stable NuGet versions. The
+    .NET 10 line is pinned together: ASP.NET Core, Entity Framework Core and Npgsql move
+    together, in the same pull request as a target framework change.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- A version listed here also applies when the package only arrives transitively, so a
+         security fix for a transitive dependency is a pin here, with a comment naming the advisory. -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <!-- Aspire (AppHost is dev-only composition, P1) -->
+  <ItemGroup>
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.6.4" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.6.4" />
+  </ItemGroup>
+  <!-- ASP.NET Core and identity (JWT validation against authservice JWKS, ADR-0004) -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.14" />
+  </ItemGroup>
+  <!-- Data (P4: provider-portable, schema migrated) -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.14" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+  </ItemGroup>
+  <!-- Service defaults: discovery, resilience (the one HttpClient handler, P2a) and telemetry (P15) -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.11.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.20.1" />
+  </ItemGroup>
+  <!-- Tests (P13: test at the layer that has the logic; no pinned calendar dates, CONTRACTS §0) -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+    <PackageVersion Include="xunit.v3" Version="4.0.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
+    <PackageVersion Include="bunit" Version="2.13.3" />
+    <PackageVersion Include="Microsoft.Playwright" Version="1.64.1" />
+  </ItemGroup>
+</Project>
