@@ -12,14 +12,16 @@ composed by an **Aspire AppHost**, and built to
 ## Status
 
 **Baseline only.** The repository holds the plan, the decisions, the repository hygiene and the
-CI configuration. There is no application code yet. The work packages below deliver it in order.
+CI configuration, and the solution with its shared kernel (WP01). The services and the Web do not exist yet;
+the work packages below deliver them in order.
 
 | Item | Status |
 |---|---|
 | Implementation plan (scope, architecture, contracts, work packages) | Written: [`docs/implementation-plan/`](docs/implementation-plan/README.md) |
 | Architecture decisions | Written: ADR-0001 to ADR-0009, in [`docs/decisions/`](docs/decisions/README.md) |
 | Repository baseline, CI, secret scanning | This commit (WP00) |
-| Solution, shared kernel, services, Web | Not started (WP01 onward) |
+| Solution and shared kernel (`PostmanClone.ServiceDefaults`) | Written: WP01 |
+| Services, Web | Not started (WP02 onward) |
 | Running the product locally | Not possible yet: there is nothing to run |
 
 The work packages (WP00–WP28), their dependencies and their acceptance criteria are in
@@ -37,7 +39,7 @@ scripts/                    install-hooks.sh, hooks/pre-commit (secret scan), ch
 
 The planned source layout (`src/`, `tests/`) is described in
 [`docs/implementation-plan/README.md`](docs/implementation-plan/README.md#3-repository-layout-wp00wp03-create-it).
-None of it exists yet.
+Of that layout, only the kernel and its tests exist (WP01).
 
 ## Working on it
 
