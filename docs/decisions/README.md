@@ -1,0 +1,27 @@
+# Architecture decision records
+
+Each decision that shapes the product, the boundaries or the security model is recorded here, with
+its context, the options considered, the decision, the consequences and the condition under which it
+should be revisited. A decision is changed by a new record that supersedes the old one, not by editing
+the old one in place.
+
+Numbers are reserved per work package in
+[`docs/implementation-plan/WORK-PACKAGES.md`](../implementation-plan/WORK-PACKAGES.md). WP00 writes
+0001–0009.
+
+| ADR | Decision | Status |
+|---|---|---|
+| [0001](0001-product-scope.md) | Product scope and non-goals | Accepted |
+| [0002](0002-blazor-web-app-over-nextjs.md) | Blazor Web App (interactive server) over Next.js; WebAssembly rejected | Accepted |
+| [0003](0003-service-boundaries.md) | Three domain services and a Web, one database per service | Accepted |
+| [0004](0004-authservice-identity-and-workspace.md) | authservice is the only IdP; a workspace is one organization | Accepted |
+| [0005](0005-bff-session.md) | Backend-for-frontend session: opaque HttpOnly cookie, tokens on the server | Accepted |
+| [0006](0006-secret-variables.md) | Secret variables: encrypted at rest, referenced by name, masked everywhere | Accepted |
+| [0007](0007-deployment-out-of-scope.md) | Deployment is out of scope for this build | Accepted |
+| [0008](0008-single-instance-web.md) | The Web keeps sessions in server memory and runs as one instance | Accepted |
+| [0009](0009-dependency-budget.md) | Dependency budget | Accepted |
+
+Reserved for later work packages (see WORK-PACKAGES.md): 0010 authservice pin and local run,
+0011 sender threat model, 0012 variable semantics, 0013 circuit lifetime and session store,
+0014 execution limits and redirects, 0015 history retention and masking, 0016 import threat model,
+0017 builder state model, 0018 E2E scope and charter, 0019 review outcomes. 0020–0029 are spare.
