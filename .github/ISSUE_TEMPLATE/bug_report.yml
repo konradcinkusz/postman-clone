@@ -1,0 +1,45 @@
+name: Bug report
+description: Something does not work as the plan says it should
+labels: [bug]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      options:
+        - Sign-in and workspace (authservice BFF)
+        - Collections and import / export
+        - Request builder
+        - Environments and secrets
+        - Sender (ExecutionService)
+        - History
+        - Response viewer
+        - Build, CI or docs
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Sign in as …
+        2. Open …
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: "Who is affected and how badly: data loss, blocked work, cosmetic?"
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: local stack / CI, browser and version, commit SHA

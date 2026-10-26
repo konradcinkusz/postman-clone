@@ -1,0 +1,186 @@
+name: PR validation
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Runs what the repository claims to check, and nothing here may fail quietly: no `|| true`,
+#  no `--passWithNoTests`. A job whose input does not exist yet is SKIPPED, with the reason in
+#  its log, never reported green by pretending to have run.
+#
+#  • detect-changes — which inputs exist: the solution, Dockerfiles, the kernel-size script.
+#  • dotnet         — restore, build (warnings are errors), test. Skipped until PostmanClone.sln exists.
+#  • docker-build   — one `docker build` (no push) per Dockerfile under src/. Skipped while there are none.
+#  • kernel-size    — scripts/check-kernel-size.sh (the kernel stays ≤ 800 lines, P2). Skipped until it exists.
+#  • docs-links     — every relative link in the Markdown files resolves.
+#  • pr-validation  — the aggregate check. Its name is the one required status to configure
+#                     on `main` (owner action). It fails if any job above failed.
+#
+#  Draft pull requests are not validated; marking one ready for review runs everything.
+#  A newer push cancels the run for the previous one.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '10.0.x'   # the band global.json pins (10.0.100, rollForward latestFeature)
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validation-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    name: Detect inputs
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      solution: ${{ steps.detect.outputs.solution }}
+      dockerfiles: ${{ steps.detect.outputs.dockerfiles }}
+      kernel: ${{ steps.detect.outputs.kernel }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Detect inputs
+        id: detect
+        run: |
+          set -euo pipefail
+
+          if [ -f PostmanClone.sln ]; then
+            echo "solution=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "solution=false" >> "$GITHUB_OUTPUT"
+            echo "No PostmanClone.sln yet: the .NET job is skipped."
+          fi
+
+          dockerfiles='[]'
+          if [ -d src ]; then
+            dockerfiles=$(find src -name Dockerfile -type f | sort | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+          echo "dockerfiles=${dockerfiles}" >> "$GITHUB_OUTPUT"
+          echo "Dockerfiles: ${dockerfiles}"
+
+          if [ -f scripts/check-kernel-size.sh ]; then
+            echo "kernel=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "kernel=false" >> "$GITHUB_OUTPUT"
+            echo "No scripts/check-kernel-size.sh yet: the kernel-size job is skipped."
+          fi
+
+  dotnet:
+    name: .NET build and tests
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.solution == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # Turns the PostgreSQL-backed tests on (CONTRACTS, TESTING-STRATEGY): without it they are skipped.
+      # The database is a throwaway CI service container; the value is not a credential.
+      TEST_POSTGRES: Host=localhost;Username=postgres;Password=postgres # gitleaks:allow
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore (fails on a known-vulnerable package)
+        run: dotnet restore PostmanClone.sln
+
+      - name: Build (warnings are errors)
+        run: dotnet build PostmanClone.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test PostmanClone.sln --configuration Release --no-build
+
+  docker-build:
+    name: Docker build (${{ matrix.dockerfile }})
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.dockerfiles != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile: ${{ fromJSON(needs.detect-changes.outputs.dockerfiles) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the image (no push)
+        env:
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: docker build --file "$DOCKERFILE" .
+
+  kernel-size:
+    name: Kernel size
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.kernel == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the kernel stays within 800 lines
+        run: bash scripts/check-kernel-size.sh
+
+  docs-links:
+    name: Markdown relative links
+    needs: [detect-changes]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check every relative link resolves
+        run: bash scripts/check-doc-links.sh
+
+  pr-validation:
+    name: pr-validation
+    needs: [detect-changes, dotnet, docker-build, kernel-size, docs-links]
+    if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check results
+        env:
+          DETECT: ${{ needs.detect-changes.result }}
+          DOTNET: ${{ needs.dotnet.result }}
+          DOCKER: ${{ needs.docker-build.result }}
+          KERNEL: ${{ needs.kernel-size.result }}
+          DOCS: ${{ needs.docs-links.result }}
+        run: |
+          {
+            echo "## PR validation"
+            echo
+            echo "| Job | Result |"
+            echo "|---|---|"
+            echo "| Detect inputs | ${DETECT} |"
+            echo "| .NET build and tests | ${DOTNET} |"
+            echo "| Docker build | ${DOCKER} |"
+            echo "| Kernel size | ${KERNEL} |"
+            echo "| Markdown links | ${DOCS} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for result in "$DETECT" "$DOTNET" "$DOCKER" "$KERNEL" "$DOCS"; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "A validation job ended with: ${result}"; exit 1 ;;
+            esac
+          done

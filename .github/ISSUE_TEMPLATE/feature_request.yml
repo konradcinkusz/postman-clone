@@ -1,0 +1,28 @@
+name: Feature request
+description: Propose new behaviour, or a change to existing behaviour
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check first whether the idea is out of scope. ADR-0001 lists what the product does not
+        build (mock servers, monitors, GraphQL, OAuth flows, deployment, and more). Those
+        requests are closed with a pointer to the ADR.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What the user cannot do today, and why it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+    validations:
+      required: true
+  - type: textarea
+    id: considerations
+    attributes:
+      label: Security, privacy and contract considerations
+      description: New secret handling, outbound requests, imported input, personal data, or a change to a frozen contract in CONTRACTS.md.
