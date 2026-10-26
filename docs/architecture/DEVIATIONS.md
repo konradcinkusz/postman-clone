@@ -9,5 +9,6 @@ date it was recorded.
 
 | Date | Principle or guide | Deviation | Reason |
 |---|---|---|---|
+| 2026-10-26 | P2 example call `AddDatabaseContext<TContext>(configuration, "mydb", "MyDbInMemory")` | `AddDatabaseContext<TContext>(builder, connectionName)`. The InMemory path names its in-memory database after the connection name; there is no second name argument | The builder carries the configuration, and the second name gave the InMemory path nothing the tests needed. WP01 |
 
 None yet.

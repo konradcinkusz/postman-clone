@@ -109,7 +109,7 @@ jobs:
         run: dotnet build PostmanClone.sln --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test PostmanClone.sln --configuration Release --no-build
+        run: dotnet test --solution PostmanClone.sln --configuration Release --no-build
 
   docker-build:
     name: Docker build (${{ matrix.dockerfile }})

@@ -19,25 +19,28 @@ The build plan is the source of truth for scope and contracts:
 | `docs/architecture/DEVIATIONS.md` | Every departure from architecture-standards, with its reason |
 | `scripts/install-hooks.sh`, `scripts/hooks/pre-commit` | The local secret scan |
 | `scripts/check-doc-links.sh` | Every relative Markdown link resolves (run in CI) |
+| `scripts/check-kernel-size.sh` | The shared kernel stays within 800 non-blank, non-comment lines (run in CI) |
 | `.github/workflows/` | `pr-validation.yml` (the required check), `secret-scan.yml` |
-| `Directory.Build.props`, `Directory.Packages.props`, `global.json` | Solution-wide settings, package versions, SDK pin. Present, not yet used: there is no `.csproj` |
+| `Directory.Build.props`, `Directory.Packages.props`, `global.json` | Solution-wide settings, package versions, SDK pin, and the test runner (Microsoft.Testing.Platform) |
+| `PostmanClone.sln`, `src/PostmanClone.ServiceDefaults`, `tests/PostmanClone.TestKit`, `tests/PostmanClone.ServiceDefaults.Tests` | The solution and the shared kernel (WP01) |
 
-There is no application code yet. The planned source tree (`src/PostmanClone.*`, `tests/PostmanClone.*`)
-is in the plan's README, §3.
+Only the kernel exists so far (`src/PostmanClone.ServiceDefaults`, WP01). The other projects of the planned
+tree (`src/PostmanClone.*`, `tests/PostmanClone.*`) are in the plan's README, §3.
 
 ## Build and test
 
-Nothing to build yet. The commands below exist once WP01 adds the solution:
-
 ```bash
-dotnet build PostmanClone.sln     # warnings are errors; restore fails on vulnerable packages
-dotnet test PostmanClone.sln      # PostgreSQL-backed tests run when TEST_POSTGRES is set
+dotnet build PostmanClone.sln                  # warnings are errors; restore fails on vulnerable packages
+dotnet test --solution PostmanClone.sln         # PostgreSQL-backed tests run when TEST_POSTGRES is set
 ```
+
+`--solution` is required: `global.json` selects Microsoft.Testing.Platform, and the .NET 10 SDK takes the solution as a flag there.
 
 What runs now:
 
 ```bash
 bash scripts/check-doc-links.sh   # relative Markdown links resolve
+bash scripts/check-kernel-size.sh # the kernel stays within 800 lines
 scripts/install-hooks.sh          # once per clone: the pre-commit secret scan
 ```
 

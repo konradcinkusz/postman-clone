@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shared test helpers (README §3). Not packed, not referenced by any service. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>PostmanClone.TestKit</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.extensibility.core" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+</Project>
