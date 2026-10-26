@@ -70,7 +70,8 @@ terms="$(json "d['terms']")"
 privacy="$(json "d['privacy']")"
 
 email="smoke-$(openssl rand -hex 6)@example.test"
-password="$(openssl rand -hex 16)"
+# authservice's Identity policy needs a digit, a lowercase, an uppercase and a non-alphanumeric character.
+password="Aa1!$(openssl rand -hex 16)"
 register_body="$(python3 -I -c 'import json,sys; print(json.dumps({"email":sys.argv[1],"password":sys.argv[2],"acceptedTermsVersion":sys.argv[3],"acceptedPrivacyVersion":sys.argv[4]}))' "${email}" "${password}" "${terms}" "${privacy}")"
 call POST /api/v1/auth/register 200 "${register_body}"
 register_access="$(json "d['accessToken']")"
