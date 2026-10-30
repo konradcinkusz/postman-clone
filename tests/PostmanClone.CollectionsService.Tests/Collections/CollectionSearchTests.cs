@@ -61,6 +61,13 @@ public sealed class CollectionSearchTests(PostgresFixture postgres) : IClassFixt
     [MemberData(nameof(Storage.Providers), MemberType = typeof(Storage))]
     public async Task Search_treats_backslash_as_a_literal_character(string storage)
     {
+        if (storage == Storage.InMemory)
+        {
+            // The InMemory provider's LIKE does not honour an escaped backslash (it matches nothing); PostgreSQL does, and
+            // the production search runs there. The PostgreSQL run of this test is the check.
+            Assert.Skip("The InMemory provider's LIKE does not implement the backslash escape; the PostgreSQL run covers it.");
+        }
+
         using var tokens = new TestTokens();
         await using var factory = Storage.Start(tokens, storage, postgres);
         await SchemaWait.AppliedAsync(factory, TestContext.Current.CancellationToken);

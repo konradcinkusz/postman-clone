@@ -8,8 +8,11 @@ public sealed record PageResult<T>(IReadOnlyList<T> Items, int Page, int PageSiz
 /// <summary>Name rules shared by every name in the collections API (CONTRACTS §2: 1..100 or 1..200 characters, never blank).</summary>
 public static class NameRules
 {
-    /// <summary>A name must contain at least one non-space character; a whitespace-only name is refused.</summary>
-    public const string NonBlank = @"\S";
+    /// <summary>
+    /// A name must contain at least one non-space character; a whitespace-only name is refused. DataAnnotations
+    /// requires the pattern to match the whole value, hence the leading and trailing parts.
+    /// </summary>
+    public const string NonBlank = @"\s*\S[\s\S]*";
 
     public const string NonBlankMessage = "The name cannot be blank.";
 }

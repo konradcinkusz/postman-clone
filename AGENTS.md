@@ -27,7 +27,7 @@ The build plan is the source of truth for scope and contracts:
 | `Directory.Build.props`, `Directory.Packages.props`, `global.json` | Solution-wide settings, package versions, SDK pin, and the test runner (Microsoft.Testing.Platform) |
 | `PostmanClone.sln`, `src/PostmanClone.ServiceDefaults`, `tests/PostmanClone.TestKit`, `tests/PostmanClone.ServiceDefaults.Tests` | The solution and the shared kernel (WP01) |
 | `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, authservice (WP03), CollectionsService (WP04) and EnvironmentsService (WP05) |
-| `src/PostmanClone.CollectionsService`, `tests/PostmanClone.CollectionsService.Tests` | CollectionsService (WP04): the manifest `Program.cs`, the entities, the EF model and its first migration, the Dockerfile (P6), and the host tests. No domain routes yet; those arrive with WP08 |
+| `src/PostmanClone.CollectionsService`, `tests/PostmanClone.CollectionsService.Tests` | CollectionsService (WP04, WP08): the manifest `Program.cs`, the entities, the EF model and its first migration, the Dockerfile (P6), the collections and folders routes of CONTRACTS §2 (`/api/v1/collections`, `/api/v1/folders`; requests, import and export come later), the OpenAPI route list (Development only), and the host tests |
 | `src/PostmanClone.EnvironmentsService`, `tests/PostmanClone.EnvironmentsService.Tests` | EnvironmentsService (WP05): environments and variables on `environmentsdb`, AES-256-GCM secret protection (ADR-0006), `/health` reports `secrets`. Its Dockerfile is reviewed, not built here (no Docker daemon in sessions) |
 
 Not yet present: the service projects (`src/PostmanClone.ExecutionService`,
