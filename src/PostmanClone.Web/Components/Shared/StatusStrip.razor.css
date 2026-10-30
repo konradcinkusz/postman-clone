@@ -1,0 +1,17 @@
+.status-strip {
+    max-width: var(--content-width);
+    margin: 0 auto;
+    padding: var(--space-3) var(--gutter) 0;
+}
+
+.status-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.status-note {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
