@@ -48,5 +48,11 @@ public sealed class SsrfOptions
     /// <summary>Allows the RFC 1918, link-local and unique-local ranges.</summary>
     public bool AllowPrivateRanges { get; set; }
 
+    /// <summary>
+    /// Destination ports the sender never connects to, whatever the address: mail, database, cache and search
+    /// services that a user's request should not reach through this service.
+    /// </summary>
+    public int[] BlockedPorts { get; set; } = [22, 25, 110, 143, 465, 587, 993, 995, 3306, 5432, 6379, 9200, 27017];
+
     public bool Relaxed => AllowLoopback || AllowPrivateRanges;
 }
