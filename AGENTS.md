@@ -27,9 +27,10 @@ The build plan is the source of truth for scope and contracts:
 | `Directory.Build.props`, `Directory.Packages.props`, `global.json` | Solution-wide settings, package versions, SDK pin, and the test runner (Microsoft.Testing.Platform) |
 | `PostmanClone.sln`, `src/PostmanClone.ServiceDefaults`, `tests/PostmanClone.TestKit`, `tests/PostmanClone.ServiceDefaults.Tests` | The solution and the shared kernel (WP01) |
 | `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, and authservice (WP03) |
+| `src/PostmanClone.Web`, `tests/PostmanClone.Web.Tests` | The Blazor Web App shell (WP07): interactive server root, token stylesheet, navigation, status strip, origin guard and CSP on the host, `Dockerfile` (built by CI, never pushed). `docs/architecture/UI-STYLE.md` is its design contract |
 
 Not yet present: the service projects (`src/PostmanClone.CollectionsService`, `EnvironmentsService`,
-`ExecutionService`, `Web`) and their tests. They are in the plan's README, §3.
+`ExecutionService`) and their tests. They are in the plan's README, §3.
 
 ## Build and test
 
@@ -50,6 +51,7 @@ scripts/gen-dev-secrets.sh        # once per clone: .local-stack/secrets.env (ne
 scripts/run-local-stack.sh up     # authservice v0.3.4 on :5300 against local PostgreSQL (no Docker)
 scripts/smoke-auth.sh             # against the running authservice: the sign-in contract
 scripts/run-local-stack.sh down
+dotnet run --project src/PostmanClone.Web   # the Web on http://localhost:5310; backends not running show as unreachable
 ```
 
 The SDK is pinned by `global.json` (.NET 10.0.100, `rollForward: latestFeature`). Package versions
