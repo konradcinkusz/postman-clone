@@ -33,8 +33,17 @@
     private IReadOnlyList<BackendStatus>? _statuses;
     private bool _failed;
 
-    protected override async Task OnInitializedAsync()
+    /// <summary>
+    /// Starts after the first render on the circuit, not during prerender: a prerendered page must not wait for the
+    /// backends' timeouts before it can be sent (BLAZOR-WEB-APP §3, the double first load).
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender)
+        {
+            return;
+        }
+
         await RefreshAsync(_cancellation.Token);
         _ = PollAsync(_cancellation.Token);
     }

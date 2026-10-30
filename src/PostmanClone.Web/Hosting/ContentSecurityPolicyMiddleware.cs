@@ -15,7 +15,13 @@ public sealed class ContentSecurityPolicyMiddleware(RequestDelegate next)
 
     public Task InvokeAsync(HttpContext context)
     {
-        context.Response.Headers["Content-Security-Policy"] = Policy;
+        // Blazor adds its own frame-ancestors header while the endpoint runs. Setting ours just before the headers
+        // are sent replaces it, so the response carries one policy, not two.
+        context.Response.OnStarting(() =>
+        {
+            context.Response.Headers["Content-Security-Policy"] = Policy;
+            return Task.CompletedTask;
+        });
         return next(context);
     }
 }

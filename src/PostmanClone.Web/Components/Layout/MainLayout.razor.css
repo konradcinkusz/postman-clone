@@ -42,7 +42,8 @@
     padding: var(--space-5) var(--gutter);
 }
 
-.nav a {
+/* NavLink renders its own <a>, a child component: ::deep reaches it. */
+.nav ::deep a {
     display: block;
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-sm);
@@ -50,12 +51,12 @@
     text-decoration: none;
 }
 
-.nav a:hover {
+.nav ::deep a:hover {
     background: var(--surface-sunken);
     color: var(--text);
 }
 
-.nav a.active {
+.nav ::deep a.active {
     background: var(--accent-soft);
     color: var(--accent-hover);
     font-weight: 600;
