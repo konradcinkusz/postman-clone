@@ -123,7 +123,7 @@ public static class EnvironmentEndpoints
             return SecretsUnavailable();
         }
 
-        var violations = new VariableWriter(protector).Replace(environment, request.Variables);
+        var violations = new VariableWriter(protector).Replace(db, environment, request.Variables);
         if (violations.Count > 0)
         {
             return Results.ValidationProblem(violations);

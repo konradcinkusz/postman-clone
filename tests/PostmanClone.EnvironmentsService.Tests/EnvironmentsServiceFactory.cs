@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Logging;
 using PostmanClone.EnvironmentsService.Data;
@@ -21,6 +23,8 @@ public sealed class EnvironmentsServiceFactory(
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        var usesPostgreSql = settings.TryGetValue(DatabaseExtensions.ProviderSetting, out var provider)
+            && string.Equals(provider, DatabaseExtensions.PostgreSqlProvider, StringComparison.OrdinalIgnoreCase);
         builder.UseSetting(DatabaseExtensions.ProviderSetting, DatabaseExtensions.InMemoryProvider);
         builder.UseSetting("Auth:MetadataAddress", "https://authservice.test/.well-known/openid-configuration");
         builder.UseSetting("Auth:Issuer", TestTokens.Issuer);
@@ -37,6 +41,15 @@ public sealed class EnvironmentsServiceFactory(
             {
                 // The service type is named explicitly: AddSingleton(clock) would register the runtime type (a fake).
                 services.AddSingleton<TimeProvider>(clock);
+            }
+
+            // Each InMemory host gets a store of its own. The store is keyed by name and is not safe for concurrent
+            // writes, and the test classes run in parallel, so a shared name would let tests write into one another.
+            if (!usesPostgreSql)
+            {
+                services.RemoveAll<DbContextOptions<EnvironmentsDbContext>>();
+                var store = Guid.NewGuid().ToString();
+                services.AddDbContext<EnvironmentsDbContext>(options => options.UseInMemoryDatabase(store));
             }
         });
         if (logs is not null)

@@ -1,4 +1,5 @@
 using PostmanClone.EnvironmentsService.Api;
+using PostmanClone.EnvironmentsService.Data;
 using PostmanClone.EnvironmentsService.Secrets;
 using Environment = PostmanClone.EnvironmentsService.Domain.Environment;
 using Variable = PostmanClone.EnvironmentsService.Domain.Variable;
@@ -12,8 +13,13 @@ namespace PostmanClone.EnvironmentsService.Environments;
 /// </summary>
 public sealed class VariableWriter(ISecretProtector protector)
 {
-    /// <summary>Returns the rule violations, keyed by member; an empty dictionary means the set was replaced.</summary>
-    public Dictionary<string, string[]> Replace(Environment environment, IReadOnlyList<VariableWrite> writes)
+    /// <summary>
+    /// Returns the rule violations, keyed by member; an empty dictionary means the set was replaced. The caller saves
+    /// <paramref name="db"/>. A new variable is added through the set, not through the environment's navigation: on
+    /// the InMemory provider a navigation add to a tracked environment fails at save with a concurrency exception,
+    /// while the set add works, and EF fills the navigation in on save.
+    /// </summary>
+    public Dictionary<string, string[]> Replace(EnvironmentsDbContext db, Environment environment, IReadOnlyList<VariableWrite> writes)
     {
         var messages = new List<string>();
         var planned = new List<PlannedVariable>(writes.Count);
@@ -51,7 +57,7 @@ public sealed class VariableWriter(ISecretProtector protector)
 
             if (item.Stored is null)
             {
-                environment.Variables.Add(variable);
+                db.Variables.Add(variable);
             }
         }
 

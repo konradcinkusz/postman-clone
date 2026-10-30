@@ -34,7 +34,7 @@ public sealed class CreateEnvironmentRequest
 {
     [Required]
     [StringLength(EnvironmentLimits.NameMaxLength, MinimumLength = 1)]
-    [RegularExpression(@"\S", ErrorMessage = "The name must contain a non-space character.")]
+    [RegularExpression(@"[\s\S]*\S[\s\S]*", ErrorMessage = "The name must contain a non-space character.")]
     public string Name { get; set; } = string.Empty;
 }
 
@@ -43,7 +43,7 @@ public sealed class UpdateEnvironmentRequest : IValidatableObject
 {
     [Required]
     [StringLength(EnvironmentLimits.NameMaxLength, MinimumLength = 1)]
-    [RegularExpression(@"\S", ErrorMessage = "The name must contain a non-space character.")]
+    [RegularExpression(@"[\s\S]*\S[\s\S]*", ErrorMessage = "The name must contain a non-space character.")]
     public string Name { get; set; } = string.Empty;
 
     [Required]
