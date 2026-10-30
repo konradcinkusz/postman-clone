@@ -5,7 +5,8 @@ namespace PostmanClone.Web.Tests.Host;
 
 /// <summary>
 /// Without the render mode on both roots every page is static SSR: buttons do nothing and no error is raised
-/// (BLAZOR-WEB-APP §3). The first two tests read the root component from disk; the last reads the live response.
+/// (BLAZOR-WEB-APP §3). The first two tests read the root component from disk; the last reads the live response of the
+/// sign-in page, which an anonymous visitor can load (every other page is authorized).
 /// </summary>
 public sealed class InteractiveRenderModeTests(WebHostFactory factory) : IClassFixture<WebHostFactory>
 {
@@ -24,11 +25,11 @@ public sealed class InteractiveRenderModeTests(WebHostFactory factory) : IClassF
     }
 
     [Fact]
-    public async Task The_home_page_is_rendered_as_interactive_components_not_static_html()
+    public async Task The_sign_in_page_is_rendered_as_interactive_components_not_static_html()
     {
         using var client = factory.CreateClient();
 
-        var html = await client.GetStringAsync("/", TestContext.Current.CancellationToken);
+        var html = await client.GetStringAsync("/sign-in", TestContext.Current.CancellationToken);
 
         // Interactive components are emitted with Blazor's component markers; static SSR emits none.
         Assert.Contains("<!--Blazor:", html);

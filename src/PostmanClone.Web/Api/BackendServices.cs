@@ -5,9 +5,12 @@ namespace PostmanClone.Web.Api;
 /// <summary>The backend services the Web reads, by their logical service-discovery names (CONTRACTS §5).</summary>
 public static class BackendServices
 {
+    /// <summary>The logical name of authservice. The metadata address and the auth client both use it (docs/AUTH.md).</summary>
+    public const string AuthServiceName = "authservice";
+
     public static readonly IReadOnlyList<BackendService> All =
     [
-        new("authservice", "http://authservice"),
+        new(AuthServiceName, "http://authservice"),
         new("collections", "http://collections-service"),
         new("environments", "http://environments-service"),
         new("execution", "http://execution-service"),
@@ -15,16 +18,19 @@ public static class BackendServices
 
     /// <summary>
     /// One named HttpClient per backend. The kernel's resilience handler and service discovery apply to each of them
-    /// (P2a): this method adds no handler of its own.
+    /// (P2a). The bearer handler adds no token of its own: it forwards the one a request carries.
     /// </summary>
     public static IServiceCollection AddBackendClients(this IServiceCollection services)
     {
+        services.AddTransient<BearerTokenHandler>();
         foreach (var backend in All)
         {
-            services.AddHttpClient(backend.Name, client => client.BaseAddress = new Uri(backend.Address));
+            services.AddHttpClient(backend.Name, client => client.BaseAddress = new Uri(backend.Address))
+                .AddHttpMessageHandler<BearerTokenHandler>();
         }
 
         services.AddScoped<IBackendStatusReader, BackendStatusReader>();
+        services.AddSingleton<AuthServiceClient>();
         return services;
     }
 }

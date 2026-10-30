@@ -1,0 +1,15 @@
+@inject NavigationManager Navigation
+
+<p data-testid="redirecting-to-sign-in">Redirecting to sign in…</p>
+
+@code {
+    /// <summary>
+    /// Runs during prerender too: a protected page requested without a session gets a redirect response, not a
+    /// page that waits for the circuit to connect.
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri);
+        Navigation.NavigateTo(ReturnUrlPolicy.SignInPath("/" + path));
+    }
+}

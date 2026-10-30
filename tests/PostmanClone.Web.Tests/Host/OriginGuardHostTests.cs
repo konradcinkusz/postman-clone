@@ -50,7 +50,7 @@ public sealed class OriginGuardHostTests(WebHostFactory factory) : IClassFixture
     public async Task A_link_followed_from_another_site_loads_the_page()
     {
         using var client = factory.CreateClient();
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/sign-in");
         request.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "cross-site");
         request.Headers.TryAddWithoutValidation("Sec-Fetch-Mode", "navigate");
         request.Headers.TryAddWithoutValidation("Sec-Fetch-Dest", "document");
