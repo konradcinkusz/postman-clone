@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    ExecutionService (README §2, ADR-0003): the sender and the request history. It holds the only outbound
+    network capability in the product, so it is a separate process with its own database (executiondb).
+  -->
+  <PropertyGroup>
+    <Description>ExecutionService: sends API requests server-side with SSRF protection, and keeps the request history.</Description>
+    <RootNamespace>PostmanClone.ExecutionService</RootNamespace>
+    <AssemblyName>PostmanClone.ExecutionService</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PostmanClone.ServiceDefaults\PostmanClone.ServiceDefaults.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+  </ItemGroup>
+</Project>

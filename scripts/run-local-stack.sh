@@ -3,8 +3,9 @@
 # run-local-stack.sh — runs authservice on this machine, without Docker, against a local PostgreSQL.
 #
 #   scripts/run-local-stack.sh up       build and start authservice on AUTH_PORT (default 5300), then
-#                                       CollectionsService on COLLECTIONS_PORT (default 5301)
-#   scripts/run-local-stack.sh down     stop both (the databases and .local-stack/ are kept)
+#                                       CollectionsService on COLLECTIONS_PORT (default 5301) and
+#                                       ExecutionService on EXEC_PORT (default 5303)
+#   scripts/run-local-stack.sh down     stop them all (the databases and .local-stack/ are kept)
 #   scripts/run-local-stack.sh status   show whether they run and whether their health answers
 #
 # The AppHost (src/PostmanClone.AppHost) runs the same authservice image through Docker. This script
@@ -26,6 +27,7 @@ AUTHSERVICE_REPO="https://github.com/konradcinkusz/authservice"
 
 AUTH_PORT="${AUTH_PORT:-5300}"
 COLLECTIONS_PORT="${COLLECTIONS_PORT:-5301}"
+EXEC_PORT="${EXEC_PORT:-5303}"
 WEB_PORT="${WEB_PORT:-5310}"
 # gitleaks:allow — the default is a local development server, not a credential.
 PG_CONNECTION="${PG_CONNECTION:-Host=localhost;Username=postgres;Password=postgres}"
@@ -42,6 +44,10 @@ COLLECTIONS_SRC_DIR="${REPO_ROOT}/src/PostmanClone.CollectionsService"
 COLLECTIONS_BIN_DIR="${STACK_DIR}/collections-bin"
 COLLECTIONS_PID_FILE="${STACK_DIR}/collections.pid"
 COLLECTIONS_LOG_FILE="${STACK_DIR}/collections.log"
+EXEC_SRC_PROJECT="${REPO_ROOT}/src/PostmanClone.ExecutionService/PostmanClone.ExecutionService.csproj"
+EXEC_BIN_DIR="${STACK_DIR}/execution-bin"
+EXEC_PID_FILE="${STACK_DIR}/execution.pid"
+EXEC_LOG_FILE="${STACK_DIR}/execution.log"
 SECRETS_FILE="${STACK_DIR}/secrets.env"
 
 # Reads one key from PG_CONNECTION; empty when absent.
@@ -125,6 +131,7 @@ up() {
 
   up_authservice
   up_collections
+  up_execution
 }
 
 up_authservice() {
@@ -226,6 +233,68 @@ up_collections() {
   exit 1
 }
 
+execution_is_running() {
+  [ -f "${EXEC_PID_FILE}" ] && kill -0 "$(cat "${EXEC_PID_FILE}")" 2>/dev/null
+}
+
+execution_health_status() {
+  curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:${EXEC_PORT}/health" || true
+}
+
+up_execution() {
+  if execution_is_running; then
+    echo "ExecutionService already running (pid $(cat "${EXEC_PID_FILE}")) on port ${EXEC_PORT}."
+    return 0
+  fi
+
+  local log="${STACK_DIR}/execution-build.log"
+  if ! dotnet build "${EXEC_SRC_PROJECT}" -c Release -o "${EXEC_BIN_DIR}" > "${log}" 2>&1; then
+    echo "ExecutionService build failed. Last 80 lines of ${log}:" >&2
+    tail -n 80 "${log}" >&2
+    exit 1
+  fi
+
+  (
+    export ASPNETCORE_URLS="http://localhost:${EXEC_PORT}"
+    export ASPNETCORE_ENVIRONMENT=Production
+    export DATABASE_PROVIDER=PostgreSQL
+    export ConnectionStrings__executiondb="Host=${PG_HOST};Port=${PG_PORT};Username=${PG_USER};Password=${PG_PASSWORD};Database=executiondb"
+    export Auth__MetadataAddress="http://localhost:${AUTH_PORT}/.well-known/openid-configuration"
+    export Auth__Issuer=PostmanClone
+    export Auth__Audience=PostmanClone
+    # authservice listens on plain HTTP here, so its discovery document is fetched over HTTP (development stack only).
+    export Auth__RequireHttpsMetadata=false
+    nohup dotnet "${EXEC_BIN_DIR}/PostmanClone.ExecutionService.dll" > "${EXEC_LOG_FILE}" 2>&1 &
+    echo $! > "${EXEC_PID_FILE}"
+  )
+
+  # MigrateAsync runs after Kestrel starts, so /health answers 503 until the schema is in place.
+  local attempt
+  for attempt in $(seq 1 90); do
+    if [ "$(execution_health_status)" = "200" ]; then
+      echo "ExecutionService is ready on http://localhost:${EXEC_PORT} (pid $(cat "${EXEC_PID_FILE}"))."
+      return 0
+    fi
+    if ! execution_is_running; then
+      echo "ExecutionService exited during start; see ${EXEC_LOG_FILE}" >&2
+      exit 1
+    fi
+    sleep 2
+  done
+  echo "ExecutionService did not become ready within 180 s; see ${EXEC_LOG_FILE}" >&2
+  exit 1
+}
+
+stop_execution() {
+  if execution_is_running; then
+    kill "$(cat "${EXEC_PID_FILE}")"
+    echo "Stopped ExecutionService."
+  else
+    echo "ExecutionService is not running."
+  fi
+  rm -f "${EXEC_PID_FILE}"
+}
+
 down() {
   if is_running; then
     kill "$(cat "${PID_FILE}")"
@@ -242,6 +311,8 @@ down() {
     echo "CollectionsService is not running."
   fi
   rm -f "${COLLECTIONS_PID_FILE}"
+
+  stop_execution
 }
 
 status() {
@@ -255,6 +326,12 @@ status() {
     echo "CollectionsService running (pid $(cat "${COLLECTIONS_PID_FILE}")); /health -> $(collections_health_status)"
   else
     echo "CollectionsService not running."
+  fi
+
+  if execution_is_running; then
+    echo "ExecutionService running (pid $(cat "${EXEC_PID_FILE}")); /health -> $(execution_health_status)"
+  else
+    echo "ExecutionService not running."
   fi
 }
 

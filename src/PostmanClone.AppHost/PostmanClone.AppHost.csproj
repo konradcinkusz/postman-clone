@@ -11,6 +11,9 @@
     <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\PostmanClone.ExecutionService\PostmanClone.ExecutionService.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
   </ItemGroup>
