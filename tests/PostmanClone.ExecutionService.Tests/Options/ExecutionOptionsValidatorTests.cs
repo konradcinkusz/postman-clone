@@ -118,6 +118,30 @@ public sealed class ExecutionOptionsValidatorTests
         Assert.Equal(["Execution:MaxRedirects must be between 0 and 5."], result.Failures);
     }
 
+    [Fact]
+    public void The_default_blocked_ports_are_the_mail_database_cache_and_search_ports()
+    {
+        var options = new ExecutionOptions();
+
+        Assert.Equal(
+            [22, 25, 110, 143, 465, 587, 993, 995, 3306, 5432, 6379, 9200, 27017],
+            options.Ssrf.BlockedPorts);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(65536)]
+    [InlineData(-1)]
+    public void A_blocked_port_outside_1_to_65535_is_refused_and_named(int port)
+    {
+        var options = new ExecutionOptions();
+        options.Ssrf.BlockedPorts = [22, port];
+
+        var result = Validate("Development", options);
+
+        Assert.Equal(["Execution:Ssrf:BlockedPorts must contain only ports between 1 and 65535."], result.Failures);
+    }
+
     private static ValidateOptionsResult Validate(string environment, ExecutionOptions options) =>
         new ExecutionOptionsValidator(new FakeHostEnvironment(environment)).Validate(null, options);
 
