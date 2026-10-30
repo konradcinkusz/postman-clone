@@ -16,7 +16,8 @@ namespace PostmanClone.EnvironmentsService.Tests;
 public sealed class EnvironmentsServiceFactory(
     TestTokens tokens,
     IReadOnlyDictionary<string, string?> settings,
-    ILoggerProvider? logs = null) : WebApplicationFactory<Program>
+    ILoggerProvider? logs = null,
+    TimeProvider? clock = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -29,10 +30,23 @@ public sealed class EnvironmentsServiceFactory(
             builder.UseSetting(key, value);
         }
 
-        builder.ConfigureTestServices(services => tokens.TrustIn(services));
+        builder.ConfigureTestServices(services =>
+        {
+            tokens.TrustIn(services);
+            if (clock is not null)
+            {
+                // The service type is named explicitly: AddSingleton(clock) would register the runtime type (a fake).
+                services.AddSingleton<TimeProvider>(clock);
+            }
+        });
         if (logs is not null)
         {
-            builder.ConfigureLogging(logging => logging.AddProvider(logs));
+            // Trace, so the log-capture test sees every line the service could write, not only the default levels.
+            builder.ConfigureLogging(logging =>
+            {
+                logging.SetMinimumLevel(LogLevel.Trace);
+                logging.AddProvider(logs);
+            });
         }
     }
 
