@@ -20,18 +20,18 @@ The build plan is the source of truth for scope and contracts:
 | `scripts/install-hooks.sh`, `scripts/hooks/pre-commit` | The local secret scan |
 | `scripts/check-doc-links.sh` | Every relative Markdown link resolves (run in CI) |
 | `scripts/check-kernel-size.sh` | The shared kernel stays within 800 non-blank, non-comment lines (run in CI) |
-| `scripts/run-local-stack.sh`, `scripts/gen-dev-secrets.sh` | authservice at its pinned tag and CollectionsService (port 5301) without Docker, against a local PostgreSQL; the gitignored `.local-stack/` secrets (WP03, WP04) |
+| `scripts/run-local-stack.sh`, `scripts/gen-dev-secrets.sh` | authservice at its pinned tag, CollectionsService (port 5301) and ExecutionService (port 5303) without Docker, against a local PostgreSQL; the gitignored `.local-stack/` secrets (WP03, WP04, WP06) |
 | `scripts/smoke-auth.sh` | The authservice contract the services rely on: register, login, organization, refresh, claims (run in CI as `auth-smoke`) |
 | `docs/AUTH.md` | How sign-in works through authservice v0.3.4: the flow, the claims, the endpoints read from source, the differences from CONTRACTS §6 |
 | `.github/workflows/` | `pr-validation.yml` (the required check), `secret-scan.yml` |
 | `Directory.Build.props`, `Directory.Packages.props`, `global.json` | Solution-wide settings, package versions, SDK pin, and the test runner (Microsoft.Testing.Platform) |
 | `PostmanClone.sln`, `src/PostmanClone.ServiceDefaults`, `tests/PostmanClone.TestKit`, `tests/PostmanClone.ServiceDefaults.Tests` | The solution and the shared kernel (WP01) |
-| `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, authservice (WP03), CollectionsService (WP04) and EnvironmentsService (WP05) |
+| `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, authservice (WP03), CollectionsService (WP04), EnvironmentsService (WP05) and ExecutionService (WP06) |
 | `src/PostmanClone.CollectionsService`, `tests/PostmanClone.CollectionsService.Tests` | CollectionsService (WP04, WP08): the manifest `Program.cs`, the entities, the EF model and its first migration, the Dockerfile (P6), the collections and folders routes of CONTRACTS §2 (`/api/v1/collections`, `/api/v1/folders`; requests, import and export come later), the OpenAPI route list (Development only), and the host tests |
+| `src/PostmanClone.ExecutionService`, `tests/PostmanClone.ExecutionService.Tests` | The sender and history service (WP06): sender limits and the SSRF flag with startup validation, the EnvironmentsService client skeleton, the `history_entries` migration, the Dockerfile. No request endpoints yet |
 | `src/PostmanClone.EnvironmentsService`, `tests/PostmanClone.EnvironmentsService.Tests` | EnvironmentsService (WP05): environments and variables on `environmentsdb`, AES-256-GCM secret protection (ADR-0006), `/health` reports `secrets`. Its Dockerfile is reviewed, not built here (no Docker daemon in sessions) |
 
-Not yet present: the service projects (`src/PostmanClone.ExecutionService`,
-`Web`) and their tests. They are in the plan's README, §3.
+Not yet present: the service project `Web` and its tests. They are in the plan's README, §3.
 
 ## Build and test
 

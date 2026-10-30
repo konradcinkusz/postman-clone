@@ -2,7 +2,7 @@ using PostmanClone.AppHost.Resources;
 
 // The composition root (architecture-standards P1). Wiring lives in the Resources extension methods;
 // this file is the manifest. Later work packages add one resource line each:
-//   WP06 ExecutionService, WP07 Web.
+//   WP07 Web.
 var builder = DistributedApplication.CreateBuilder(args);
 
 // One PostgreSQL server, one logical database per owning service (P3). Names are the services' own.
@@ -15,8 +15,8 @@ var executionDatabase = postgres.AddDatabase("executiondb");
 var authService = builder.AddAuthService(authDatabase);
 
 builder.AddCollectionsService(collectionsDatabase, authService);
-builder.AddEnvironmentsService(environmentsDatabase, authService);
-// WP06: builder.AddExecutionService(executionDatabase);
+var environmentsService = builder.AddEnvironmentsService(environmentsDatabase, authService);
+builder.AddExecutionService(executionDatabase, authService, environmentsService);
 // WP07: builder.AddWeb(...);
 
 builder.Build().Run();

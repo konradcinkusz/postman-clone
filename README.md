@@ -21,8 +21,11 @@ the work packages below deliver them in order.
 | Architecture decisions | Written: ADR-0001 to ADR-0009, in [`docs/decisions/`](docs/decisions/README.md) |
 | Repository baseline, CI, secret scanning | This commit (WP00) |
 | Solution and shared kernel (`PostmanClone.ServiceDefaults`) | Written: WP01 |
-| Services, Web | Not started (WP02 onward) |
-| Running the product locally | Not possible yet: there is nothing to run |
+| Kernel security (JWT validation, rate limits, origin guard) and the authservice wiring | Written: WP02, WP03 |
+| ExecutionService skeleton (`PostmanClone.ExecutionService`) | Written: WP06. It starts, validates tokens and reports `ssrfProtection`; it has no request endpoints yet |
+| EnvironmentsService (`PostmanClone.EnvironmentsService`) | Written: WP05 (environments, secret variables, `/health` reports `secrets`) |
+| CollectionsService, Web | Not started (WP04, WP07) |
+| Running authservice and ExecutionService locally | `scripts/run-local-stack.sh up` (no Docker needed) |
 
 The work packages (WP00–WP28), their dependencies and their acceptance criteria are in
 [`docs/implementation-plan/WORK-PACKAGES.md`](docs/implementation-plan/WORK-PACKAGES.md).
@@ -34,13 +37,13 @@ docs/implementation-plan/   the build plan: README, CONTRACTS (frozen HTTP contr
 docs/decisions/             architecture decision records
 docs/architecture/          DEVIATIONS.md: where the build departs from architecture-standards
 scripts/                    install-hooks.sh, hooks/pre-commit (secret scan), check-doc-links.sh,
-                            gen-dev-secrets.sh, run-local-stack.sh (authservice without Docker), smoke-auth.sh
+                            gen-dev-secrets.sh, run-local-stack.sh (authservice and ExecutionService without Docker), smoke-auth.sh
 .github/                    CI (pr-validation, secret-scan), CODEOWNERS, Dependabot, templates
 ```
 
 The planned source layout (`src/`, `tests/`) is described in
 [`docs/implementation-plan/README.md`](docs/implementation-plan/README.md#3-repository-layout-wp00wp03-create-it).
-Of that layout, only the kernel and its tests exist (WP01).
+Of that layout, the kernel, the AppHost, the EnvironmentsService, the ExecutionService and their tests exist.
 
 ## Working on it
 
