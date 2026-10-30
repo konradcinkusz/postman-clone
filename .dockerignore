@@ -1,41 +1,15 @@
-# Exclusion-based build context (REPO-BASELINE §1): a service image copies what it needs
-# from the repository root, and nothing it does not need. Every Dockerfile is built with
-# the repository root as its context, so anything not listed here reaches every image.
-
-# Source control and CI metadata
-.git
-.github
-.gitignore
-.gitattributes
-
-# Documentation and the plan are not build inputs
-docs
-*.md
-
-# Tests and their fixtures are never part of a runtime image
-tests
-
-# Local secrets and the local stack
+# Keep the build context small and free of local state and secrets (P6, ADR-0006).
+**/bin/
+**/obj/
+**/.vs/
+**/TestResults/
+.git/
+.github/
+.local-stack/
 .env
 .env.*
-.local-stack
-
-# Build output (rebuilt inside the image)
-**/bin
-**/obj
-**/TestResults
-**/artifacts
-
-# Frontend dependencies and output, if a frontend is ever added here
-**/node_modules
-**/.next
-**/out
-**/coverage
-
-# IDE and OS files
-.vs
-.vscode
-.idea
-**/.DS_Store
+secrets.env
+docs/
+scripts/
+tests/
 **/*.user
-**/*.suo
