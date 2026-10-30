@@ -267,6 +267,9 @@ public sealed class RequestExecutor(
         }
         finally
         {
+            // Cancelling first asks the transport to abort the connection rather than drain an unread body. The memory bound
+            // does not depend on it: the reader keeps no more than the cap, whatever the transport does with the rest.
+            deadline.Cancel();
             response?.Dispose();
         }
     }

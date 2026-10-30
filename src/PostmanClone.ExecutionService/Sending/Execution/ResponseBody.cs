@@ -55,12 +55,14 @@ public static class ResponseBody
     }
 
     /// <summary>
-    /// Text is masked and sent as UTF-8; anything else, or text that is not valid UTF-8, is sent as base64. Masking
-    /// applies to text only: a secret inside binary bytes is not visible as text and is not searched for.
+    /// Bytes are text when the type is a text type, or when no type is declared, and they are valid UTF-8 (strict decoding).
+    /// Text is masked and sent as UTF-8; anything else is sent as base64. Masking applies to text only: a secret inside
+    /// binary bytes is not visible as text and is not searched for.
     /// </summary>
     public static ResponseBodyDto Describe(CapturedBody captured, string? contentType, SecretMasker masker)
     {
-        if (IsText(contentType) && TryDecodeUtf8(captured.Bytes, out var text))
+        // With no declared type the bytes decide: a plain-text answer from a server that omits the header is still text.
+        if ((contentType is null || IsText(contentType)) && TryDecodeUtf8(captured.Bytes, out var text))
         {
             return new ResponseBodyDto("utf8", masker.MaskText(text), captured.SizeBytes, captured.Truncated, contentType);
         }
@@ -85,13 +87,8 @@ public static class ResponseBody
         };
     }
 
-    private static bool IsText(string? contentType)
+    private static bool IsText(string contentType)
     {
-        if (contentType is null)
-        {
-            return false;
-        }
-
         var media = contentType.Split(';')[0].Trim().ToLowerInvariant();
         return media.StartsWith("text/", StringComparison.Ordinal)
             || media is "application/json" or "application/xml" or "application/javascript" or "application/x-www-form-urlencoded" or "application/graphql"
