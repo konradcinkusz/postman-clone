@@ -85,6 +85,7 @@ public static class AuthEndpoints
 
     private static async Task<IResult> SignOutAsync(HttpContext http, IFormCollection form, IWebHostEnvironment environment, SessionLifecycle lifecycle, CancellationToken cancellationToken)
     {
+        // The form is a parameter so the antiforgery check applies: a sign-out must not be forced by another site.
         var name = CookieName(http, environment);
         if (http.Request.Cookies.TryGetValue(name, out var id) && !string.IsNullOrEmpty(id))
         {

@@ -61,11 +61,9 @@ public sealed class TokenRefresher(ISessionStore sessions, AuthServiceClient aut
     {
         // Not cancelled midway: once authservice has spent the refresh token, the new pair must reach the session.
         var answer = await authservice.RefreshAsync(session.Tokens.RefreshToken, CancellationToken.None);
-        var verified = answer.Value is { } tokens && answer.Outcome == AuthOutcome.Succeeded
-            ? await verifier.VerifyAsync(tokens.AccessToken, CancellationToken.None)
-            : null;
-
-        if (answer.Value is not { } refreshed || verified is null)
+        if (answer.Outcome != AuthOutcome.Succeeded
+            || answer.Value is not { } refreshed
+            || await verifier.VerifyAsync(refreshed.AccessToken, CancellationToken.None) is not { } verified)
         {
             sessions.Remove(sessionId);
             return null;

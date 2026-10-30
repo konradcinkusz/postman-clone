@@ -32,6 +32,7 @@ The build plan is the source of truth for scope and contracts:
 | `src/PostmanClone.ExecutionService`, `tests/PostmanClone.ExecutionService.Tests` | The sender and history service (WP06): sender limits and the SSRF flag with startup validation, the EnvironmentsService client skeleton, the `history_entries` migration, the Dockerfile. No request endpoints yet |
 
 | `src/PostmanClone.Web`, `tests/PostmanClone.Web.Tests` | The Blazor Web App shell (WP07): interactive server root, token stylesheet, navigation, status strip, origin guard and CSP on the host, `Dockerfile` (built by CI, never pushed). `docs/architecture/UI-STYLE.md` is its design contract |
+| `src/PostmanClone.Web/Auth`, `Api/AuthServiceClient.cs`, `Hosting/WebAuthExtensions.cs` | The sign-in flow (WP12): the opaque session cookie and the server-side session store, token verification against authservice's JWKS, single-flight refresh, the five-minute circuit revalidation, the `ReturnUrl` policy, the form endpoints (`/sign-in`, `/register`, `/sign-out`, `/no-workspace/create`) and workspace routing. `docs/AUTH.md` records what authservice does; `docs/decisions/0013-circuit-lifetime-and-session-store.md` records the lifetimes |
 
 Not yet present: `tests/PostmanClone.E2E` (Playwright) and the Web's domain pages, which arrive with their work packages. The plan's README, §3 lists the target layout.
 
