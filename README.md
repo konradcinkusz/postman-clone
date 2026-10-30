@@ -23,7 +23,8 @@ the work packages below deliver them in order.
 | Solution and shared kernel (`PostmanClone.ServiceDefaults`) | Written: WP01 |
 | Kernel security (JWT validation, rate limits, origin guard) and the authservice wiring | Written: WP02, WP03 |
 | ExecutionService skeleton (`PostmanClone.ExecutionService`) | Written: WP06. It starts, validates tokens and reports `ssrfProtection`; it has no request endpoints yet |
-| CollectionsService, EnvironmentsService, Web | Not started (WP04, WP05, WP07) |
+| EnvironmentsService (`PostmanClone.EnvironmentsService`) | Written: WP05 (environments, secret variables, `/health` reports `secrets`) |
+| CollectionsService, Web | Not started (WP04, WP07) |
 | Running authservice and ExecutionService locally | `scripts/run-local-stack.sh up` (no Docker needed) |
 
 The work packages (WP00–WP28), their dependencies and their acceptance criteria are in
@@ -42,7 +43,7 @@ scripts/                    install-hooks.sh, hooks/pre-commit (secret scan), ch
 
 The planned source layout (`src/`, `tests/`) is described in
 [`docs/implementation-plan/README.md`](docs/implementation-plan/README.md#3-repository-layout-wp00wp03-create-it).
-Of that layout, the kernel, the AppHost, the ExecutionService and their tests exist.
+Of that layout, the kernel, the AppHost, the EnvironmentsService, the ExecutionService and their tests exist.
 
 ## Working on it
 

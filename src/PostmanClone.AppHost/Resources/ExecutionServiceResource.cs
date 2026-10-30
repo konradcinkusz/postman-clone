@@ -11,18 +11,19 @@ internal static class ExecutionServiceResource
     public const string Name = "execution-service";
 
     /// <summary>
-    /// Adds the service with its database, its token authority, and the health probe. The reference to
-    /// EnvironmentsService (<c>environments-service</c>) is added when that resource is registered (WP05): until then
-    /// the sender cannot resolve environments, and the service answers without them.
+    /// Adds the service with its database, its token authority, the EnvironmentsService it resolves variables from
+    /// (logical name <c>environments-service</c>, CONTRACTS §5), and the health probe.
     /// </summary>
     public static IResourceBuilder<ProjectResource> AddExecutionService(
         this IDistributedApplicationBuilder builder,
         IResourceBuilder<PostgresDatabaseResource> database,
-        IResourceBuilder<ContainerResource> authService)
+        IResourceBuilder<ContainerResource> authService,
+        IResourceBuilder<ContainerResource> environments)
     {
         return builder.AddProject<Projects.PostmanClone_ExecutionService>(Name)
             .WithHttpEndpoint(env: "ASPNETCORE_HTTP_PORTS")
             .WithReference(database)
+            .WithReference(environments.GetEndpoint("http"))
             .WaitFor(database)
             .WaitFor(authService)
             .WithEnvironment("Auth__MetadataAddress", ReferenceExpression.Create(
