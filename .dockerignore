@@ -1,9 +1,15 @@
-# Keep build output, local secrets and the git history out of the build context.
+# Keep the build context small and free of local state and secrets (P6, ADR-0006).
 **/bin/
 **/obj/
 **/.vs/
+**/TestResults/
 .git/
+.github/
 .local-stack/
 .env
 .env.*
-!.env.example
+secrets.env
+docs/
+scripts/
+tests/
+**/*.user

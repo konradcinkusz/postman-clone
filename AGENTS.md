@@ -20,17 +20,20 @@ The build plan is the source of truth for scope and contracts:
 | `scripts/install-hooks.sh`, `scripts/hooks/pre-commit` | The local secret scan |
 | `scripts/check-doc-links.sh` | Every relative Markdown link resolves (run in CI) |
 | `scripts/check-kernel-size.sh` | The shared kernel stays within 800 non-blank, non-comment lines (run in CI) |
-| `scripts/run-local-stack.sh`, `scripts/gen-dev-secrets.sh` | authservice at its pinned tag without Docker, against a local PostgreSQL; the gitignored `.local-stack/` secrets (WP03) |
+| `scripts/run-local-stack.sh`, `scripts/gen-dev-secrets.sh` | authservice at its pinned tag, CollectionsService (port 5301) and ExecutionService (port 5303) without Docker, against a local PostgreSQL; the gitignored `.local-stack/` secrets (WP03, WP04, WP06) |
 | `scripts/smoke-auth.sh` | The authservice contract the services rely on: register, login, organization, refresh, claims (run in CI as `auth-smoke`) |
 | `docs/AUTH.md` | How sign-in works through authservice v0.3.4: the flow, the claims, the endpoints read from source, the differences from CONTRACTS §6 |
 | `.github/workflows/` | `pr-validation.yml` (the required check), `secret-scan.yml` |
 | `Directory.Build.props`, `Directory.Packages.props`, `global.json` | Solution-wide settings, package versions, SDK pin, and the test runner (Microsoft.Testing.Platform) |
 | `PostmanClone.sln`, `src/PostmanClone.ServiceDefaults`, `tests/PostmanClone.TestKit`, `tests/PostmanClone.ServiceDefaults.Tests` | The solution and the shared kernel (WP01) |
-| `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, and authservice (WP03) |
+| `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, authservice (WP03), CollectionsService (WP04), EnvironmentsService (WP05), ExecutionService (WP06) and the Web (WP07) |
+| `src/PostmanClone.CollectionsService`, `tests/PostmanClone.CollectionsService.Tests` | CollectionsService (WP04): the manifest `Program.cs`, the entities, the EF model and its first migration, the Dockerfile (P6), and the host tests. No domain routes yet; those arrive with WP08 |
+| `src/PostmanClone.ExecutionService`, `tests/PostmanClone.ExecutionService.Tests` | The sender and history service (WP06): sender limits and the SSRF flag with startup validation, the EnvironmentsService client skeleton, the `history_entries` migration, the Dockerfile. No request endpoints yet |
+| `src/PostmanClone.EnvironmentsService`, `tests/PostmanClone.EnvironmentsService.Tests` | EnvironmentsService (WP05): environments and variables on `environmentsdb`, AES-256-GCM secret protection (ADR-0006), `/health` reports `secrets`. Its Dockerfile is reviewed, not built here (no Docker daemon in sessions) |
+
 | `src/PostmanClone.Web`, `tests/PostmanClone.Web.Tests` | The Blazor Web App shell (WP07): interactive server root, token stylesheet, navigation, status strip, origin guard and CSP on the host, `Dockerfile` (built by CI, never pushed). `docs/architecture/UI-STYLE.md` is its design contract |
 
-Not yet present: the service projects (`src/PostmanClone.CollectionsService`, `EnvironmentsService`,
-`ExecutionService`) and their tests. They are in the plan's README, §3.
+Not yet present: `tests/PostmanClone.E2E` (Playwright) and the Web's domain pages, which arrive with their work packages. The plan's README, §3 lists the target layout.
 
 ## Build and test
 
@@ -48,7 +51,7 @@ bash scripts/check-doc-links.sh   # relative Markdown links resolve
 bash scripts/check-kernel-size.sh # the kernel stays within 800 lines
 scripts/install-hooks.sh          # once per clone: the pre-commit secret scan
 scripts/gen-dev-secrets.sh        # once per clone: .local-stack/secrets.env (never printed)
-scripts/run-local-stack.sh up     # authservice v0.3.4 on :5300 against local PostgreSQL (no Docker)
+scripts/run-local-stack.sh up     # authservice v0.3.4 on :5300 and CollectionsService on :5301, local PostgreSQL (no Docker)
 scripts/smoke-auth.sh             # against the running authservice: the sign-in contract
 scripts/run-local-stack.sh down
 dotnet run --project src/PostmanClone.Web   # the Web on http://localhost:5310; backends not running show as unreachable
