@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    EnvironmentsService (ADR-0003): named variable sets per workspace and the secret protection that keeps
+    secret values encrypted at rest (ADR-0006). Owns environmentsdb; no other service reads that database (P3).
+  -->
+  <PropertyGroup>
+    <Description>EnvironmentsService: environments, variables and encrypted secret values.</Description>
+    <RootNamespace>PostmanClone.EnvironmentsService</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PostmanClone.ServiceDefaults\PostmanClone.ServiceDefaults.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+  </ItemGroup>
+</Project>

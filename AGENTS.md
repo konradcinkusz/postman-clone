@@ -26,10 +26,11 @@ The build plan is the source of truth for scope and contracts:
 | `.github/workflows/` | `pr-validation.yml` (the required check), `secret-scan.yml` |
 | `Directory.Build.props`, `Directory.Packages.props`, `global.json` | Solution-wide settings, package versions, SDK pin, and the test runner (Microsoft.Testing.Platform) |
 | `PostmanClone.sln`, `src/PostmanClone.ServiceDefaults`, `tests/PostmanClone.TestKit`, `tests/PostmanClone.ServiceDefaults.Tests` | The solution and the shared kernel (WP01) |
-| `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, and authservice (WP03) |
+| `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, authservice (WP03) and EnvironmentsService (WP05) |
+| `src/PostmanClone.EnvironmentsService`, `tests/PostmanClone.EnvironmentsService.Tests` | EnvironmentsService (WP05): environments and variables on `environmentsdb`, AES-256-GCM secret protection (ADR-0006), `/health` reports `secrets`. Its Dockerfile is reviewed, not built here (no Docker daemon in sessions) |
 
-Not yet present: the service projects (`src/PostmanClone.CollectionsService`, `EnvironmentsService`,
-`ExecutionService`, `Web`) and their tests. They are in the plan's README, §3.
+Not yet present: the service projects (`src/PostmanClone.CollectionsService`, `ExecutionService`,
+`Web`) and their tests. They are in the plan's README, §3.
 
 ## Build and test
 
