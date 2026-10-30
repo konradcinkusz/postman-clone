@@ -21,9 +21,10 @@ Numbers are reserved per work package in
 | [0008](0008-single-instance-web.md) | The Web keeps sessions in server memory and runs as one instance | Accepted |
 | [0009](0009-dependency-budget.md) | Dependency budget | Accepted |
 | [0010](0010-authservice-pin-and-local-run.md) | authservice pinned to v0.3.4; run from its tagged source when there is no Docker | Accepted |
+| [0011](0011-sender-threat-model.md) | Sender threat model and the SSRF guard: resolve and check at connect, dial only checked addresses | Accepted |
 | [0012](0012-variable-semantics.md) | Variable semantics and request assembly: single pass, encoded-form masking, header and auth rules | Accepted |
 
 Reserved for later work packages (see WORK-PACKAGES.md):
-0011 sender threat model, 0013 circuit lifetime and session store,
+0013 circuit lifetime and session store,
 0014 execution limits and redirects, 0015 history retention and masking, 0016 import threat model,
 0017 builder state model, 0018 E2E scope and charter, 0019 review outcomes. 0020–0029 are spare.
