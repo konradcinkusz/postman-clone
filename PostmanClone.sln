@@ -15,6 +15,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PostmanClone.ServiceDefault
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PostmanClone.AppHost", "src\PostmanClone.AppHost\PostmanClone.AppHost.csproj", "{9EE63AE4-7464-401C-BAAF-F8359C785C29}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PostmanClone.CollectionsService.Tests", "tests\PostmanClone.CollectionsService.Tests\PostmanClone.CollectionsService.Tests.csproj", "{344EB9DB-28F3-4E1B-98DF-1F720032C134}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PostmanClone.CollectionsService", "src\PostmanClone.CollectionsService\PostmanClone.CollectionsService.csproj", "{BE0D7445-4D45-4905-9200-6387C5E16518}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,6 +77,30 @@ Global
 		{9EE63AE4-7464-401C-BAAF-F8359C785C29}.Release|x64.Build.0 = Release|Any CPU
 		{9EE63AE4-7464-401C-BAAF-F8359C785C29}.Release|x86.ActiveCfg = Release|Any CPU
 		{9EE63AE4-7464-401C-BAAF-F8359C785C29}.Release|x86.Build.0 = Release|Any CPU
+		{344EB9DB-28F3-4E1B-98DF-1F720032C134}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{344EB9DB-28F3-4E1B-98DF-1F720032C134}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{344EB9DB-28F3-4E1B-98DF-1F720032C134}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{344EB9DB-28F3-4E1B-98DF-1F720032C134}.Debug|x64.Build.0 = Debug|Any CPU
+		{344EB9DB-28F3-4E1B-98DF-1F720032C134}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{344EB9DB-28F3-4E1B-98DF-1F720032C134}.Debug|x86.Build.0 = Debug|Any CPU
+		{344EB9DB-28F3-4E1B-98DF-1F720032C134}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{344EB9DB-28F3-4E1B-98DF-1F720032C134}.Release|Any CPU.Build.0 = Release|Any CPU
+		{344EB9DB-28F3-4E1B-98DF-1F720032C134}.Release|x64.ActiveCfg = Release|Any CPU
+		{344EB9DB-28F3-4E1B-98DF-1F720032C134}.Release|x64.Build.0 = Release|Any CPU
+		{344EB9DB-28F3-4E1B-98DF-1F720032C134}.Release|x86.ActiveCfg = Release|Any CPU
+		{344EB9DB-28F3-4E1B-98DF-1F720032C134}.Release|x86.Build.0 = Release|Any CPU
+		{BE0D7445-4D45-4905-9200-6387C5E16518}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BE0D7445-4D45-4905-9200-6387C5E16518}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BE0D7445-4D45-4905-9200-6387C5E16518}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BE0D7445-4D45-4905-9200-6387C5E16518}.Debug|x64.Build.0 = Debug|Any CPU
+		{BE0D7445-4D45-4905-9200-6387C5E16518}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{BE0D7445-4D45-4905-9200-6387C5E16518}.Debug|x86.Build.0 = Debug|Any CPU
+		{BE0D7445-4D45-4905-9200-6387C5E16518}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BE0D7445-4D45-4905-9200-6387C5E16518}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BE0D7445-4D45-4905-9200-6387C5E16518}.Release|x64.ActiveCfg = Release|Any CPU
+		{BE0D7445-4D45-4905-9200-6387C5E16518}.Release|x64.Build.0 = Release|Any CPU
+		{BE0D7445-4D45-4905-9200-6387C5E16518}.Release|x86.ActiveCfg = Release|Any CPU
+		{BE0D7445-4D45-4905-9200-6387C5E16518}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -82,5 +110,7 @@ Global
 		{CC3AED67-B8F3-4870-BD78-0EA4FBCADFBE} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{51629668-E612-464C-AADB-4029E45BC499} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{9EE63AE4-7464-401C-BAAF-F8359C785C29} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{344EB9DB-28F3-4E1B-98DF-1F720032C134} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{BE0D7445-4D45-4905-9200-6387C5E16518} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
