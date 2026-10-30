@@ -20,16 +20,17 @@ The build plan is the source of truth for scope and contracts:
 | `scripts/install-hooks.sh`, `scripts/hooks/pre-commit` | The local secret scan |
 | `scripts/check-doc-links.sh` | Every relative Markdown link resolves (run in CI) |
 | `scripts/check-kernel-size.sh` | The shared kernel stays within 800 non-blank, non-comment lines (run in CI) |
-| `scripts/run-local-stack.sh`, `scripts/gen-dev-secrets.sh` | authservice at its pinned tag without Docker, against a local PostgreSQL; the gitignored `.local-stack/` secrets (WP03) |
+| `scripts/run-local-stack.sh`, `scripts/gen-dev-secrets.sh` | authservice at its pinned tag and ExecutionService (port 5303) without Docker, against a local PostgreSQL; the gitignored `.local-stack/` secrets (WP03, WP06) |
 | `scripts/smoke-auth.sh` | The authservice contract the services rely on: register, login, organization, refresh, claims (run in CI as `auth-smoke`) |
 | `docs/AUTH.md` | How sign-in works through authservice v0.3.4: the flow, the claims, the endpoints read from source, the differences from CONTRACTS §6 |
 | `.github/workflows/` | `pr-validation.yml` (the required check), `secret-scan.yml` |
 | `Directory.Build.props`, `Directory.Packages.props`, `global.json` | Solution-wide settings, package versions, SDK pin, and the test runner (Microsoft.Testing.Platform) |
 | `PostmanClone.sln`, `src/PostmanClone.ServiceDefaults`, `tests/PostmanClone.TestKit`, `tests/PostmanClone.ServiceDefaults.Tests` | The solution and the shared kernel (WP01) |
-| `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, and authservice (WP03) |
+| `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, authservice (WP03) and ExecutionService (WP06) |
+| `src/PostmanClone.ExecutionService`, `tests/PostmanClone.ExecutionService.Tests` | The sender and history service: sender limits and the SSRF flag with startup validation, the EnvironmentsService client skeleton, the `history_entries` migration, the Dockerfile (WP06) |
 
 Not yet present: the service projects (`src/PostmanClone.CollectionsService`, `EnvironmentsService`,
-`ExecutionService`, `Web`) and their tests. They are in the plan's README, §3.
+`Web`) and their tests. They are in the plan's README, §3.
 
 ## Build and test
 
