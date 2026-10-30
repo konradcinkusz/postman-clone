@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    CollectionsService (README §2, CONTRACTS §2): collections, folders and saved requests of one workspace.
+    Owns the collectionsdb database (P3). Wiring is in ServiceCollectionExtensions; Program.cs is the manifest.
+  -->
+  <PropertyGroup>
+    <Description>Collections, folders and saved requests of a workspace.</Description>
+    <RootNamespace>PostmanClone.CollectionsService</RootNamespace>
+    <AssemblyName>PostmanClone.CollectionsService</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PostmanClone.ServiceDefaults\PostmanClone.ServiceDefaults.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+</Project>

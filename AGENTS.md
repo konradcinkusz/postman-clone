@@ -20,16 +20,17 @@ The build plan is the source of truth for scope and contracts:
 | `scripts/install-hooks.sh`, `scripts/hooks/pre-commit` | The local secret scan |
 | `scripts/check-doc-links.sh` | Every relative Markdown link resolves (run in CI) |
 | `scripts/check-kernel-size.sh` | The shared kernel stays within 800 non-blank, non-comment lines (run in CI) |
-| `scripts/run-local-stack.sh`, `scripts/gen-dev-secrets.sh` | authservice at its pinned tag without Docker, against a local PostgreSQL; the gitignored `.local-stack/` secrets (WP03) |
+| `scripts/run-local-stack.sh`, `scripts/gen-dev-secrets.sh` | authservice at its pinned tag and CollectionsService (port 5301) without Docker, against a local PostgreSQL; the gitignored `.local-stack/` secrets (WP03, WP04) |
 | `scripts/smoke-auth.sh` | The authservice contract the services rely on: register, login, organization, refresh, claims (run in CI as `auth-smoke`) |
 | `docs/AUTH.md` | How sign-in works through authservice v0.3.4: the flow, the claims, the endpoints read from source, the differences from CONTRACTS §6 |
 | `.github/workflows/` | `pr-validation.yml` (the required check), `secret-scan.yml` |
 | `Directory.Build.props`, `Directory.Packages.props`, `global.json` | Solution-wide settings, package versions, SDK pin, and the test runner (Microsoft.Testing.Platform) |
 | `PostmanClone.sln`, `src/PostmanClone.ServiceDefaults`, `tests/PostmanClone.TestKit`, `tests/PostmanClone.ServiceDefaults.Tests` | The solution and the shared kernel (WP01) |
-| `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, authservice (WP03) and EnvironmentsService (WP05) |
+| `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, authservice (WP03), CollectionsService (WP04) and EnvironmentsService (WP05) |
+| `src/PostmanClone.CollectionsService`, `tests/PostmanClone.CollectionsService.Tests` | CollectionsService (WP04): the manifest `Program.cs`, the entities, the EF model and its first migration, the Dockerfile (P6), and the host tests. No domain routes yet; those arrive with WP08 |
 | `src/PostmanClone.EnvironmentsService`, `tests/PostmanClone.EnvironmentsService.Tests` | EnvironmentsService (WP05): environments and variables on `environmentsdb`, AES-256-GCM secret protection (ADR-0006), `/health` reports `secrets`. Its Dockerfile is reviewed, not built here (no Docker daemon in sessions) |
 
-Not yet present: the service projects (`src/PostmanClone.CollectionsService`, `ExecutionService`,
+Not yet present: the service projects (`src/PostmanClone.ExecutionService`,
 `Web`) and their tests. They are in the plan's README, §3.
 
 ## Build and test
@@ -48,7 +49,7 @@ bash scripts/check-doc-links.sh   # relative Markdown links resolve
 bash scripts/check-kernel-size.sh # the kernel stays within 800 lines
 scripts/install-hooks.sh          # once per clone: the pre-commit secret scan
 scripts/gen-dev-secrets.sh        # once per clone: .local-stack/secrets.env (never printed)
-scripts/run-local-stack.sh up     # authservice v0.3.4 on :5300 against local PostgreSQL (no Docker)
+scripts/run-local-stack.sh up     # authservice v0.3.4 on :5300 and CollectionsService on :5301, local PostgreSQL (no Docker)
 scripts/smoke-auth.sh             # against the running authservice: the sign-in contract
 scripts/run-local-stack.sh down
 ```

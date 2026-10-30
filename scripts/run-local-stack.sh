@@ -2,9 +2,10 @@
 #
 # run-local-stack.sh — runs authservice on this machine, without Docker, against a local PostgreSQL.
 #
-#   scripts/run-local-stack.sh up       build and start authservice on AUTH_PORT (default 5300)
-#   scripts/run-local-stack.sh down     stop it (the databases and .local-stack/ are kept)
-#   scripts/run-local-stack.sh status   show whether it runs and whether /health/ready answers
+#   scripts/run-local-stack.sh up       build and start authservice on AUTH_PORT (default 5300), then
+#                                       CollectionsService on COLLECTIONS_PORT (default 5301)
+#   scripts/run-local-stack.sh down     stop both (the databases and .local-stack/ are kept)
+#   scripts/run-local-stack.sh status   show whether they run and whether their health answers
 #
 # The AppHost (src/PostmanClone.AppHost) runs the same authservice image through Docker. This script
 # is the sessions' and developers' route when there is no Docker daemon. It runs the same pinned tag,
@@ -24,6 +25,7 @@ AUTHSERVICE_TAG="v0.3.4"
 AUTHSERVICE_REPO="https://github.com/konradcinkusz/authservice"
 
 AUTH_PORT="${AUTH_PORT:-5300}"
+COLLECTIONS_PORT="${COLLECTIONS_PORT:-5301}"
 WEB_PORT="${WEB_PORT:-5310}"
 # gitleaks:allow — the default is a local development server, not a credential.
 PG_CONNECTION="${PG_CONNECTION:-Host=localhost;Username=postgres;Password=postgres}"
@@ -36,6 +38,10 @@ SRC_DIR="${STACK_DIR}/authservice-src"
 BIN_DIR="${STACK_DIR}/authservice-bin"
 PID_FILE="${STACK_DIR}/authservice.pid"
 LOG_FILE="${STACK_DIR}/authservice.log"
+COLLECTIONS_SRC_DIR="${REPO_ROOT}/src/PostmanClone.CollectionsService"
+COLLECTIONS_BIN_DIR="${STACK_DIR}/collections-bin"
+COLLECTIONS_PID_FILE="${STACK_DIR}/collections.pid"
+COLLECTIONS_LOG_FILE="${STACK_DIR}/collections.log"
 SECRETS_FILE="${STACK_DIR}/secrets.env"
 
 # Reads one key from PG_CONNECTION; empty when absent.
@@ -117,6 +123,11 @@ up() {
   mkdir -p "${STACK_DIR}"
   chmod 700 "${STACK_DIR}"
 
+  up_authservice
+  up_collections
+}
+
+up_authservice() {
   if is_running; then
     echo "authservice already running (pid $(cat "${PID_FILE}")) on port ${AUTH_PORT}."
     return 0
@@ -163,6 +174,58 @@ up() {
   exit 1
 }
 
+# CollectionsService runs from its own build output. It reads collectionsdb (created above) and checks tokens
+# against authservice's discovery document on the same loopback origin. The secrets are not needed here.
+collections_is_running() {
+  [ -f "${COLLECTIONS_PID_FILE}" ] && kill -0 "$(cat "${COLLECTIONS_PID_FILE}")" 2>/dev/null
+}
+
+collections_health_status() {
+  curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:${COLLECTIONS_PORT}/health" || true
+}
+
+up_collections() {
+  if collections_is_running; then
+    echo "CollectionsService already running (pid $(cat "${COLLECTIONS_PID_FILE}")) on port ${COLLECTIONS_PORT}."
+    return 0
+  fi
+
+  local log="${STACK_DIR}/collections-build.log"
+  if ! dotnet publish "${COLLECTIONS_SRC_DIR}/PostmanClone.CollectionsService.csproj" -c Release -o "${COLLECTIONS_BIN_DIR}" > "${log}" 2>&1; then
+    echo "CollectionsService build failed. Last 80 lines of ${log}:" >&2
+    tail -n 80 "${log}" >&2
+    exit 1
+  fi
+
+  (
+    export ASPNETCORE_URLS="http://localhost:${COLLECTIONS_PORT}"
+    export DATABASE_PROVIDER=PostgreSQL
+    export ConnectionStrings__collectionsdb="Host=${PG_HOST};Port=${PG_PORT};Username=${PG_USER};Password=${PG_PASSWORD};Database=collectionsdb"
+    export Auth__MetadataAddress="http://localhost:${AUTH_PORT}/.well-known/openid-configuration"
+    export Auth__Issuer=PostmanClone
+    export Auth__Audience=PostmanClone
+    export Auth__RequireHttpsMetadata=false
+    nohup dotnet "${COLLECTIONS_BIN_DIR}/PostmanClone.CollectionsService.dll" > "${COLLECTIONS_LOG_FILE}" 2>&1 &
+    echo $! > "${COLLECTIONS_PID_FILE}"
+  )
+
+  # /health is 503 until the migration has run (MigrateAsync after Kestrel starts), then 200.
+  local attempt
+  for attempt in $(seq 1 90); do
+    if [ "$(collections_health_status)" = "200" ]; then
+      echo "CollectionsService is ready on http://localhost:${COLLECTIONS_PORT} (pid $(cat "${COLLECTIONS_PID_FILE}"))."
+      return 0
+    fi
+    if ! collections_is_running; then
+      echo "CollectionsService exited during start; see ${COLLECTIONS_LOG_FILE}" >&2
+      exit 1
+    fi
+    sleep 2
+  done
+  echo "CollectionsService did not become healthy within 180 s; see ${COLLECTIONS_LOG_FILE}" >&2
+  exit 1
+}
+
 down() {
   if is_running; then
     kill "$(cat "${PID_FILE}")"
@@ -171,6 +234,14 @@ down() {
     echo "authservice is not running."
   fi
   rm -f "${PID_FILE}"
+
+  if collections_is_running; then
+    kill "$(cat "${COLLECTIONS_PID_FILE}")"
+    echo "Stopped CollectionsService."
+  else
+    echo "CollectionsService is not running."
+  fi
+  rm -f "${COLLECTIONS_PID_FILE}"
 }
 
 status() {
@@ -178,6 +249,12 @@ status() {
     echo "authservice running (pid $(cat "${PID_FILE}")); /health/ready -> $(health_status)"
   else
     echo "authservice not running."
+  fi
+
+  if collections_is_running; then
+    echo "CollectionsService running (pid $(cat "${COLLECTIONS_PID_FILE}")); /health -> $(collections_health_status)"
+  else
+    echo "CollectionsService not running."
   fi
 }
 
