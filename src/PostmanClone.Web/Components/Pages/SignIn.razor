@@ -1,0 +1,53 @@
+@page "/sign-in"
+@attribute [AllowAnonymous]
+@using Microsoft.AspNetCore.Components.Forms
+@inject AntiforgeryStateProvider Antiforgery
+
+<PageTitle>Sign in · PostmanClone</PageTitle>
+
+<h1 data-testid="page-title">Sign in</h1>
+
+@if (_message is { } message)
+{
+    <div class="callout @(message.IsError ? "callout-danger" : "callout-success")" role="alert" data-testid="sign-in-message">
+        @message.Text
+    </div>
+}
+
+<form method="post" action="/sign-in" class="stack" data-testid="sign-in-form">
+    <input type="hidden" name="@_token?.FormFieldName" value="@_token?.Value" />
+    <input type="hidden" name="returnUrl" value="@_returnUrl" />
+    <div class="field">
+        <label for="sign-in-email">Email</label>
+        <input id="sign-in-email" name="email" type="email" autocomplete="username" required data-testid="sign-in-email" />
+    </div>
+    <div class="field">
+        <label for="sign-in-password">Password</label>
+        <input id="sign-in-password" name="password" type="password" autocomplete="current-password" required data-testid="sign-in-password" />
+    </div>
+    <button type="submit" class="btn btn-primary" data-testid="sign-in-submit">Sign in</button>
+</form>
+
+<p><a href="/register" data-testid="sign-in-register-link">Create an account</a></p>
+
+@code {
+    [SupplyParameterFromQuery(Name = "ReturnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    [SupplyParameterFromQuery(Name = "notice")]
+    public string? Notice { get; set; }
+
+    private AntiforgeryRequestToken? _token;
+    private string _returnUrl = ReturnUrlPolicy.Fallback;
+    private (string Text, bool IsError)? _message;
+
+    protected override void OnInitialized()
+    {
+        _token = Antiforgery.GetAntiforgeryToken();
+        _returnUrl = ReturnUrlPolicy.Sanitize(ReturnUrl);
+        _message = AuthMessages.For(Error, Notice);
+    }
+}

@@ -131,10 +131,11 @@ gives the real one.
 
 Runtime values are recorded here only from a real run. Nothing below is copied from the source.
 
-- **Runtime status:** not run in the authoring session. The authservice build was refused by the session's
-  permission check, and there is no Docker daemon, so neither the container nor the local build ran there. The
-  CI job `auth-smoke` runs `scripts/run-local-stack.sh up` and `scripts/smoke-auth.sh` on a fresh runner with a
-  PostgreSQL service container. Its log holds the claim names and status codes for this table.
+- **Runtime status:** the CI job `auth-smoke` runs `scripts/run-local-stack.sh up` and `scripts/smoke-auth.sh` on a fresh
+  runner with a PostgreSQL service container; its log holds the claim names and status codes for this table. In the WP12
+  session (2026-10-30) authservice v0.3.4 was built from its tag and run locally on port 5300, and both the smoke test and
+  the Web's sign-in flow were run against it (see below). There is no Docker daemon in sessions, so the container image was
+  not run.
 - **Observed in CI run 40353922349 (head 348fc89):** `GET /health/ready` 200, `GET /.well-known/jwks.json` 200 with 1 key,
   `GET /api/v1/auth/consents/versions` 200, `POST /api/v1/auth/register` 200 (tokens at once: no sender is configured),
   `POST /api/v1/auth/login` 200, `GET /api/v1/auth/me` 200, `POST /api/v1/organizations` 201.
@@ -143,7 +144,18 @@ Runtime values are recorded here only from a real run. Nothing below is copied f
   and the two ASP.NET URIs `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name` and
   `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier`. No `organization` claim, as the source predicts.
   `aud` and `iss` are present, which the source sets from `Jwt:Audience` and `Jwt:Issuer`; the table above does not list them.
-- **Still to observe:** the claim names after refresh (the `organization` and `organization:{id}:role` claims), `/api/v1/auth/logout`, and the refused refresh. The next CI run prints them.
+- **Observed in the WP12 session (2026-10-30, live, authservice v0.3.4 on localhost):**
+  - Claim names after a refresh that follows an organization creation: `aud`, `email`, `exp`, `iss`, `jti`, `name`,
+    `nameidentifier`, `organization`, `organization:{id}:role`, `sub`. The `organization` claim and its role claim are present,
+    as the table above says. There is no `role` claim, because the user holds no system role.
+  - `POST /api/v1/auth/refresh` with a refresh token already spent: `401`. Rotation is single use.
+  - `POST /api/v1/auth/logout` with a bearer: `200`. A refresh with the newest refresh token issued before the logout: `401`.
+    Logout revokes every refresh token of the user (row 6 of the table above), not only the one presented.
+  - The Web, against this authservice: sign-in with the right password sets the session cookie and redirects; a wrong
+    password redirects with `error=invalid` and no cookie; the access token from a live login verifies against the
+    published JWKS (RS256, issuer `PostmanClone`, audience `PostmanClone`); sign-out redirects to `/sign-in` and the old
+    cookie no longer opens a session. Creating the first organization from the Web refreshes the session and the next
+    page shows the workspace as Owner.
 
 ## Not in scope here
 

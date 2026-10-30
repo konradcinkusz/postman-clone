@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.SignalR;
 using PostmanClone.ServiceDefaults.Security;
 using PostmanClone.Web.Api;
+using PostmanClone.Web.Auth;
 using PostmanClone.Web.Components;
 
 namespace PostmanClone.Web.Hosting;
@@ -40,13 +41,14 @@ public static class WebHostExtensions
         builder.Services.Configure<HubOptions>(options => options.MaximumReceiveMessageSize = MaximumCircuitMessageBytes);
 
         builder.Services.AddAntiforgery();
+        builder.AddWebAuthentication();
         builder.Services.AddBackendClients();
         return builder;
     }
 
     /// <summary>
-    /// Forwarded headers first, so the origin guard compares the public host; then the browser guards; then antiforgery.
-    /// Authentication arrives with the BFF session (WP08 onward); until then the Web is anonymous.
+    /// Forwarded headers first, so the origin guard compares the public host; then the browser guards; then the session
+    /// (authentication and authorization); then antiforgery, which protects the form posts of the sign-in flow.
     /// </summary>
     public static WebApplication UseWebPipeline(this WebApplication app)
     {
@@ -54,14 +56,17 @@ public static class WebHostExtensions
         app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseMiddleware<OriginGuardMiddleware>();
         app.UseMiddleware<ContentSecurityPolicyMiddleware>();
+        app.UseAuthentication();
+        app.UseAuthorization();
         app.UseAntiforgery();
         return app;
     }
 
-    /// <summary>The static assets and the root components, both in interactive server render mode.</summary>
+    /// <summary>The static assets, the sign-in form endpoints, and the root components, both in interactive server render mode.</summary>
     public static WebApplication MapWebComponents(this WebApplication app)
     {
         app.MapStaticAssets();
+        app.MapAuthEndpoints();
         app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
         return app;
     }
