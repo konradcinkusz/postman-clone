@@ -36,8 +36,8 @@ public sealed class IpRangePolicy(SsrfOptions options)
         Rule("198.51.100.0", 24, "documentation"),
         Rule("203.0.113.0", 24, "documentation"),
         Rule("224.0.0.0", 4, "multicast"),
-        Rule("240.0.0.0", 4, "reserved"),
         Rule("255.255.255.255", 32, "broadcast"),
+        Rule("240.0.0.0", 4, "reserved"),
     ];
 
     private static readonly Block[] Ipv6Blocks =

@@ -6,12 +6,15 @@ namespace PostmanClone.ExecutionService.Sending.Ssrf;
 /// Decides each redirect hop. Redirects are followed by the sender, never by the HTTP stack, so every hop goes
 /// through the same URL checks as the first request and the connection guard. A hop is refused when the chain is
 /// too long, when the target fails the URL checks, or when an https request would be sent back over plain http.
-/// On a cross-origin hop the sender drops the headers in <see cref="IsSensitiveHeader"/>.
+/// On a cross-origin hop the sender drops the headers that <see cref="ShouldDropHeader"/> names.
 /// </summary>
 public sealed class RedirectPlanner(ExecutionOptions options)
 {
-    /// <summary>Headers that name credentials and must not follow the request to another origin.</summary>
-    private static readonly string[] SensitiveHeaders = ["Authorization", "Cookie", "Proxy-Authorization"];
+    /// <summary>
+    /// Headers that carry credentials (the set CONTRACTS §4 masks) and must not follow the request to another origin.
+    /// </summary>
+    private static readonly string[] SensitiveHeaders =
+        ["Authorization", "Proxy-Authorization", "Cookie", "X-Api-Key", "X-Auth-Token"];
 
     private readonly TargetValidator _validator = new(options);
 
@@ -61,10 +64,6 @@ public sealed class RedirectPlanner(ExecutionOptions options)
     public static bool ShouldDropHeader(string headerName, RedirectStep step) =>
         step.CrossOrigin && SensitiveHeaders.Contains(headerName, StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>True for the header names that are never sent across origins.</summary>
-    public static bool IsSensitiveHeader(string headerName) =>
-        SensitiveHeaders.Contains(headerName, StringComparer.OrdinalIgnoreCase);
-
     private static bool IsRedirectStatus(int statusCode) => statusCode is 301 or 302 or 303 or 307 or 308;
 
     /// <summary>
@@ -73,15 +72,14 @@ public sealed class RedirectPlanner(ExecutionOptions options)
     /// </summary>
     private static (string Method, bool DropBody) MethodAfter(int statusCode, string method)
     {
-        switch (statusCode)
+        var next = statusCode switch
         {
-            case 303 when method != "HEAD":
-                return ("GET", true);
-            case 301 or 302 when method == "POST":
-                return ("GET", true);
-            default:
-                return (method, false);
-        }
+            303 when method != "HEAD" => "GET",
+            301 or 302 when method == "POST" => "GET",
+            _ => method,
+        };
+
+        return (next, next != method);
     }
 
     private static bool TryResolve(SsrfTarget current, string location, out string absolute)
