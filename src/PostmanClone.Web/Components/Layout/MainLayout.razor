@@ -1,10 +1,23 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Authorization
 @inherits LayoutComponentBase
+@inject WorkspaceState Workspace
+@inject AuthenticationStateProvider AuthenticationState
+@inject AntiforgeryStateProvider Antiforgery
+@inject NavigationManager Navigation
 
 <a class="skip-link" href="#main">Skip to content</a>
 
 <header class="topbar">
     <a class="brand" href="/">PostmanClone</a>
-    <span class="badge" data-testid="workspace-placeholder">Workspace: not signed in</span>
+    <span class="badge" data-testid="workspace-badge">@Workspace.Label</span>
+    @if (Workspace.IsAuthenticated)
+    {
+        <form method="post" action="/sign-out" data-testid="sign-out-form">
+            <input type="hidden" name="@_token?.FormFieldName" value="@_token?.Value" />
+            <button type="submit" class="btn" data-testid="sign-out">Sign out</button>
+        </form>
+    }
     <div class="field environment-field">
         <label for="environment-selector">Environment</label>
         <select id="environment-selector" disabled data-testid="environment-selector">
@@ -27,6 +40,41 @@
         </ul>
     </nav>
     <main id="main" class="content" tabindex="-1">
-        @Body
+        @if (_decision == WorkspaceDecision.Continue)
+        {
+            @Body
+        }
+        else
+        {
+            <p data-testid="workspace-redirecting">Redirecting to the workspace page…</p>
+        }
     </main>
 </div>
+
+@code {
+    private AntiforgeryRequestToken? _token;
+
+    /// <summary>Computed at each render, so a page change or a changed session is seen without a reload.</summary>
+    private WorkspaceDecision _decision = WorkspaceDecision.Continue;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Workspace.CaptureAsync(AuthenticationState);
+        _token = Antiforgery.GetAntiforgeryToken();
+    }
+
+    protected override void OnParametersSet()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var query = path.IndexOfAny(['?', '#']);
+        _decision = WorkspaceRouting.Decide("/" + (query < 0 ? path : path[..query]), Workspace.IsAuthenticated, Workspace.Resolution);
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (_decision == WorkspaceDecision.RedirectToNoWorkspace)
+        {
+            Navigation.NavigateTo(WorkspaceRouting.NoWorkspacePath);
+        }
+    }
+}

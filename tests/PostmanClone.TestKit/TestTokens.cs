@@ -75,6 +75,14 @@ public sealed class TestTokens : IDisposable
     /// <summary>An OpenID discovery document whose <c>jwks_uri</c> is <paramref name="jwksUri"/>.</summary>
     public string Discovery(string jwksUri) => JsonSerializer.Serialize(new { issuer = Issuer, jwks_uri = jwksUri });
 
+    /// <summary>A configuration manager that serves this instance's key, for a service that reads its issuer's keys through one (WP12).</summary>
+    public IConfigurationManager<OpenIdConnectConfiguration> ConfigurationManager()
+    {
+        var configuration = new OpenIdConnectConfiguration { Issuer = Issuer };
+        configuration.SigningKeys.Add(PublicKey());
+        return new StaticConfigurationManager<OpenIdConnectConfiguration>(configuration);
+    }
+
     /// <summary>Makes the service under test trust this instance's key, without a metadata endpoint.</summary>
     public void TrustIn(IServiceCollection services)
     {

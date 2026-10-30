@@ -1,0 +1,62 @@
+@page "/register"
+@attribute [AllowAnonymous]
+@using Microsoft.AspNetCore.Components.Forms
+@inject AuthServiceClient Authservice
+@inject AntiforgeryStateProvider Antiforgery
+
+<PageTitle>Create account · PostmanClone</PageTitle>
+
+<h1 data-testid="page-title">Create an account</h1>
+
+@if (_message is { } message)
+{
+    <div class="callout callout-danger" role="alert" data-testid="register-message">@message.Text</div>
+}
+
+@if (_versions is null)
+{
+    <div class="callout callout-danger" role="alert" data-testid="register-unavailable">
+        The sign-up service could not be reached. Try again shortly.
+    </div>
+}
+else
+{
+    <form method="post" action="/register" class="stack" data-testid="register-form">
+        <input type="hidden" name="@_token?.FormFieldName" value="@_token?.Value" />
+        <div class="field">
+            <label for="register-email">Email</label>
+            <input id="register-email" name="email" type="email" autocomplete="username" required data-testid="register-email" />
+        </div>
+        <div class="field">
+            <label for="register-password">Password (at least 8 characters)</label>
+            <input id="register-password" name="password" type="password" minlength="8" autocomplete="new-password" required data-testid="register-password" />
+        </div>
+        <label class="cluster">
+            <input type="checkbox" name="acceptTerms" required data-testid="register-accept-terms" />
+            I accept the <a href="/legal/terms">Terms of Use</a> (version @_versions.Terms)
+        </label>
+        <label class="cluster">
+            <input type="checkbox" name="acceptPrivacy" required data-testid="register-accept-privacy" />
+            I accept the <a href="/legal/privacy">Privacy Policy</a> (version @_versions.Privacy)
+        </label>
+        <button type="submit" class="btn btn-primary" data-testid="register-submit">Create account</button>
+    </form>
+}
+
+<p><a href="/sign-in" data-testid="register-sign-in-link">I already have an account</a></p>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    private AntiforgeryRequestToken? _token;
+    private ConsentVersionsResponse? _versions;
+    private (string Text, bool IsError)? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _token = Antiforgery.GetAntiforgeryToken();
+        _message = AuthMessages.For(Error, null);
+        _versions = await Authservice.ConsentVersionsAsync(CancellationToken.None);
+    }
+}
