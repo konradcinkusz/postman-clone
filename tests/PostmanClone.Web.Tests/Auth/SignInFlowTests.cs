@@ -166,6 +166,66 @@ public sealed class SignInFlowTests : IClassFixture<AuthHostFactory>
         Assert.Equal(0, _auth.LoginCalls);
     }
 
+    private async Task<HttpResponseMessage> RegisterAsync(HttpClient client, bool acceptTerms, bool acceptPrivacy, CancellationToken cancellationToken)
+    {
+        var (cookie, token) = await SignInForms.AntiforgeryAsync(client, "/register", sessionCookie: null, cancellationToken);
+        var fields = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["email"] = "new-person@example.test",
+            ["password"] = "new-password-1", // gitleaks:allow — a test fixture, not a credential.
+        };
+        if (acceptTerms)
+        {
+            fields["acceptTerms"] = "on";
+        }
+
+        if (acceptPrivacy)
+        {
+            fields["acceptPrivacy"] = "on";
+        }
+
+        return await client.SendAsync(SignInForms.Post("/register", fields, cookie), cancellationToken);
+    }
+
+    [Fact]
+    public async Task A_registration_signs_the_new_user_in_when_no_confirmation_is_needed()
+    {
+        using var client = Browser();
+
+        using var response = await RegisterAsync(client, acceptTerms: true, acceptPrivacy: true, TestContext.Current.CancellationToken);
+
+        Assert.Equal("/", response.Headers.Location?.OriginalString);
+        Assert.NotNull(SignInForms.SetCookie(response, SessionCookie));
+        Assert.Equal(1, _auth.RegisterCalls);
+    }
+
+    [Fact]
+    public async Task A_registration_that_needs_confirmation_says_so_and_sets_no_session()
+    {
+        _auth.RegistrationNeedsConfirmation = true;
+        using var client = Browser();
+
+        using var response = await RegisterAsync(client, acceptTerms: true, acceptPrivacy: true, TestContext.Current.CancellationToken);
+
+        Assert.Equal("/sign-in?notice=verify", response.Headers.Location?.OriginalString);
+        Assert.Null(SignInForms.SetCookie(response, SessionCookie));
+        using var page = await client.GetAsync(response.Headers.Location, TestContext.Current.CancellationToken);
+        Assert.Contains("Check your email to confirm the address", await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task A_registration_without_both_consents_is_refused_before_authservice_is_asked()
+    {
+        using var client = Browser();
+
+        using var response = await RegisterAsync(client, acceptTerms: true, acceptPrivacy: false, TestContext.Current.CancellationToken);
+
+        Assert.StartsWith("/register?error=details", response.Headers.Location?.OriginalString);
+        Assert.Equal(0, _auth.RegisterCalls);
+        Assert.Null(SignInForms.SetCookie(response, SessionCookie));
+    }
+
     [Fact]
     public async Task A_protected_page_without_a_session_redirects_to_sign_in_with_the_return_path()
     {

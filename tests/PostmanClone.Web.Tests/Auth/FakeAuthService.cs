@@ -50,6 +50,11 @@ public sealed class FakeAuthService
     /// <summary>When set, a login answers with a two-factor challenge.</summary>
     public bool TwoFactorRequired { get; set; }
 
+    /// <summary>When set, a registration waits for the address to be confirmed: <c>202</c>, no tokens (docs/AUTH.md, row 4).</summary>
+    public bool RegistrationNeedsConfirmation { get; set; }
+
+    public int RegisterCalls { get; private set; }
+
     /// <summary>When set, authservice cannot be reached: every call answers 503.</summary>
     public bool Unavailable { get; set; }
 
@@ -59,7 +64,8 @@ public sealed class FakeAuthService
     {
         _organizations.Clear();
         _unspentRefreshTokens.Clear();
-        LoginCalls = RefreshCalls = LogoutCalls = 0;
+        LoginCalls = RefreshCalls = LogoutCalls = RegisterCalls = 0;
+        RegistrationNeedsConfirmation = false;
         LastLogoutBearer = LastAccessToken = LastRefreshToken = null;
         TwoFactorRequired = Unavailable = false;
     }
@@ -75,7 +81,7 @@ public sealed class FakeAuthService
         return (request.Method.Method, path) switch
         {
             ("POST", "/api/v1/auth/login") => Login(request),
-            ("POST", "/api/v1/auth/register") => IssuePair(HttpStatusCode.OK),
+            ("POST", "/api/v1/auth/register") => Register(),
             ("POST", "/api/v1/auth/refresh") => Refresh(request),
             ("POST", "/api/v1/auth/logout") => Logout(request),
             ("GET", "/api/v1/auth/me") => Json(HttpStatusCode.OK, new { id = Guid.NewGuid().ToString(), email = KnownEmail, organizations = Organizations() }),
@@ -100,6 +106,14 @@ public sealed class FakeAuthService
         }
 
         return IssuePair(HttpStatusCode.OK);
+    }
+
+    private HttpResponseMessage Register()
+    {
+        RegisterCalls++;
+        return RegistrationNeedsConfirmation
+            ? Json(HttpStatusCode.Accepted, new { message = "confirm your email" })
+            : IssuePair(HttpStatusCode.OK);
     }
 
     private HttpResponseMessage Refresh(HttpRequestMessage request)
