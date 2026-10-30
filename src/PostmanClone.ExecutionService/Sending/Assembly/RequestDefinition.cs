@@ -13,7 +13,7 @@ public sealed record RequestDefinition(
     RequestAuth Auth);
 
 /// <summary>One row of a key/value list. Disabled rows and rows with an empty key are ignored.</summary>
-public sealed record KeyValueRow(string Key, string Value, bool Enabled);
+public sealed record KeyValueRow(string Key, string Value, bool Enabled = true);
 
 public sealed record RequestBody(BodyType Type, RawLanguage? RawLanguage, string? Raw, IReadOnlyList<KeyValueRow> Fields);
 
