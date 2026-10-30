@@ -37,9 +37,10 @@ public static class UrlBuilder
             throw new RequestAssemblyException(RequestAssemblyException.UrlTooLong, "The URL is longer than the sender allows.");
         }
 
-        if (!Uri.TryCreate(url, UriKind.Absolute, out _))
+        // A host is required: on Linux a leading slash parses as an absolute file URI. The scheme allow-list is the sender's.
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.IsFile || uri.IsUnc || uri.Host.Length == 0)
         {
-            throw new RequestAssemblyException(RequestAssemblyException.InvalidUrl, "The URL is empty or is not an absolute URL.");
+            throw new RequestAssemblyException(RequestAssemblyException.InvalidUrl, "The URL is empty or is not an absolute URL with a host.");
         }
 
         return url;
