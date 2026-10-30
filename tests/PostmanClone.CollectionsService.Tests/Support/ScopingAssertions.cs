@@ -21,9 +21,10 @@ public static class ScopingAssertions
         HttpMethod method,
         string url,
         string otherWorkspaceToken,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        HttpContent? content = null)
     {
-        using var request = new HttpRequestMessage(method, url);
+        using var request = new HttpRequestMessage(method, url) { Content = content };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", otherWorkspaceToken);
         using var response = await client.SendAsync(request, cancellationToken);
 

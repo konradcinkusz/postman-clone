@@ -22,6 +22,8 @@
   <ItemGroup>
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.14" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.14" />
+    <!-- Development-only route listing (CollectionsService, WP08). Not part of the shared framework in .NET 10. -->
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
   </ItemGroup>
   <!-- Data (P4: provider-portable, schema migrated) -->
   <ItemGroup>

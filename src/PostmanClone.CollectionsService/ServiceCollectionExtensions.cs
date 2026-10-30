@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using PostmanClone.CollectionsService.Data;
+using PostmanClone.CollectionsService.Services;
 using PostmanClone.ServiceDefaults;
 using PostmanClone.ServiceDefaults.Authentication;
 using PostmanClone.ServiceDefaults.Database;
@@ -24,6 +25,14 @@ public static class ServiceCollectionExtensions
         builder.Services.AddJwtAuthentication(builder.Configuration);
         builder.Services.AddRateLimitingDefaults(builder.Configuration);
         builder.Services.TryAddSingleton(TimeProvider.System);
+
+        builder.Services.AddScoped<ICollectionService, CollectionService>();
+        builder.Services.AddScoped<IFolderService, FolderService>();
+
+        if (builder.Environment.IsDevelopment())
+        {
+            builder.Services.AddOpenApi();
+        }
 
         builder.AddDatabaseContext<CollectionsDbContext>(DatabaseConnectionName);
         return builder;
