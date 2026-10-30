@@ -26,12 +26,14 @@ The build plan is the source of truth for scope and contracts:
 | `.github/workflows/` | `pr-validation.yml` (the required check), `secret-scan.yml` |
 | `Directory.Build.props`, `Directory.Packages.props`, `global.json` | Solution-wide settings, package versions, SDK pin, and the test runner (Microsoft.Testing.Platform) |
 | `PostmanClone.sln`, `src/PostmanClone.ServiceDefaults`, `tests/PostmanClone.TestKit`, `tests/PostmanClone.ServiceDefaults.Tests` | The solution and the shared kernel (WP01) |
-| `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, authservice (WP03), CollectionsService (WP04), EnvironmentsService (WP05) and ExecutionService (WP06) |
+| `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, authservice (WP03), CollectionsService (WP04), EnvironmentsService (WP05), ExecutionService (WP06) and the Web (WP07) |
 | `src/PostmanClone.CollectionsService`, `tests/PostmanClone.CollectionsService.Tests` | CollectionsService (WP04): the manifest `Program.cs`, the entities, the EF model and its first migration, the Dockerfile (P6), and the host tests. No domain routes yet; those arrive with WP08 |
 | `src/PostmanClone.EnvironmentsService`, `tests/PostmanClone.EnvironmentsService.Tests` | EnvironmentsService (WP05, WP09): environments and variables on `environmentsdb`, the `/api/v1/environments` endpoints of CONTRACTS §3 (`resolve` is the only response with plaintext secrets), AES-256-GCM secret protection (ADR-0006), `/health` reports `secrets`. Its Dockerfile is reviewed, not built here (no Docker daemon in sessions) |
 | `src/PostmanClone.ExecutionService`, `tests/PostmanClone.ExecutionService.Tests` | The sender and history service (WP06): sender limits and the SSRF flag with startup validation, the EnvironmentsService client skeleton, the `history_entries` migration, the Dockerfile. No request endpoints yet |
 
-Not yet present: the service project `Web` and its tests. They are in the plan's README, §3.
+| `src/PostmanClone.Web`, `tests/PostmanClone.Web.Tests` | The Blazor Web App shell (WP07): interactive server root, token stylesheet, navigation, status strip, origin guard and CSP on the host, `Dockerfile` (built by CI, never pushed). `docs/architecture/UI-STYLE.md` is its design contract |
+
+Not yet present: `tests/PostmanClone.E2E` (Playwright) and the Web's domain pages, which arrive with their work packages. The plan's README, §3 lists the target layout.
 
 ## Build and test
 
@@ -52,6 +54,7 @@ scripts/gen-dev-secrets.sh        # once per clone: .local-stack/secrets.env (ne
 scripts/run-local-stack.sh up     # authservice v0.3.4 on :5300 and CollectionsService on :5301, local PostgreSQL (no Docker)
 scripts/smoke-auth.sh             # against the running authservice: the sign-in contract
 scripts/run-local-stack.sh down
+dotnet run --project src/PostmanClone.Web   # the Web on http://localhost:5310; backends not running show as unreachable
 ```
 
 The SDK is pinned by `global.json` (.NET 10.0.100, `rollForward: latestFeature`). Package versions

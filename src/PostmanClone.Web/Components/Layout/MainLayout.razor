@@ -1,0 +1,32 @@
+@inherits LayoutComponentBase
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+    <a class="brand" href="/">PostmanClone</a>
+    <span class="badge" data-testid="workspace-placeholder">Workspace: not signed in</span>
+    <div class="field environment-field">
+        <label for="environment-selector">Environment</label>
+        <select id="environment-selector" disabled data-testid="environment-selector">
+            <option>No environments yet</option>
+        </select>
+    </div>
+</header>
+
+<StatusStrip />
+
+<div class="shell">
+    <nav class="nav" aria-label="Main">
+        <ul class="stack">
+            @foreach (var item in NavItems.All)
+            {
+                <li>
+                    <NavLink href="@item.Href" Match="NavLinkMatch.All">@item.Label</NavLink>
+                </li>
+            }
+        </ul>
+    </nav>
+    <main id="main" class="content" tabindex="-1">
+        @Body
+    </main>
+</div>
