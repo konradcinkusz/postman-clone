@@ -91,8 +91,15 @@ public sealed class TestTokens : IDisposable
 
     private JwtPayload Payload(IEnumerable<Claim>? claims, TimeSpan? expiresIn, string issuer, string audience)
     {
-        var all = new List<Claim> { new(JwtRegisteredClaimNames.Sub, Guid.NewGuid().ToString()) };
-        all.AddRange(claims ?? []);
+        var given = claims?.ToList() ?? [];
+        // A test that names the user (a creator check, for example) gets exactly that subject; any other token gets a fresh one.
+        var all = new List<Claim>();
+        if (!given.Any(claim => claim.Type == JwtRegisteredClaimNames.Sub))
+        {
+            all.Add(new Claim(JwtRegisteredClaimNames.Sub, Guid.NewGuid().ToString()));
+        }
+
+        all.AddRange(given);
         var expires = _clock.GetUtcNow().UtcDateTime.Add(expiresIn ?? TimeSpan.FromHours(1));
         return new JwtPayload(issuer, audience, all, notBefore: null, expires: expires);
     }
