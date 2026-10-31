@@ -57,4 +57,60 @@ public sealed class AuthDtoTests
         Assert.Contains("\"acceptedTermsVersion\":\"terms-v1\"", body);
         Assert.Contains("\"acceptedPrivacyVersion\":\"privacy-v1\"", body);
     }
+    [Fact]
+    public void The_organization_reads_its_members_and_ignores_the_dates_and_images()
+    {
+        const string body = """
+            {"id":"o1","name":"Acme","description":null,"imageUrl":null,"createdAt":"2000-01-01T00:00:00Z",
+             "members":[{"userId":"u1","email":"owner@example.test","userName":"owner","profileImageUrl":null,"role":"Owner","joinedAt":"2000-01-01T00:00:00Z"}]}
+            """;
+
+        var organization = JsonSerializer.Deserialize<OrganizationDetail>(body, Json);
+
+        Assert.Equal(("o1", "Acme"), (organization!.Id, organization.Name));
+        Assert.Equal(["owner@example.test (Owner)"], organization.Members.Select(member => $"{member.Email} ({member.Role})"));
+    }
+
+    [Fact]
+    public void A_pending_invitation_reads_its_address_role_and_email_status_and_drops_the_token()
+    {
+        const string body = """
+            [{"id":"i1","organizationId":"o1","organizationName":"Acme","email":"invitee@example.test","role":"Admin",
+              "createdAt":"2000-01-01T00:00:00Z","expiresAt":"2000-01-08T00:00:00Z","isAccepted":false,"emailStatus":"Sent",
+              "emailAttemptCount":1,"lastEmailAttemptAt":null,"nextRetryAt":null,"lastEmailError":null,"token":"secret-token"}]
+            """;
+
+        var invitations = JsonSerializer.Deserialize<List<InvitationSummary>>(body, Json);
+
+        Assert.Equal(("invitee@example.test", "Admin", "Sent"), (invitations![0].Email, invitations[0].Role, invitations[0].EmailStatus));
+        Assert.DoesNotContain("secret-token", JsonSerializer.Serialize(invitations, Json));
+    }
+
+    [Fact]
+    public void The_accept_answer_names_the_organization_it_joined()
+    {
+        const string body = """{"message":"Invitation accepted successfully","organizationId":"o9"}""";
+
+        var accepted = JsonSerializer.Deserialize<AcceptedInvitation>(body, Json);
+
+        Assert.Equal("o9", accepted!.OrganizationId);
+    }
+
+    [Fact]
+    public void The_invite_and_accept_requests_are_camel_case()
+    {
+        var invite = JsonSerializer.Serialize(new InviteMemberRequest("person@example.test", "Admin"), Json);
+        var accept = JsonSerializer.Serialize(new AcceptInvitationRequest("t"), Json);
+
+        Assert.Equal("""{"email":"person@example.test","role":"Admin"}""", invite);
+        Assert.Equal("""{"token":"t"}""", accept);
+    }
+
+    [Fact]
+    public void An_authservice_error_body_gives_its_text()
+    {
+        const string body = """{"error":"Invitation has expired"}""";
+
+        Assert.Equal("Invitation has expired", JsonSerializer.Deserialize<AuthErrorBody>(body, Json)!.Error);
+    }
 }

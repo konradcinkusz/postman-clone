@@ -27,6 +27,13 @@ public enum AuthOutcome
 public sealed record AuthAnswer<T>(AuthOutcome Outcome, T? Value);
 
 /// <summary>
+/// An organization call's answer. On success <see cref="Value"/> holds the body. On failure <see cref="Status"/> (0 when
+/// there was no answer) and <see cref="Error"/>, the <c>error</c> text authservice gave, let the caller say why
+/// (docs/AUTH.md, the invitation rows). Only the membership rules read the text.
+/// </summary>
+public sealed record OrganizationAnswer<T>(AuthOutcome Outcome, int Status, T? Value, string? Error);
+
+/// <summary>
 /// The Web's client for authservice (CONTRACTS §6, docs/AUTH.md). Each call names the bearer it needs through
 /// <see cref="AuthenticatedRequest"/>; the client never keeps a token of its own. Only the callers in
 /// <c>Auth/</c> hold the tokens, on the server.
@@ -130,6 +137,33 @@ public sealed class AuthServiceClient(IHttpClientFactory clients)
         return response is null ? AuthOutcome.Unavailable : FromStatus(response.StatusCode);
     }
 
+    /// <summary>The organization a member sees: its name and members (docs/AUTH.md, the endpoints table). Any member may read it.</summary>
+    public Task<OrganizationAnswer<OrganizationDetail>> GetOrganizationAsync(string accessToken, string organizationId, CancellationToken cancellationToken) =>
+        SendOrganizationAsync<OrganizationDetail>(AuthenticatedRequest.Create(HttpMethod.Get, $"/api/v1/organizations/{organizationId}", accessToken), cancellationToken);
+
+    /// <summary>Invites an address to the organization. authservice refuses a caller below Admin and sends or logs the email itself.</summary>
+    public Task<OrganizationAnswer<InvitationSummary>> InviteMemberAsync(string accessToken, string organizationId, string email, string role, CancellationToken cancellationToken)
+    {
+        var request = AuthenticatedRequest.Create(HttpMethod.Post, $"/api/v1/organizations/{organizationId}/invite", accessToken);
+        request.Content = JsonContent.Create(new InviteMemberRequest(email, role), options: Json);
+        return SendOrganizationAsync<InvitationSummary>(request, cancellationToken);
+    }
+
+    /// <summary>The pending invitations of the organization. Owners and Admins only; authservice answers 403 to anyone else.</summary>
+    public Task<OrganizationAnswer<List<InvitationSummary>>> ListInvitationsAsync(string accessToken, string organizationId, CancellationToken cancellationToken) =>
+        SendOrganizationAsync<List<InvitationSummary>>(AuthenticatedRequest.Create(HttpMethod.Get, $"/api/v1/organizations/{organizationId}/invitations", accessToken), cancellationToken);
+
+    /// <summary>
+    /// Accepts an invitation for the signed-in address. The token must name an invitation to that address; an invitation
+    /// to someone else answers 404, the same as an unknown token (docs/AUTH.md).
+    /// </summary>
+    public Task<OrganizationAnswer<AcceptedInvitation>> AcceptInvitationAsync(string accessToken, string token, CancellationToken cancellationToken)
+    {
+        var request = AuthenticatedRequest.Create(HttpMethod.Post, "/api/v1/organizations/invitations/accept", accessToken);
+        request.Content = JsonContent.Create(new AcceptInvitationRequest(token), options: Json);
+        return SendOrganizationAsync<AcceptedInvitation>(request, cancellationToken);
+    }
+
     private static HttpRequestMessage JsonRequest<T>(HttpMethod method, string path, T body)
     {
         var request = new HttpRequestMessage(method, path)
@@ -153,6 +187,47 @@ public sealed class AuthServiceClient(IHttpClientFactory clients)
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             // A timeout from the resilience handler, not the caller's cancellation.
+            return null;
+        }
+    }
+
+    private async Task<OrganizationAnswer<T>> SendOrganizationAsync<T>(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(request, cancellationToken);
+        if (response is null)
+        {
+            return new OrganizationAnswer<T>(AuthOutcome.Unavailable, 0, default, null);
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await ErrorTextAsync(response, cancellationToken);
+            return new OrganizationAnswer<T>(FromStatus(response.StatusCode), (int)response.StatusCode, default, error);
+        }
+
+        try
+        {
+            var value = await response.Content.ReadFromJsonAsync<T>(Json, cancellationToken);
+            return value is null
+                ? new OrganizationAnswer<T>(AuthOutcome.Unavailable, (int)response.StatusCode, default, null)
+                : new OrganizationAnswer<T>(AuthOutcome.Succeeded, (int)response.StatusCode, value, null);
+        }
+        catch (JsonException)
+        {
+            // A 2xx with a body the Web cannot read is no usable answer, the same as a 5xx.
+            return new OrganizationAnswer<T>(AuthOutcome.Unavailable, (int)response.StatusCode, default, null);
+        }
+    }
+
+    /// <summary>The <c>error</c> text of a failed answer, or null when the body has none (a bare 403, a validation problem).</summary>
+    private static async Task<string?> ErrorTextAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return (await response.Content.ReadFromJsonAsync<AuthErrorBody>(Json, cancellationToken))?.Error;
+        }
+        catch (Exception exception) when (exception is JsonException or NotSupportedException)
+        {
             return null;
         }
     }
