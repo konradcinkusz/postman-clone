@@ -22,6 +22,7 @@ internal static class WebResource
             .WithHttpEndpoint(port: Port, name: "http")
             .WithExternalHttpEndpoints()
             .WithReference(authservice.GetEndpoint("http"))
-            .WaitFor(authservice);
+            .WaitFor(authservice)
+            .WithHttpHealthCheck("/health");
     }
 }

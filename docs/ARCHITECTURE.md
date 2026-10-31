@@ -155,7 +155,7 @@ Defence in depth for the outbound path:
 | Connection pinned to the checked address | `GuardedConnector` (dials only checked addresses) | a second DNS answer between check and use |
 | Manual redirects, each re-validated | `RedirectPlanner`, `RequestExecutor` | redirects to internal addresses; credentials dropped on a cross-host hop |
 | No ambient proxy, no cookies, no auto-redirect, no auto-decompression | `SsrfHandlerFactory` | proxy bypass, cookie carry-over, hidden redirects |
-| Startup refusal of relaxed settings in Production | `ExecutionOptionsValidator` | `AllowLoopback` or `AllowPrivateRanges` in Production |
+| Startup refusal of relaxed settings outside Development | `ExecutionOptionsValidator` | `AllowLoopback` or `AllowPrivateRanges` outside Development |
 | Network egress policy (not in this repository) | deployment | the real backstop; the owner must provide it (ADR-0011) |
 
 The loopback and private-range relaxations exist for the test suite and the local stack. The default is
@@ -205,8 +205,9 @@ flowchart LR
 
 Auth-helper fields accept only `{{variable}}` references (`secret_literal_not_allowed` otherwise). History
 keeps the template, so a stored request never contains a secret value. The masking rules are in
-CONTRACTS §4 and ADR-0012 (encoded forms), ADR-0015 (history). Known limit: a secret cut by the 5 MB read cap
-is not masked (OI-12).
+CONTRACTS §4 and ADR-0012 (encoded forms), ADR-0015 (history). A body cut by the 5 MB read cap keeps its
+secrets masked: the incomplete tail and any partial secret at the cut are removed before masking (WP28, OI-12).
+The sender's outbound requests are not traced, so a user's target never reaches a span (ADR-0019).
 
 ## 8. Architecture rules as tests
 

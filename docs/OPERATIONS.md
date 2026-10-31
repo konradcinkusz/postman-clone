@@ -33,7 +33,8 @@ Keys use .NET configuration syntax. In the environment, `:` becomes `__`.
 | `Auth__RequireHttpsMetadata` | `true` | AppHost sets `false` (containers on HTTP); script sets `false` | Must stay `true` anywhere that is not the loopback stack. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | operator | Exports traces, metrics and logs over OTLP when set. Unset means no export. Not exercised by any test (OI-18). |
 | `AllowedOrigins` | empty | operator | Origins other than the service's own that the origin guard accepts. Array. `ServiceDefaults/Security/OriginGuardMiddleware.cs` |
-| `Proxy:TrustForwardedFor` | `false` | operator | When `true`, the rate limiter reads the client address from `X-Forwarded-For`. Only behind one trusted proxy. |
+| `Proxy:TrustForwardedFor` | `false` | operator | When `true`, the rate limiter reads the client address from `X-Forwarded-For`. Only behind one trusted proxy. Before deployment, see OPEN-ITEMS §0 (OI-26). |
+| `RateLimiting:AuthPermitsPerMinute` | `10` | operator | Web. The sign-in, register and accept-invitation forms share this window per client address (WP28, OI-02). Never below 1. The local stack sets it from `WEB_AUTH_PERMITS_PER_MINUTE`; the browser-journey job uses 18. |
 | `ForwardedHeaders:KnownProxies` | empty | operator | Web only. Addresses whose forwarded headers the Web trusts. |
 
 ### CollectionsService and EnvironmentsService
@@ -137,7 +138,8 @@ scripts/run-local-stack.sh down           # stops the processes it started; data
 
 Logs: `.local-stack/logs/` (`authservice.log`, `collections.log`, `environments.log`, `execution.log`, `web.log`, and the
 build logs next to them). The Web runs from its publish folder, `.local-stack/web-bin`: started from another folder it finds
-no `wwwroot`, and every static file answers 200 with an empty body (OI-27).
+no `wwwroot`. Since WP28 the Web checks its publish manifest against the files on disk before it serves anything, and refuses
+to start when a listed file is missing or the wrong size, naming the file (OI-27). The check reads only publish manifests.
 
 The whole estate is up after `up`. Two switches change the sender for local tests only:
 
@@ -221,10 +223,16 @@ Startup prints the same optional-integration list (`StartupBanner`).
 |---|---|---|
 | Encryption key | Secret writes `503 secrets_unavailable`; plain variables still work | EnvironmentsService `/health`, startup banner |
 | EnvironmentsService | Requests with `environmentId` answer `502 upstream_unavailable`; requests without one still send | ExecutionService responses |
-| Relaxed SSRF setting in Production | Startup fails, naming the setting | ExecutionService log |
+| Relaxed SSRF setting outside Development (Production, Staging, any other name) | Startup fails, naming the setting | ExecutionService log |
 | OTLP endpoint | No export; logging still runs | nowhere |
 | authservice | Sign-in shows "could not be reached" (`error=unavailable`); signed-in sessions continue until refresh fails | Web sign-in page, status strip |
 | Database | Health fails; the service does not serve | `/health` |
+
+### Known behaviour without a version (SR-15)
+
+Environments and their variables have no version. Two editors who save the same environment: the second save replaces the
+first, and nothing warns. Collections are the same for their fields, but saved requests carry a version that the builder checks
+(ADR-0017). This is recorded, not changed: a version would be a contract amendment (CONTRACTS.md), and it is an owner decision.
 
 ## 7. Ports and processes
 

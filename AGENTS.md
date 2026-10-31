@@ -45,7 +45,7 @@ The build plan is the source of truth for scope and contracts:
 
 Still a placeholder: the Web's `/about` page. The plan's README, §3 lists the target layout.
 
-The documentation that describes the system as it is: `README.md`, `docs/ARCHITECTURE.md` (diagrams and flows), `docs/OPERATIONS.md` (configuration, running locally), `docs/TESTING.md` (what runs and what has never run), `docs/PRIVACY.md` (personal data and erasure), `docs/architecture/COMPLIANCE.md` (the reference checklist) and `docs/architecture/OPEN-ITEMS.md` (what is still open). Keep them true when a change touches what they describe.
+The documentation that describes the system as it is: `README.md`, `docs/ARCHITECTURE.md` (diagrams and flows), `docs/SECURITY_REVIEW.md` and `docs/ARCHITECTURE_REVIEW.md` (the final review, WP28; ADR-0019), `docs/OPERATIONS.md` (configuration, running locally), `docs/TESTING.md` (what runs and what has never run), `docs/PRIVACY.md` (personal data and erasure), `docs/architecture/COMPLIANCE.md` (the reference checklist) and `docs/architecture/OPEN-ITEMS.md` (what is still open). Keep them true when a change touches what they describe.
 
 ## Build and test
 
@@ -103,6 +103,8 @@ live only in `Directory.Packages.props`; projects reference packages without a v
   containing `token`, `secret`, `password` or `apikey`, are masked (CONTRACTS §4).
 - **Logging.** Log the method, the host, the status, the sizes and the durations. Never log a request
   or response body, a header value or a variable value.
+- **Rate limits.** Every endpoint that takes a credential or writes carries a policy (`RequireRateLimiting`). The sign-in forms share
+  the `auth` window per address; the Web's window is `RateLimiting:AuthPermitsPerMinute`.
 - **Time.** Inject `TimeProvider`. No test depends on today's date or pins a calendar date; use
   `FakeTimeProvider` relative to now.
 - **Schema.** EF Core migrations (Npgsql), applied by `MigrateAsync` after Kestrel starts. Never

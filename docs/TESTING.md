@@ -1,7 +1,7 @@
 # Testing
 
 What each layer proves, what runs where, what was run for this page, and what has never run. Counts and
-results are from the WP27 session on the merged tree (2026-10-31, .NET SDK 10.0.114, PostgreSQL 16 on localhost).
+results are from the WP28 session on the final branch (2026-10-31, .NET SDK 10.0.114, PostgreSQL 16 on localhost).
 
 ## 1. Layers
 
@@ -105,13 +105,15 @@ No job runs the AppHost.
 
 ## 5. Known problems in the test and check layers
 
-- **OI-06, `TelemetryTests.Requests_are_traced_but_health_probes_are_filtered_out_of_traces`.** Passes in the full Debug and
-  full Release runs. Run alone in Release it fails: `Assert.Contains() Failure: Filter not matched in collection`, with an empty
-  collection: the server span was not captured (PR #21 reports the same on a clean `main`). It predates WP25. It is timing-dependent, and it is not skipped.
-- **OI-05, the secret scanner.** The pre-commit hook runs `gitleaks git --staged`. gitleaks v8.19.0, built from its module
-  source (`go install github.com/zricethezav/gitleaks/v8@v8.19.0`), fails that form with `flag accessed but not defined: source`,
-  and the hook then refuses every commit (it fails closed, as designed). gitleaks from the latest module passes the hook and
-  refuses a dummy secret. The hook was not modified. CI uses the v8.19.0 Docker image in its own `detect` form.
+- **OI-06, `TelemetryTests.Requests_are_traced_but_health_probes_are_filtered_out_of_traces`. Fixed in WP28.** The test read the
+  server span right after the response: a server span ends after the response is written, so it could be missing. The test now
+  waits, bounded at ten seconds, for the span it asserts on. Run alone in Release, three runs passed after the change. The failure
+  before the change was reproduced in WP26 and WP27; it was not re-run on the old code in WP28.
+- **OI-05, the secret scanner.** The pre-commit hook runs `gitleaks git --staged`. gitleaks v8.19.0 fails that form with
+  `flag accessed but not defined: source`, and the hook then refuses every commit (it fails closed, as designed).
+  WP28 ran `go install github.com/zricethezav/gitleaks/v8@v8.28.0` into `$HOME/.local/bin`: `gitleaks git --help` works, the hook's
+  form scans the staged index, and a token-shaped dummy is found (exit 2). The hook and the installer now name v8.28.0.
+  CI uses the v8.19.0 Docker image with `detect`; it is not the hook's form and was not run here (no Docker). An owner decision (OPEN-ITEMS §0).
 - **OI-14, the two local-stack definitions.** Changes to `Auth__*` in the AppHost and in `run-local-stack.sh` have to be made in both
   places. Nothing checks that they agree.
 
