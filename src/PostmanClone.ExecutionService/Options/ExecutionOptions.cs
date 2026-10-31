@@ -38,7 +38,7 @@ public sealed class ExecutionOptions
 
 /// <summary>
 /// Relaxes the address checks that SSRF protection applies by default. Both settings exist only
-/// for the loopback test stack; the service refuses to start with either set in Production.
+/// for the loopback test stack; the service refuses to start with either set outside Development.
 /// </summary>
 public sealed class SsrfOptions
 {

@@ -24,6 +24,6 @@ elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   echo "Secret scanner: gitleaks not on PATH; the hook will use ghcr.io/gitleaks/gitleaks."
 else
   echo "WARNING: no secret scanner available. The hook refuses to commit until one is:"
-  echo "  • gitleaks  https://github.com/gitleaks/gitleaks#installing  (or: go install github.com/zricethezav/gitleaks/v8@latest)"
+  echo "  • gitleaks  https://github.com/gitleaks/gitleaks#installing  (or: go install github.com/zricethezav/gitleaks/v8@v8.28.0 — the version verified with this hook, OI-05)"
   echo "  • Docker    https://docs.docker.com/get-docker/"
 fi

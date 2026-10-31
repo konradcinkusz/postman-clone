@@ -4,7 +4,7 @@ using Xunit;
 
 namespace PostmanClone.ExecutionService.Tests.Options;
 
-/// <summary>The host refuses to start with an SSRF relaxation in Production, and the message names the setting.</summary>
+/// <summary>The host refuses to start with an SSRF relaxation outside Development, and the message names the setting.</summary>
 public sealed class StartupValidationTests
 {
     [Fact]
@@ -18,7 +18,7 @@ public sealed class StartupValidationTests
         var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
 
         var validation = Assert.IsType<OptionsValidationException>(FindInChain<OptionsValidationException>(exception));
-        Assert.Contains("Execution:Ssrf:AllowLoopback must be false in Production.", validation.Failures);
+        Assert.Contains("Execution:Ssrf:AllowLoopback must be false outside Development.", validation.Failures);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public sealed class StartupValidationTests
         var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
 
         var validation = Assert.IsType<OptionsValidationException>(FindInChain<OptionsValidationException>(exception));
-        Assert.Contains("Execution:Ssrf:AllowPrivateRanges must be false in Production.", validation.Failures);
+        Assert.Contains("Execution:Ssrf:AllowPrivateRanges must be false outside Development.", validation.Failures);
     }
 
     [Fact]

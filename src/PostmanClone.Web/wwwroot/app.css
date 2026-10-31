@@ -436,3 +436,10 @@ pre {
         scroll-behavior: auto !important;
     }
 }
+
+/* The password rule under a form field: shown before submit, so the user meets the rule before authservice refuses (WP28). */
+.field > .rule {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+}

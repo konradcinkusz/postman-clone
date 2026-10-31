@@ -59,8 +59,8 @@ Each field is a limit of CONTRACTS §4 and can be overridden with `Execution__<F
 | `Execution:MaxRedirects` | 5 | Redirect hops followed by the sender. |
 | `Execution:HistoryRetentionPerUserWorkspace` | 200 | History entries kept per user and workspace; oldest removed on insert. |
 | `Execution:HistoryBodyMaxBytes` | 65 536 | Response body kept in a history entry. |
-| `Execution:Ssrf:AllowLoopback` | `false` | Lets requests reach loopback. **Refused at startup in Production.** Used by tests and the local stack. |
-| `Execution:Ssrf:AllowPrivateRanges` | `false` | Lets requests reach private ranges. **Refused at startup in Production.** |
+| `Execution:Ssrf:AllowLoopback` | `false` | Lets requests reach loopback. **Refused at startup outside Development** (Production, Staging, any other name). Used by tests and the local stack. |
+| `Execution:Ssrf:AllowPrivateRanges` | `false` | Lets requests reach private ranges. **Refused at startup outside Development.** |
 | `Execution:Ssrf:BlockedPorts` | 22, 25, 110, 143, 465, 587, 993, 995, 3306, 5432, 6379, 9200, 27017 | Destination ports refused. Each must be 1–65535. |
 | `Environments:BaseAddress` | `http://environments-service` | Where ExecutionService resolves environments. Service discovery name by default. |
 | `Environments:Timeout` | 10 s | Timeout for the resolve call. |

@@ -90,7 +90,7 @@ else
   echo "  • gitleaks binary   https://github.com/gitleaks/gitleaks#installing"
   echo "                      macOS:  brew install gitleaks"
   echo "                      Linux:  download the release archive for your arch"
-  echo "                      Go:     go install github.com/zricethezav/gitleaks/v8@latest"
+  echo "                      Go:     go install github.com/zricethezav/gitleaks/v8@v8.28.0   (verified with this hook; OI-05)"
   echo "  • Docker            (the hook will use ghcr.io/gitleaks/gitleaks automatically)"
   echo
   echo "Then re-run: git commit"

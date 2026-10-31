@@ -5,7 +5,7 @@ namespace PostmanClone.ExecutionService.Options;
 
 /// <summary>
 /// Checks <see cref="ExecutionOptions"/> at startup (<c>ValidateOnStart</c>), so a bad value stops the host before it
-/// listens. The SSRF relaxations are refused in Production; every message names the setting that is wrong.
+/// listens. The SSRF relaxations are refused outside Development; every message names the setting that is wrong.
 /// </summary>
 public sealed class ExecutionOptionsValidator(IHostEnvironment environment) : IValidateOptions<ExecutionOptions>
 {
@@ -19,16 +19,18 @@ public sealed class ExecutionOptionsValidator(IHostEnvironment environment) : IV
     {
         var failures = new List<string>();
 
-        if (environment.IsProduction())
+        // Only Development may relax the guard. Staging or any other name is refused too: a relaxed guard is a route to
+        // the metadata address and the private network, and no deployed environment should have one (ADR-0011, WP28).
+        if (!environment.IsDevelopment())
         {
             if (options.Ssrf.AllowLoopback)
             {
-                failures.Add($"{ExecutionOptions.SectionName}:Ssrf:AllowLoopback must be false in Production.");
+                failures.Add($"{ExecutionOptions.SectionName}:Ssrf:AllowLoopback must be false outside Development.");
             }
 
             if (options.Ssrf.AllowPrivateRanges)
             {
-                failures.Add($"{ExecutionOptions.SectionName}:Ssrf:AllowPrivateRanges must be false in Production.");
+                failures.Add($"{ExecutionOptions.SectionName}:Ssrf:AllowPrivateRanges must be false outside Development.");
             }
         }
 
