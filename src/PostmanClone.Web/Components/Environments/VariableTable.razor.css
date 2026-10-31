@@ -12,10 +12,19 @@
     border: 0;
 }
 
+/* The visually hidden captions and headers are positioned against the table, so they cannot widen the page. */
+.variable-table {
+    position: relative;
+}
+
+.variable-table th {
+    white-space: nowrap;
+}
+
 .variable-table input[type="text"],
 .variable-table input[type="password"] {
     width: 100%;
-    min-width: 8rem;
+    min-width: 6rem;
     padding: var(--space-2);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
