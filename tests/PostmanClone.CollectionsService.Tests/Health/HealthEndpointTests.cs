@@ -32,7 +32,7 @@ public sealed class HealthEndpointTests
         await SchemaWait.AppliedAsync(factory, TestContext.Current.CancellationToken);
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync("/api/v1/internal/workspace", TestContext.Current.CancellationToken);
+        using var response = await client.GetAsync("/api/v1/collections", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
