@@ -1,0 +1,87 @@
+@using PostmanClone.Web.Environments
+@implements IDisposable
+@inject EnvironmentService Environments
+@inject PostmanClone.Web.Response.EnvironmentSelection Selection
+
+@* The top bar's environment choice (WP21, ADR-0025). The choice is held in the circuit: a send carries its id, and the builder marks
+   the variable names the environment does not define. Only names and ids reach the page; no value is read here. *@
+
+<div class="field environment-field">
+    <label for="environment-selector">Environment</label>
+    <select id="environment-selector" data-testid="environment-selector" disabled="@(!_ready || _busy || !Environments.HasWorkspace)"
+            @onchange="ChooseAsync">
+        <option value="" selected="@(Selection.EnvironmentId is null)">No environment</option>
+        @if (Environments.Summaries is { } summaries)
+        {
+            @foreach (var summary in summaries)
+            {
+                <option value="@summary.Id" selected="@(summary.Id == Selection.EnvironmentId)">@summary.Name</option>
+            }
+        }
+    </select>
+    @if (_failed)
+    {
+        <span class="field-error" role="status" data-testid="environment-selector-error">@EnvironmentMessages.ListFailed</span>
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource _cancellation = new();
+    private bool _ready;
+    private bool _busy;
+    private bool _failed;
+    private bool _disposed;
+
+    protected override void OnInitialized()
+    {
+        Environments.Changed += OnChanged;
+        Selection.Changed += OnChanged;
+    }
+
+    /// <summary>Reads the list after the first render, not during prerendering (BLAZOR-WEB-APP §3).</summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _disposed || !Environments.HasWorkspace)
+        {
+            return;
+        }
+
+        var answer = await Environments.ListAsync(_cancellation.Token);
+        _ready = true;
+        _failed = answer.Outcome != CollectionOutcome.Succeeded;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ChooseAsync(ChangeEventArgs args)
+    {
+        var choice = Guid.TryParse(args.Value?.ToString(), out var id) ? id : (Guid?)null;
+        _busy = true;
+        _failed = false;
+        StateHasChanged();
+        try
+        {
+            var answer = await Environments.ChooseAsync(choice, _cancellation.Token);
+            _failed = answer.Outcome != CollectionOutcome.Succeeded && answer.Outcome != CollectionOutcome.NotFound;
+        }
+        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+        {
+            // The circuit closed while the choice was read: nothing is left to show.
+        }
+        finally
+        {
+            _busy = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Environments.Changed -= OnChanged;
+        Selection.Changed -= OnChanged;
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+}

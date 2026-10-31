@@ -25,16 +25,6 @@ public interface IExecutionGateway
 }
 
 /// <summary>
-/// The environment the next send uses. WP21 selects it; until then it is always none, so a request sends with no variables.
-/// </summary>
-public sealed class EnvironmentSelection
-{
-    public Guid? EnvironmentId { get; private set; }
-
-    public void Select(Guid? environmentId) => EnvironmentId = environmentId;
-}
-
-/// <summary>
 /// Runs the circuit's sends (WP20, ADR-0023). One send is in flight at a time per circuit: a new send cancels the one before it,
 /// and a result that arrives for a send that was superseded is dropped, so an old answer never overwrites a newer one. Cancelling
 /// cancels the HTTP call, and leaves the page idle with no exception to observe. The page subscribes to <see cref="Changed"/>

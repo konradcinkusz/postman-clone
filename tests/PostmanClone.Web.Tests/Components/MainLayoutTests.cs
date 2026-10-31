@@ -6,6 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 using PostmanClone.Web.Api;
 using PostmanClone.Web.Auth;
 using PostmanClone.Web.Components.Layout;
+using PostmanClone.Web.Tests.Auth;
+using PostmanClone.Web.Tests.EnvironmentsUi;
 
 namespace PostmanClone.Web.Tests.Components;
 
@@ -13,22 +15,24 @@ namespace PostmanClone.Web.Tests.Components;
 public sealed class MainLayoutTests
 {
     /// <summary>The services the layout needs: an anonymous test user, the workspace state, and an antiforgery token.</summary>
-    private static BunitContext Context(IBackendStatusReader reader)
+    private static BunitContext Context(IBackendStatusReader reader, AuthHarness harness)
     {
         var context = new BunitContext();
         context.Services.AddSingleton<AuthenticationStateProvider>(new AnonymousAuthentication());
         context.Services.AddScoped<WorkspaceState>();
         context.Services.AddSingleton<AntiforgeryStateProvider>(new StubAntiforgery());
         context.Services.AddSingleton(reader);
+        EnvironmentsRig.AddSelectorServices(context.Services, harness);
         return context;
     }
 
     [Fact]
     public void The_status_strip_shows_each_backend_with_its_state()
     {
+        using var harness = new AuthHarness();
         using var context = Context(new FixedStatusReader(
             new BackendStatus("authservice", "healthy"),
-            new BackendStatus("collections", BackendStates.Unreachable)));
+            new BackendStatus("collections", BackendStates.Unreachable)), harness);
 
         var cut = context.Render<MainLayout>(parameters => parameters.Add(p => p.Body, builder => builder.AddContent(0, "page body")));
 
@@ -41,7 +45,8 @@ public sealed class MainLayoutTests
     [Fact]
     public void The_navigation_renders_every_page_in_order_and_the_body_is_in_main()
     {
-        using var context = Context(new FixedStatusReader());
+        using var harness = new AuthHarness();
+        using var context = Context(new FixedStatusReader(), harness);
 
         var cut = context.Render<MainLayout>(parameters => parameters.Add(p => p.Body, builder => builder.AddContent(0, "page body")));
 
@@ -53,7 +58,8 @@ public sealed class MainLayoutTests
     [Fact]
     public void A_signed_out_visitor_sees_no_sign_out_button()
     {
-        using var context = Context(new FixedStatusReader());
+        using var harness = new AuthHarness();
+        using var context = Context(new FixedStatusReader(), harness);
 
         var cut = context.Render<MainLayout>(parameters => parameters.Add(p => p.Body, builder => builder.AddContent(0, "page body")));
 
@@ -64,7 +70,8 @@ public sealed class MainLayoutTests
     [Fact]
     public void A_failed_status_read_is_an_alert_not_an_exception()
     {
-        using var context = Context(new ThrowingStatusReader());
+        using var harness = new AuthHarness();
+        using var context = Context(new ThrowingStatusReader(), harness);
 
         var cut = context.Render<MainLayout>(parameters => parameters.Add(p => p.Body, builder => builder.AddContent(0, "page body")));
 

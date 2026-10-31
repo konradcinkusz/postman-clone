@@ -1,5 +1,6 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Authorization
+@using PostmanClone.Web.Components.Environments
 @inherits LayoutComponentBase
 @inject WorkspaceState Workspace
 @inject AuthenticationStateProvider AuthenticationState
@@ -18,12 +19,7 @@
             <button type="submit" class="btn" data-testid="sign-out">Sign out</button>
         </form>
     }
-    <div class="field environment-field">
-        <label for="environment-selector">Environment</label>
-        <select id="environment-selector" disabled data-testid="environment-selector">
-            <option>No environments yet</option>
-        </select>
-    </div>
+    <EnvironmentSelector />
 </header>
 
 <StatusStrip />

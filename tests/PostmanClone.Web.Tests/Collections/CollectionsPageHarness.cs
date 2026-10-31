@@ -51,7 +51,10 @@ internal static class CollectionsPageHarness
         // The sender (WP20) is registered as the host registers it; these page tests do not send, so the gateway answers nothing.
         var sender = gateway ?? new UnusedExecutionGateway();
         context.Services.AddSingleton(sender);
-        context.Services.AddSingleton(new SendCoordinator(sender, new EnvironmentSelection()));
+        // The environment choice (WP21) is one instance for the page and for the sender, as the host registers it.
+        var selection = new EnvironmentSelection();
+        context.Services.AddSingleton(selection);
+        context.Services.AddSingleton(new SendCoordinator(sender, selection));
         // The workspace home shows the history panel (WP22), so the history services are part of every home page's circuit.
         HistoryPageHarness.AddHistoryServices(context, state, session, history ?? new FakeHistoryClient(), clock ?? new FakeTimeProvider());
         return context;

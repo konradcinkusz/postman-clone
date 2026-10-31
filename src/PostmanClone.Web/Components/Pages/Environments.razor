@@ -1,3 +1,414 @@
 @page "/environments"
+@using PostmanClone.Web.Api
+@using PostmanClone.Web.Components.Environments
+@using PostmanClone.Web.Environments
+@inject EnvironmentService Catalog
+@implements IDisposable
 
-<PlaceholderPage Title="Environments" />
+@* The environments page (WP21, ADR-0025): the list, a create form, one environment's name and variables, and delete with a second
+   step. A secret's value is never rendered: VariableTable shows "stored" or "no value" and a typed value stays in the circuit. *@
+
+<PageTitle>Environments · PostmanClone</PageTitle>
+
+<header class="split page-header">
+    <h1 data-testid="environments-title">Environments</h1>
+</header>
+
+<section class="card" aria-label="About environments" data-testid="env-hint">
+    <p class="hint">@EnvironmentMessages.Hint</p>
+</section>
+
+@if (!_hasWorkspace)
+{
+    <section class="empty-state" data-testid="env-no-workspace">
+        <p>Environments belong to one workspace. <a href="/no-workspace">See what to do next</a>.</p>
+    </section>
+}
+else
+{
+    @if (_listFailure is { } listFailure)
+    {
+        <div class="callout callout-danger" role="alert" data-testid="env-alert">@listFailure</div>
+    }
+
+    @if (_secretsUnavailable)
+    {
+        <div class="callout callout-warning" role="alert" data-testid="env-secrets-unavailable">@EnvironmentMessages.SecretsUnavailable</div>
+    }
+
+    @if (_error is { } error)
+    {
+        <div class="callout callout-danger" role="alert" data-testid="env-error">@error</div>
+    }
+
+    @if (_notice is { } notice)
+    {
+        <div class="callout callout-success" role="status" data-testid="env-notice">@notice</div>
+    }
+
+    <div class="environments-grid">
+        <aside class="stack" aria-label="Environments of this workspace">
+            <section class="card stack" aria-labelledby="env-list-heading">
+                <h2 id="env-list-heading">Your environments</h2>
+                @if (Catalog.Summaries is { } summaries)
+                {
+                    @if (summaries.Count == 0)
+                    {
+                        <p class="empty-state" data-testid="env-empty">No environments yet. Create one to start.</p>
+                    }
+                    else
+                    {
+                        <ul class="stack env-list" data-testid="env-list">
+                            @for (var index = 0; index < summaries.Count; index++)
+                            {
+                                var summary = summaries[index];
+                                var position = index + 1;
+                                <li>
+                                    <button type="button" class="env-item" data-testid="env-item-@position" disabled="@_busy"
+                                            aria-current="@(summary.Id == _selectedId ? "true" : null)"
+                                            @onclick="() => OpenAsync(summary.Id)">
+                                        <span class="env-item-name">@summary.Name</span>
+                                        <span class="badge">@(summary.VariableCount == 1 ? "1 variable" : $"{summary.VariableCount} variables")</span>
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    }
+                }
+                else if (_listFailure is null)
+                {
+                    <p role="status" data-testid="env-loading">Reading your environments…</p>
+                }
+            </section>
+
+            <form class="card stack" data-testid="env-create-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+                <h2>New environment</h2>
+                <div class="field">
+                    <label for="env-new-name">Name</label>
+                    <input id="env-new-name" type="text" maxlength="@EnvironmentRules.NameMaxLength" autocomplete="off" required
+                           aria-invalid="@(_createError is null ? null : "true")" aria-describedby="env-create-error"
+                           data-testid="env-new-name" disabled="@(_busy || AtLimit)" @bind="_newName" @bind:event="oninput" />
+                </div>
+                <p class="field-error" id="env-create-error" data-testid="env-create-error">@_createError</p>
+                @if (AtLimit)
+                {
+                    <p class="hint" data-testid="env-limit">@EnvironmentMessages.LimitReached</p>
+                }
+                <div class="cluster">
+                    <button type="submit" class="btn btn-primary" data-testid="env-create" disabled="@(_busy || AtLimit)">Create</button>
+                </div>
+            </form>
+        </aside>
+
+        <section class="stack" aria-labelledby="env-editor-heading">
+            @if (_editor is null)
+            {
+                <p class="empty-state" data-testid="env-none-selected">Choose an environment to see its variables, or create one.</p>
+            }
+            else
+            {
+                <div class="card stack" data-testid="env-editor">
+                    <h2 id="env-editor-heading">Edit environment</h2>
+
+                    <div class="field">
+                        <label for="env-name">Name</label>
+                        <input id="env-name" type="text" maxlength="@EnvironmentRules.NameMaxLength" autocomplete="off"
+                               aria-invalid="@(_issues.Name is null ? null : "true")" aria-describedby="env-name-error"
+                               data-testid="env-name" disabled="@_busy" @bind-value="_editor.Name" @bind-value:event="oninput"
+                               @bind-value:after="RefreshAsync" />
+                        <p class="field-error" id="env-name-error" data-testid="env-name-error">@_issues.Name</p>
+                    </div>
+
+                    <p class="hint">A secret's value is write-only: it is never shown again. A stored secret keeps its value unless you type a new one.</p>
+
+                    <VariableTable Editor="_editor" Issues="_issues" Busy="_busy" OnChanged="RefreshAsync" />
+
+                    @if (_issues.Table.Count > 0)
+                    {
+                        <div class="field-error" role="alert" data-testid="env-table-issues">
+                            @foreach (var message in _issues.Table)
+                            {
+                                <p>@message</p>
+                            }
+                        </div>
+                    }
+
+                    <div class="card stack save-bar">
+                        <div class="cluster">
+                            <button type="button" class="btn btn-primary" data-testid="env-save" disabled="@(_busy || !_canSave)" @onclick="SaveAsync">Save</button>
+                            <button type="button" class="btn" data-testid="env-discard" disabled="@(_busy || !_dirty)" @onclick="DiscardAsync">Discard changes</button>
+                            @if (_dirty)
+                            {
+                                <span class="badge badge-warning" role="status" data-testid="env-dirty">@EnvironmentMessages.Unsaved</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-success" data-testid="env-clean">Saved</span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="stack" data-testid="env-delete-area">
+                        @if (!_confirmDelete)
+                        {
+                            <div class="cluster">
+                                <button type="button" class="btn btn-danger" data-testid="env-delete" disabled="@_busy" @onclick="() => _confirmDelete = true">Delete environment…</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="callout callout-warning" role="alert" data-testid="env-delete-confirm-text">
+                                <p>@EnvironmentMessages.DeleteConfirmation</p>
+                                <div class="cluster">
+                                    <button type="button" class="btn btn-danger" data-testid="env-delete-confirm" disabled="@_busy" @onclick="DeleteAsync">Delete</button>
+                                    <button type="button" class="btn" data-testid="env-delete-cancel" disabled="@_busy" @onclick="() => _confirmDelete = false">Cancel</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    private static readonly EditorIssues NoIssues = new(null, new Dictionary<Guid, IReadOnlyList<string>>(), []);
+
+    private readonly CancellationTokenSource _cancellation = new();
+    private EnvironmentEditor? _editor;
+    private EditorIssues _issues = NoIssues;
+    private bool _canSave;
+    private bool _dirty;
+    private bool _hasWorkspace;
+    private bool _busy;
+    private bool _confirmDelete;
+    private bool _secretsUnavailable;
+    private bool _disposed;
+    private Guid? _selectedId;
+    private string? _listFailure;
+    private string? _error;
+    private string? _notice;
+    private string? _createError;
+    private string _newName = string.Empty;
+
+    private CancellationToken Token => _cancellation.Token;
+
+    private bool AtLimit => Catalog.Summaries?.Count >= EnvironmentRules.EnvironmentsPerWorkspace;
+
+    protected override void OnInitialized()
+    {
+        _hasWorkspace = Catalog.HasWorkspace;
+        Catalog.Changed += OnChanged;
+    }
+
+    /// <summary>
+    /// Reads the list after the first render on the circuit, not during prerendering: a prerendered page must not wait for the
+    /// service before it can be sent (BLAZOR-WEB-APP §3, the double first load).
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _disposed || !_hasWorkspace)
+        {
+            return;
+        }
+
+        await RunAsync(LoadListAsync);
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Catalog.Changed -= OnChanged;
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private Task RefreshAsync()
+    {
+        Refresh();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Recomputes what the page shows about the open editor: its issues, whether it can save, and whether it differs.</summary>
+    private void Refresh()
+    {
+        if (_editor is null)
+        {
+            _issues = NoIssues;
+            _canSave = false;
+            _dirty = false;
+            return;
+        }
+
+        _issues = _editor.Issues();
+        _canSave = _editor.CanSave();
+        _dirty = _editor.IsDirty;
+    }
+
+    /// <summary>Runs one page action: busy while it runs, errors into state, the page redrawn when it ends.</summary>
+    private async Task RunAsync(Func<Task> action)
+    {
+        _busy = true;
+        StateHasChanged();
+        try
+        {
+            await action();
+        }
+        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+        {
+            // The circuit closed while the call ran: nothing is left to show.
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // An unexpected failure is shown as a plain sentence, with no exception text on the page.
+            _error = EnvironmentMessages.SaveFailed;
+        }
+        finally
+        {
+            _busy = false;
+            Refresh();
+            if (!_disposed)
+            {
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task LoadListAsync()
+    {
+        var answer = await Catalog.ListAsync(Token);
+        _listFailure = answer.Outcome == CollectionOutcome.Succeeded ? null : EnvironmentMessages.ForFailure(answer.Outcome, answer.Code);
+    }
+
+    private Task OpenAsync(Guid id) => RunAsync(() => SelectAsync(id));
+
+    /// <summary>Reads one environment into the editor. A foreign or absent id is the same "no longer exists" answer (CONTRACTS §0).</summary>
+    private async Task SelectAsync(Guid id)
+    {
+        _notice = null;
+        _error = null;
+        _confirmDelete = false;
+        var answer = await Catalog.GetAsync(id, Token);
+        if (answer.Value is { } environment)
+        {
+            _editor = EnvironmentEditor.From(environment);
+            _selectedId = environment.Id;
+            return;
+        }
+
+        if (answer.Outcome == CollectionOutcome.NotFound)
+        {
+            _editor = null;
+            _selectedId = null;
+            await LoadListAsync();
+        }
+
+        _error = EnvironmentMessages.ForFailure(answer.Outcome, answer.Code);
+    }
+
+    private Task CreateAsync()
+    {
+        _notice = null;
+        _error = null;
+        _createError = EnvironmentRules.NameProblem(_newName.Trim());
+        if (_createError is not null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return RunAsync(async () =>
+        {
+            var answer = await Catalog.CreateAsync(_newName, Token);
+            if (answer.Value is { } created)
+            {
+                _newName = string.Empty;
+                _createError = null;
+                await SelectAsync(created.Id);
+                _notice = EnvironmentMessages.Created;
+                return;
+            }
+
+            // On create, 409 is the workspace's 50-environment limit: the service's only conflict for this call (CONTRACTS §3).
+            _createError = answer.Outcome == CollectionOutcome.Conflict
+                ? EnvironmentMessages.LimitReached
+                : EnvironmentMessages.ForFailure(answer.Outcome, answer.Code);
+        });
+    }
+
+    private Task SaveAsync() => RunAsync(async () =>
+    {
+        if (_editor is null)
+        {
+            return;
+        }
+
+        var answer = await Catalog.SaveAsync(_editor, Token);
+        if (answer.Value is not null)
+        {
+            _secretsUnavailable = false;
+            _notice = EnvironmentMessages.Saved;
+            return;
+        }
+
+        _notice = null;
+        if (answer.Outcome == CollectionOutcome.NotFound)
+        {
+            _editor = null;
+            _selectedId = null;
+            _error = EnvironmentMessages.NotFound;
+            await LoadListAsync();
+            return;
+        }
+
+        if (answer.Code == "secrets_unavailable")
+        {
+            _secretsUnavailable = true;
+            _error = null;
+            return;
+        }
+
+        _error = answer.Outcome == CollectionOutcome.Invalid
+            ? EnvironmentMessages.SaveRefused
+            : EnvironmentMessages.ForFailure(answer.Outcome, answer.Code);
+    });
+
+    /// <summary>Reads the environment again: the editor takes the stored state, and what was typed is dropped.</summary>
+    private Task DiscardAsync() => RunAsync(async () =>
+    {
+        if (_editor is not null)
+        {
+            await SelectAsync(_editor.Id);
+        }
+    });
+
+    private Task DeleteAsync() => RunAsync(async () =>
+    {
+        if (_editor is null)
+        {
+            return;
+        }
+
+        var id = _editor.Id;
+        var answer = await Catalog.DeleteAsync(id, Token);
+        _confirmDelete = false;
+        if (answer.Outcome == CollectionOutcome.Succeeded)
+        {
+            _editor = null;
+            _selectedId = null;
+            _notice = EnvironmentMessages.Deleted;
+            return;
+        }
+
+        if (answer.Outcome == CollectionOutcome.NotFound)
+        {
+            _editor = null;
+            _selectedId = null;
+            await LoadListAsync();
+        }
+
+        _error = EnvironmentMessages.ForFailure(answer.Outcome, answer.Code);
+    });
+}
