@@ -154,9 +154,8 @@ public sealed class ExecuteSecurityTests
     public async Task A_closed_port_on_a_permitted_address_is_a_network_error()
     {
         await using var environments = await FakeEnvironments.StartAsync();
-        var closed = await LoopbackServer.StartAsync(context => Task.CompletedTask);
+        using var closed = new ReservedPort();
         var port = closed.Port;
-        await closed.DisposeAsync();
         await using var factory = new ExecutionServiceFactory(overrides: SenderSettings.Loopback(environments.Server.Address));
         var sender = await Sender.ForAsync(factory, Guid.NewGuid(), TestContext.Current.CancellationToken);
 
@@ -170,9 +169,8 @@ public sealed class ExecuteSecurityTests
     [Fact]
     public async Task An_unreachable_EnvironmentsService_is_502_upstream_unavailable()
     {
-        var down = await LoopbackServer.StartAsync(context => Task.CompletedTask);
+        using var down = new ReservedPort();
         var address = down.Address;
-        await down.DisposeAsync();
         var environmentId = Guid.NewGuid();
         await using var factory = new ExecutionServiceFactory(overrides: SenderSettings.Defaults(address));
         var sender = await Sender.ForAsync(factory, Guid.NewGuid(), TestContext.Current.CancellationToken);

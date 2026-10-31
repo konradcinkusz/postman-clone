@@ -18,6 +18,7 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PostmanClone.Web", "src\PostmanClone.Web\PostmanClone.Web.csproj", "{66A4B29F-31E1-4F5B-A653-7467B22B2A07}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PostmanClone.Web.Tests", "tests\PostmanClone.Web.Tests\PostmanClone.Web.Tests.csproj", "{7CB2E701-E317-4F6C-804E-01D41893F748}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PostmanClone.ExecutionService", "src\PostmanClone.ExecutionService\PostmanClone.ExecutionService.csproj", "{18F0FA88-0C44-4AC0-9223-565B864FBC58}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PostmanClone.ExecutionService.Tests", "tests\PostmanClone.ExecutionService.Tests\PostmanClone.ExecutionService.Tests.csproj", "{C8313D9B-BCC9-4FC9-950F-FC6971EFF49C}"

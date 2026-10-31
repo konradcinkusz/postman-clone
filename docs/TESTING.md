@@ -15,7 +15,7 @@ results are from the WP27 session on the merged tree (2026-10-31, .NET SDK 10.0.
 | Browser-facing host | `Web.Tests` (`WebApplicationFactory`) | the origin guard, the security headers, the CSP and the interactive render mode | cross-site POST refused; `Referrer-Policy` set |
 | Contract smoke against a real authservice | `scripts/smoke-auth.sh` | the authservice endpoints and claims the services rely on, against v0.3.4 | register, login, organization, refresh, logout |
 | Repository checks | `scripts/check-doc-links.sh`, `scripts/check-kernel-size.sh`, `scripts/hooks/pre-commit` | links resolve; the kernel stays at most 800 lines; no secret in a staged change | |
-| End to end (browser) | **not built** (`tests/PostmanClone.E2E` is WP26) | the protected journeys in the browser | see §4 |
+| End to end (browser) | `Web.E2E` (Playwright, Chromium) against the no-Docker estate | 18 journeys: sign-up and sign-in through the form, collections and requests, sending to a local target, the rendering of a response, environments and secrets, import and export, isolation between workspaces, 390 px and the dark theme. Protected flows and non-goals: [ADR-0018](decisions/0018-e2e-scope-and-charter.md) | `scripts/run-local-stack.sh up`, then the two runs in §4 |
 
 Tests assert behaviour, not presence: there are no `Assert.True(true)` placeholders and no `Thread.Sleep` in
 `tests/` (checked by search). The one `Task.Delay` in `ExecuteSecurityTests` is a slow target that waits for the
@@ -65,8 +65,21 @@ covers it*. The PostgreSQL run of the same assertion passes.
 | Ad hoc sender and collections checks (curl, not committed) | collection create 201; loopback target `blocked` `ssrf_blocked_address`; `environmentId` `502 upstream_unavailable`; history list 200 |
 | Ad hoc Web checks (curl and headless Chromium, not committed) | curl sign-in works with the settings in OPERATIONS §4.3; **a browser sign-in completes** and lands on `/no-workspace` (OI-01, fixed by WP18b; before it returned 403) |
 
-The ad hoc scripts lived in the session's scratch directory and are not part of the repository. The repository's own
-check for the sign-in journey is the E2E layer, which does not exist yet.
+| E2E, loopback set (`dotnet test --project tests/PostmanClone.Web.E2E … --filter "Mode!=strict"`) on the estate started with `E2E_SENDER_LOOPBACK=1` | **16 of 16 passed**, 1 min 27 s, serial. Each journey creates its own users (`TestUsers`) and signs in through the form. Run 2026-10-31 on the sandbox (4 vCPU) |
+| E2E, strict set (`--filter "Mode!=loopback"`) on the estate started without the flag | **12 of 12 passed**, 1 min 21 s. The default refuses a loopback target with the service's reason (`ssrf_blocked_address`) and the metadata address in both sets |
+| E2E prerequisites: the Web unreachable | locally the journeys **skip with the reason**; with `POSTMANCLONE_E2E_REQUIRED=1` they **fail** with the same reason; a missing Chromium is reported with its instruction |
+| E2E deliberate failure (a temporary journey with a false assertion, run once, then deleted) | the run exits 2 and reports `failed: 1`, so the job cannot pass on a failing journey |
+
+The ad hoc scripts lived in the session's scratch directory and are not part of the repository. The E2E runs above are
+the repository's own journeys; the CI job of the same name is in §4.
+
+Two findings from the runs, both recorded in OPERATIONS and the open-items register:
+
+- **authservice's sign-in window.** authservice allows 20 auth requests per minute per client IP and queues five more until
+  the window reopens. An unbudgeted run from one address waited up to a minute for a register or a login (OI-26). The suite now
+  counts its own calls and keeps them at 18 a minute (`AuthBudget`).
+- **The Web must run from its publish directory.** Started from another working directory, it finds no `wwwroot`, every static
+  asset answers 200 with an empty body, and the circuit never starts. `run-local-stack.sh` starts it from its own folder.
 
 ## 4. What CI runs
 
@@ -79,13 +92,16 @@ check for the sign-in journey is the E2E layer, which does not exist yet.
 | `docker-build` | `docker build --file <Dockerfile> .` for each of the four Dockerfiles, no push | never run in a session (no Docker daemon); CI is the first real build |
 | `kernel-size` | `scripts/check-kernel-size.sh` | |
 | `auth-smoke` | `scripts/run-local-stack.sh up`, `scripts/smoke-auth.sh`, `down` | PostgreSQL 16 service; authservice built from its tag |
+| `e2e` | `scripts/run-local-stack.sh up` with `E2E_SENDER_LOOPBACK=1`, the loopback set; `down`; `up` without the flag, the strict set; `down`. Chromium installed by `playwright.ps1 install --with-deps chromium`. `POSTMANCLONE_E2E_REQUIRED=1`. Logs uploaded on failure | PostgreSQL 16 service; runs when `src/`, `tests/`, `scripts/` or this workflow changed on a pull request |
 | `docs-links` | `scripts/check-doc-links.sh` | |
 | `pr-validation` | aggregate of the above | the one required status check (owner action) |
 
 `.github/workflows/secret-scan.yml` runs gitleaks v8.19.0 in Docker over the full history, on a pull request, on a push to
 `main`, and weekly. The pre-commit hook runs the same scanner locally (§5).
 
-**There is no E2E job yet** (WP26), and no job runs the AppHost.
+`tests/PostmanClone.Web.E2E` is **not in `PostmanClone.sln`**: its journeys need the running estate, and a solution run of a project with
+no matching tests ends with exit code 8. The `dotnet` job therefore does not see it, and the `e2e` job builds and runs it on its own.
+No job runs the AppHost.
 
 ## 5. Known problems in the test and check layers
 
@@ -105,12 +121,10 @@ check for the sign-in journey is the E2E layer, which does not exist yet.
 |---|---|---|
 | The AppHost (`dotnet run --project src/PostmanClone.AppHost`) | no Docker daemon in sessions | a machine with Docker, once per release |
 | `docker build` of any of the four Dockerfiles, here | no Docker daemon | CI's `docker-build` job (not yet seen green for this head at the time of writing) |
-| The E2E journeys | not built (WP26) | WP26 |
-| The Web's send path in a browser | the builder and viewer were tested with fakes (WP20); not run live here (OI-24) | an E2E journey (WP26) |
+| The `e2e` job on a GitHub runner | the journeys ran on the sandbox only; the job's result is on the pull request | the job's first green run on the pull request head |
 | The OTLP exporter against a collector | no collector; no test covers the branch | an integration test with a stub collector (OI-18) |
-| Layout at 390 px and both themes, in a real browser | WP07 and WP18 checked widths headlessly; no browser suite | WP26 journey 11 |
 | Real internet egress from the sender | the SSRF tests use loopback targets and scripted resolvers; no public host was contacted | a manual check against one public host with the default settings |
-| EnvironmentsService started by the no-Docker script | the script does not start it (OI-13) | a change to `run-local-stack.sh` (WP26) |
+| Browsers other than Chromium, and the 390 px check on a real phone | the suite uses Chromium with a 390 px viewport | a manual check on a device (not automated) |
 
 ## 7. Manual checks
 

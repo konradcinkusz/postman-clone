@@ -32,7 +32,7 @@ Open items are in [OPEN-ITEMS.md](OPEN-ITEMS.md) and are cited by their IDs here
 | 16 | Extension points are interfaces registered in DI, not base classes | Met | `IHistoryRecorder` (`ExecutionService/Sending/Execution/HistoryDraft.cs`), `IHostResolver`, `IAddressDialer` (`Sending/Ssrf/`), `ISecretProtector` (`EnvironmentsService/Secrets/`), `IOptionalIntegration` (`ServiceDefaults/Integrations/`) | `grep` finds no `abstract class` in `src/`. |
 | 17 | Has a test project; the logic-bearing layer is covered; characterisation tests before any migration | Met | five test projects, 1599 tests (TESTING.md §2); tests run green in Debug and Release (TESTING.md §3) | Characterisation tests apply to behaviour being moved; none is being moved (N/A for that part). |
 | 18 | Built by the tag-driven workflow with path-based change detection | Not met (by decision) | `.github/workflows/pr-validation.yml`: pull-request CI with a `detect-changes` job that finds inputs, not paths; no tag trigger (`secret-scan.yml` says so explicitly) | ADR-0007 and PROTOCOL forbid tags and deployment. Recorded in DEVIATIONS (2026-10-31). |
-| 19 | Architectural decisions recorded in `docs/` | Met | `docs/decisions/` (ADR-0001 to ADR-0017, ADR-0020 to ADR-0023; 0018 and 0019 reserved for WP26 and WP28); `docs/architecture/DEVIATIONS.md` | 0018 (E2E charter) and 0019 (review outcomes) are not written: WP26 and WP28 are not merged. |
+| 19 | Architectural decisions recorded in `docs/` | Met | `docs/decisions/` (ADR-0001 to ADR-0018, ADR-0020 to ADR-0025; 0019 reserved for WP28); `docs/architecture/DEVIATIONS.md` | 0018 (E2E charter) and 0019 (review outcomes) are not written: WP26 and WP28 are not merged. |
 
 ## Other standards this page applies
 

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Browser journeys against the running local stack (ADR-0018, docs/TESTING.md). Not a unit project: the CI unit
+    job excludes it by name, and it runs in the `e2e` job after scripts/run-local-stack.sh up.
+    The browser is Chromium, found by Support/BrowserLocator.cs; this project never downloads one.
+  -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>PostmanClone.Web.E2E</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- One journey at a time: every journey drives a browser and the shared stack, and parallel runs overloaded the stack's
+         password hashing (the authservice client timed out). Serial runs are slower and stable. -->
+    <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.Playwright" />
+  </ItemGroup>
+</Project>
