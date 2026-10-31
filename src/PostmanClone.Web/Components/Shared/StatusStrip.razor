@@ -32,6 +32,7 @@
     private readonly CancellationTokenSource _cancellation = new();
     private IReadOnlyList<BackendStatus>? _statuses;
     private bool _failed;
+    private bool _disposed;
 
     /// <summary>
     /// Starts after the first render on the circuit, not during prerender: a prerendered page must not wait for the
@@ -39,13 +40,16 @@
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
+        // A circuit can close between the render and this callback. The source is disposed then, and reading its
+        // Token throws, so a disposed component returns before it touches the source.
+        if (!firstRender || _disposed)
         {
             return;
         }
 
-        await RefreshAsync(_cancellation.Token);
-        _ = PollAsync(_cancellation.Token);
+        var cancellationToken = _cancellation.Token;
+        await RefreshAsync(cancellationToken);
+        _ = PollAsync(cancellationToken);
     }
 
     /// <summary>Polls on the circuit's own timer and stops when the component is disposed.</summary>
@@ -94,6 +98,12 @@
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
         _cancellation.Cancel();
         _cancellation.Dispose();
     }
