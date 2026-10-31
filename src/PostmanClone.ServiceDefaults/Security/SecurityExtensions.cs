@@ -10,7 +10,10 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next)
     {
         var headers = context.Response.Headers;
         headers["X-Content-Type-Options"] = "nosniff";
-        headers["Referrer-Policy"] = "no-referrer";
+        // same-origin, not no-referrer: with no-referrer the browser serialises a form POST's Origin as "null", which the
+        // origin guard refuses, so no one could sign in with a browser (ADR-0021). same-origin still sends the real
+        // Origin and Referer on same-origin requests and sends no referrer across sites.
+        headers["Referrer-Policy"] = "same-origin";
         headers["X-Frame-Options"] = "DENY";
         return next(context);
     }

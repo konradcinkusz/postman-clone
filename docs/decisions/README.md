@@ -27,7 +27,8 @@ Numbers are reserved per work package in
 | [0014](0014-execution-limits-and-redirects.md) | Execution limits, redirects and the send path: sender-followed hops, capped and decoded reads, masked results | Accepted |
 | [0015](0015-history-retention-and-masking.md) | History retention and masking: the template with its references, masked in every form, 200 per user and workspace | Accepted |
 | [0016](0016-import-threat-model.md) | Import threat model for Postman collections: caps before work, literal secrets replaced and never stored, no execution or network, one transaction | Accepted |
+| [0021](0021-referrer-policy-same-origin.md) | Referrer-Policy `same-origin` so the browser sends the real Origin on a form POST; the origin guard refuses `Origin: null` and a foreign Referer on unsafe requests | Accepted |
 | [0020](0020-architecture-fitness-tests.md) | Architecture and tenancy rules as tests: ten rules, each shown to fail on a broken sample; framework endpoints and the anonymous allow-list | Accepted |
 
 Reserved for later work packages (see WORK-PACKAGES.md):
-0017 builder state model, 0018 E2E scope and charter, 0019 review outcomes. 0020 is WP25's architecture rules. 0021–0029 are spare.
+0017 builder state model, 0018 E2E scope and charter, 0019 review outcomes. 0020 is WP25's architecture rules. 0021 is WP18b's referrer policy. 0022–0029 are spare.
