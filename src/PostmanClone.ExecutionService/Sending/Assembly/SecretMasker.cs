@@ -71,6 +71,26 @@ public sealed class SecretMasker
         return SensitiveFragments.Any(fragment => name.Contains(fragment, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// Removes the longest tail of <paramref name="text"/> that is the beginning of a secret form. A body cut at the read cap
+    /// can end inside a secret: the part before the cut would show, unmasked, because the rest is not there to match (OI-12).
+    /// Only a proper prefix is removed, so a whole secret at the end is left for <see cref="MaskText"/>.
+    /// </summary>
+    public string TrimPartialSecretAtEnd(string text)
+    {
+        var longest = _forms.Count == 0 ? 0 : _forms[0].Length;
+        for (var length = Math.Min(longest - 1, text.Length); length > 0; length--)
+        {
+            var tail = text[^length..];
+            if (_forms.Any(form => form.Length > length && form.StartsWith(tail, StringComparison.Ordinal)))
+            {
+                return text[..^length];
+            }
+        }
+
+        return text;
+    }
+
     /// <summary>Masks every secret form in free text, such as a body.</summary>
     public string MaskText(string text)
     {

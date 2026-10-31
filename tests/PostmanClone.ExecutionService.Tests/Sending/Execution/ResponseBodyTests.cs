@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Text;
 using System.Net.Http.Headers;
 using PostmanClone.ExecutionService.Api;
 using PostmanClone.ExecutionService.Sending.Assembly;
@@ -11,6 +12,49 @@ namespace PostmanClone.ExecutionService.Tests.Sending.Execution;
 public sealed class ResponseBodyTests
 {
     private const long Cap = 5 * 1024 * 1024;
+
+
+    [Fact]
+    public void A_body_cut_inside_a_secret_shows_none_of_the_secret()
+    {
+        // The secret is 12 characters; the cut leaves its first 5 at the end of the captured text (OI-12).
+        const string secret = "s3cr3t-value"; // gitleaks:allow (test fixture, not a credential)
+        var masker = SecretMasker.For([new ResolvedValue(secret, IsSecret: true)]);
+        var text = "header ok " + secret[..5];
+        var captured = new CapturedBody(Encoding.UTF8.GetBytes(text), Encoding.UTF8.GetByteCount(text) + 1000, Truncated: true);
+
+        var body = ResponseBody.Describe(captured, "text/plain", masker);
+
+        Assert.Equal("utf8", body.Encoding);
+        Assert.Equal("header ok ", body.Content);
+        Assert.DoesNotContain(secret[..5], body.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_body_cut_inside_a_multi_byte_character_is_still_text_and_still_masked()
+    {
+        const string secret = "tok-42-private"; // gitleaks:allow (test fixture, not a credential)
+        var masker = SecretMasker.For([new ResolvedValue(secret, IsSecret: true)]);
+        var bytes = Encoding.UTF8.GetBytes("x " + secret + " café");
+        // The cut falls after the first byte of the final "é", so the captured bytes end inside a two-byte character.
+        var captured = new CapturedBody(bytes[..^1], bytes.Length + 1000, Truncated: true);
+
+        var body = ResponseBody.Describe(captured, "text/plain; charset=utf-8", masker);
+
+        Assert.Equal("utf8", body.Encoding);
+        Assert.DoesNotContain("tok-42", body.Content, StringComparison.Ordinal);
+        Assert.Equal("x •••••• caf", body.Content);
+    }
+
+    [Fact]
+    public void A_truncated_binary_body_is_still_base64()
+    {
+        var captured = new CapturedBody([0x00, 0xFF, 0x10, 0x80], 4000, Truncated: true);
+
+        var body = ResponseBody.Describe(captured, "application/octet-stream", NoSecrets);
+
+        Assert.Equal("base64", body.Encoding);
+    }
 
     private static readonly SecretMasker NoSecrets = SecretMasker.For([]);
 
