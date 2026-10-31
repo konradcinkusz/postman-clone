@@ -74,6 +74,23 @@ public sealed class InvitationFlowTests : IClassFixture<AuthHostFactory>
     }
 
     [Fact]
+    public async Task A_form_post_without_the_antiforgery_token_is_refused_before_anything_runs()
+    {
+        _auth.Join(Guid.NewGuid(), "Acme", "Admin");
+        using var client = Browser();
+        var session = await SignInAsync(client);
+        var fields = new Dictionary<string, string> { ["email"] = "new@example.test", ["role"] = "Member" };
+
+        using var invite = await client.SendAsync(SignInForms.Post("/workspace/invitations", fields, session), Cancellation);
+        using var accept = await client.SendAsync(SignInForms.Post("/accept-invitation", new Dictionary<string, string> { ["token"] = "abc" }, session), Cancellation);
+
+        Assert.Equal(HttpStatusCode.BadRequest, invite.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, accept.StatusCode);
+        Assert.Equal(0, _auth.InviteCalls);
+        Assert.Equal(0, _auth.AcceptCalls);
+    }
+
+    [Fact]
     public async Task An_admin_invite_is_sent_and_the_redirect_says_so()
     {
         var organization = Guid.NewGuid();

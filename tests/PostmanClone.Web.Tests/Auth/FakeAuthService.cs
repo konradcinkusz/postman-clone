@@ -195,7 +195,7 @@ public sealed class FakeAuthService
             return Json(HttpStatusCode.Forbidden, new { error = "Only an Owner can invite a new member at the Owner role." });
         }
 
-        var token = SeedInvitation(organization, email, inviteRole);
+        SeedInvitation(organization, email, inviteRole);
         return Json(HttpStatusCode.OK, new
         {
             id = Guid.NewGuid().ToString(),
@@ -203,9 +203,8 @@ public sealed class FakeAuthService
             organizationName = _organizations[organization].Name,
             email,
             role = inviteRole,
-            emailStatus = "Pending",
+            emailStatus = "Sent",
             isAccepted = false,
-            token,
         });
     }
 

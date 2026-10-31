@@ -160,6 +160,9 @@ up_authservice() {
     export Jwt__PublicBaseUrl="http://localhost:${AUTH_PORT}"
     export Jwt__PrivateKeyPem="$(printf '%s' "${JWT_PRIVATE_KEY_PEM_B64}" | base64 -d)"
     export FrontendBaseUrl="http://localhost:${WEB_PORT}"
+    # Production withholds an invitation token from the log when no email provider is configured. Set
+    # AUTHSERVICE_ENVIRONMENT=Development to read the token there locally (docs/AUTH.md, Invitations).
+    export ASPNETCORE_ENVIRONMENT="${AUTHSERVICE_ENVIRONMENT:-Production}"
     nohup dotnet "${BIN_DIR}/AuthService.dll" > "${LOG_FILE}" 2>&1 &
     echo $! > "${PID_FILE}"
   )
