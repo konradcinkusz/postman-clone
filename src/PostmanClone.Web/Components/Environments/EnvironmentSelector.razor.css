@@ -1,0 +1,24 @@
+/* Scoped to the top bar's selector. */
+
+.environment-field {
+    min-width: 12rem;
+}
+
+.environment-field select {
+    width: 100%;
+    padding: var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+}
+
+.environment-field select:disabled {
+    opacity: 0.6;
+}
+
+.field-error {
+    color: var(--danger);
+    font-size: var(--text-sm);
+}

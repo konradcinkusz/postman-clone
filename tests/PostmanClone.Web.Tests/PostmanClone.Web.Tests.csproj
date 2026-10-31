@@ -14,6 +14,8 @@
     <!-- CollectionsService's types, for the round-trip test only (CONTRACTS §5). The alias keeps its global Program out of
          this project: the Web host's Program is what WebApplicationFactory<Program> names. -->
     <ProjectReference Include="..\..\src\PostmanClone.CollectionsService\PostmanClone.CollectionsService.csproj" Aliases="collections" />
+    <!-- EnvironmentsService's types, for the round-trip and rule-parity tests only (CONTRACTS §3). Same alias rule as above. -->
+    <ProjectReference Include="..\..\src\PostmanClone.EnvironmentsService\PostmanClone.EnvironmentsService.csproj" Aliases="environments" />
     <!-- ExecutionService's types, for the send round-trip test only (CONTRACTS §4). Same alias rule as above. -->
     <ProjectReference Include="..\..\src\PostmanClone.ExecutionService\PostmanClone.ExecutionService.csproj" Aliases="execution" />
   </ItemGroup>

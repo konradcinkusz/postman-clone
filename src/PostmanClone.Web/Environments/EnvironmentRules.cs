@@ -24,8 +24,11 @@ public static class EnvironmentRules
     /// <summary>Environments in one workspace (CONTRACTS §3: at most 50). The service answers 409 past it.</summary>
     public const int EnvironmentsPerWorkspace = 50;
 
-    /// <summary>The key's pattern, the same one the service's attribute uses.</summary>
-    public const string KeyPattern = @"^[A-Za-z0-9_.\-]+$";
+    /// <summary>
+    /// The key's pattern. The service's attribute demands a match of the whole key, so the anchors are \A and \z: a plain '$' would
+    /// accept a trailing newline that the service refuses.
+    /// </summary>
+    public const string KeyPattern = @"\A[A-Za-z0-9_.\-]+\z";
 
     /// <summary>A name must hold at least one non-space character (the service's rule, CONTRACTS §3).</summary>
     private static readonly Regex NameHasText = new(@"\S", RegexOptions.CultureInvariant);

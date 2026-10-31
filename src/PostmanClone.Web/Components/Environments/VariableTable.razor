@@ -1,0 +1,170 @@
+@using PostmanClone.Web.Environments
+
+@* The variable table of one environment (WP21, ADR-0024). A secret's value is write-only here: a stored secret shows "stored" and a
+   placeholder, never its value; a typed one goes into the row's TypedSecret through an input that has no value attribute, so the
+   markup never carries what the user typed. Each row is keyed by its id, so a removed row takes its typed value with it. *@
+
+<div class="table-wrap" data-testid="env-table-wrap">
+    <table class="kv-table variable-table" data-testid="env-table">
+        <caption class="visually-hidden">Variables of this environment</caption>
+        <thead>
+            <tr>
+                <th scope="col">Key</th>
+                <th scope="col">Value</th>
+                <th scope="col">Secret</th>
+                <th scope="col">Enabled</th>
+                <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (var index = 0; index < Editor.Rows.Count; index++)
+            {
+                var row = Editor.Rows[index];
+                var position = index;
+                var messages = Issues.Rows.TryGetValue(row.Id, out var rowMessages) ? rowMessages : Array.Empty<string>();
+                var describedBy = messages.Count > 0 ? $"env-var-errors-{position}" : null;
+                <tr @key="row.Id" data-testid="env-var-row-@position" class="@(messages.Count > 0 ? "row-invalid" : null)">
+                    <td>
+                        <input id="env-var-key-@position" type="text" autocomplete="off" spellcheck="false" maxlength="@EnvironmentRules.KeyMaxLength"
+                               aria-label="Key of variable @(position + 1)" aria-invalid="@(messages.Count > 0 ? "true" : null)" aria-describedby="@describedBy"
+                               data-testid="env-var-key-@position" disabled="@Busy"
+                               value="@row.Key" @oninput="e => KeyChangedAsync(row, e.Value)" />
+                    </td>
+                    <td>
+                        @if (row.IsSecret)
+                        {
+                            <div class="secret-cell">
+                                <input id="env-var-secret-value-@position" type="password" autocomplete="new-password" spellcheck="false"
+                                       maxlength="@EnvironmentRules.ValueMaxLength"
+                                       aria-label="Secret value of variable @(position + 1)"
+                                       aria-describedby="env-var-state-@position"
+                                       placeholder="@(row.Stored is { HasValue: true } ? EnvironmentMessages.SecretPlaceholderStored : EnvironmentMessages.SecretPlaceholderEmpty)"
+                                       data-testid="env-var-secret-value-@position" disabled="@Busy"
+                                       @oninput="e => SecretTypedAsync(row, e.Value)" />
+                                <span class="badge" id="env-var-state-@position" data-testid="env-var-state-@position">
+                                    @(row.Stored is { HasValue: true } ? EnvironmentMessages.SecretStored : EnvironmentMessages.SecretNoValue)
+                                </span>
+                                @if (row.HasTypedSecret)
+                                {
+                                    <span class="hint" data-testid="env-var-typed-@position">A new value is typed and not saved yet.</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <input id="env-var-value-@position" type="text" autocomplete="off" spellcheck="false"
+                                   maxlength="@EnvironmentRules.ValueMaxLength"
+                                   aria-label="Value of variable @(position + 1)"
+                                   aria-describedby="@describedBy"
+                                   aria-invalid="@(messages.Count > 0 ? "true" : null)"
+                                   data-testid="env-var-value-@position" disabled="@Busy"
+                                   value="@row.Value" @oninput="e => PlainValueChangedAsync(row, e.Value)" />
+                        }
+                    </td>
+                    <td>
+                        <input id="env-var-secret-@position" type="checkbox" data-testid="env-var-secret-@position"
+                               aria-label="Secret, variable @(position + 1)" disabled="@Busy"
+                               checked="@row.IsSecret" @onchange="e => SecretFlagChangedAsync(row, e.Value)" />
+                    </td>
+                    <td>
+                        <input id="env-var-enabled-@position" type="checkbox" data-testid="env-var-enabled-@position"
+                               aria-label="Enabled, variable @(position + 1)" disabled="@Busy"
+                               checked="@row.Enabled" @onchange="e => EnabledChangedAsync(row, e.Value)" />
+                    </td>
+                    <td>
+                        <button type="button" class="btn" data-testid="env-var-remove-@position" disabled="@Busy"
+                                aria-label="Remove variable @(position + 1)" @onclick="() => RemoveAsync(row)">Remove</button>
+                    </td>
+                </tr>
+                @if (messages.Count > 0)
+                {
+                    <tr class="error-row" data-testid="env-var-error-row-@position">
+                        <td colspan="5">
+                            <div id="env-var-errors-@position" class="field-error" data-testid="env-var-error-@position">
+                                @foreach (var message in messages)
+                                {
+                                    <p>@message</p>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+<div class="cluster">
+    <button type="button" class="btn" data-testid="env-var-add" disabled="@(Busy || Editor.Rows.Count >= EnvironmentRules.VariablesPerEnvironment)"
+            @onclick="AddAsync">Add variable</button>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public EnvironmentEditor Editor { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public EditorIssues Issues { get; set; } = null!;
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    /// <summary>Raised after every change, so the page recomputes what it shows about the editor.</summary>
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private Task KeyChangedAsync(VariableRow row, object? value)
+    {
+        row.Key = value as string ?? string.Empty;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task PlainValueChangedAsync(VariableRow row, object? value)
+    {
+        row.Value = value as string ?? string.Empty;
+        return OnChanged.InvokeAsync();
+    }
+
+    /// <summary>
+    /// The typed secret is kept in the row only. The input has no value attribute, so re-rendering never writes it back into
+    /// the markup, and an empty string means nothing typed.
+    /// </summary>
+    private Task SecretTypedAsync(VariableRow row, object? value)
+    {
+        row.TypedSecret = value as string;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task SecretFlagChangedAsync(VariableRow row, object? value)
+    {
+        row.IsSecret = IsChecked(value);
+        if (!row.IsSecret)
+        {
+            // A secret typed and then made plain is discarded: it is never sent as a plain value.
+            row.TypedSecret = null;
+        }
+
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task EnabledChangedAsync(VariableRow row, object? value)
+    {
+        row.Enabled = IsChecked(value);
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task AddAsync()
+    {
+        Editor.AddRow();
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task RemoveAsync(VariableRow row)
+    {
+        Editor.RemoveRow(row.Id);
+        return OnChanged.InvokeAsync();
+    }
+
+    private static bool IsChecked(object? value) =>
+        value is bool flag ? flag : string.Equals(value?.ToString(), "true", StringComparison.OrdinalIgnoreCase);
+}
