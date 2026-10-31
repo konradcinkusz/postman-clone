@@ -88,9 +88,8 @@ public static class HistoryEndpoints
             return Forbidden();
         }
 
-        var removed = await HistoryScope.For(db, caller.WorkspaceId, caller.UserId)
-            .Where(entry => entry.Id == id)
-            .ExecuteDeleteAsync(cancellationToken);
+        var removed = await HistoryDeletion.DeleteAsync(
+            db, HistoryScope.For(db, caller.WorkspaceId, caller.UserId).Where(entry => entry.Id == id), cancellationToken);
         return removed == 0 ? NotFound() : Results.NoContent();
     }
 
@@ -103,7 +102,7 @@ public static class HistoryEndpoints
             return Forbidden();
         }
 
-        await HistoryScope.For(db, caller.WorkspaceId, caller.UserId).ExecuteDeleteAsync(cancellationToken);
+        await HistoryDeletion.DeleteAsync(db, HistoryScope.For(db, caller.WorkspaceId, caller.UserId), cancellationToken);
         return Results.NoContent();
     }
 

@@ -27,7 +27,8 @@ public sealed class ExecuteResponseTests
         var result = await sender.ExecuteAsync(Requests.Execute("GET", $"{target.Address}items?x=1"), TestContext.Current.CancellationToken);
 
         Assert.Equal(ExecutionOutcome.Completed, result.Outcome);
-        Assert.Null(result.HistoryId);
+        // WP15 stores the entry, so the send now names it (ADR-0014: the null recorder returned no id until then).
+        Assert.NotNull(result.HistoryId);
         Assert.Empty(result.UnresolvedVariables);
         Assert.Equal($"{target.Address}items?x=1", result.FinalUrl);
         Assert.NotNull(result.Response);
