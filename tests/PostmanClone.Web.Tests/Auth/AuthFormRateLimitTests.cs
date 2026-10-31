@@ -10,8 +10,9 @@ public sealed class SmallWindowAuthHostFactory : AuthHostFactory
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseSetting("RateLimiting:AuthPermitsPerMinute", "3");
         base.ConfigureWebHost(builder);
+        // Set after the base configuration, so this value is the one the host reads.
+        builder.UseSetting("RateLimiting:AuthPermitsPerMinute", "3");
     }
 }
 

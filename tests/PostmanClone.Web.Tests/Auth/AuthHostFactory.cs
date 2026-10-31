@@ -34,6 +34,9 @@ public class AuthHostFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Every test in this host signs in from one address; the production window (10 a minute) would refuse most of them.
+        // The rate-limit tests have their own host (AuthFormRateLimitTests) with a small window.
+        builder.UseSetting("RateLimiting:AuthPermitsPerMinute", "1000");
         builder.UseEnvironment("Development");
         builder.ConfigureTestServices(services =>
         {

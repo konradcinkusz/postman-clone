@@ -20,7 +20,7 @@ public static class AuthEndpoints
         app.MapPost("/sign-in", SignInAsync).AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Auth);
         app.MapPost("/register", RegisterAsync).AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Auth);
         app.MapPost("/sign-out", SignOutAsync).AllowAnonymous();
-        app.MapPost("/no-workspace/create", CreateWorkspaceAsync).RequireAuthorization();
+        app.MapPost("/no-workspace/create", CreateWorkspaceAsync).RequireAuthorization().RequireRateLimiting(RateLimitPolicies.Api);
         return app;
     }
 
