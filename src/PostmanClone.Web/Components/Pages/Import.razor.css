@@ -1,0 +1,10 @@
+/* Secondary text for hints. Colour comes from the token; the contrast of --text-secondary is tested by the design contract. */
+.hint {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+
+.warning-list code {
+    font-family: var(--font-mono);
+    overflow-wrap: anywhere;
+}

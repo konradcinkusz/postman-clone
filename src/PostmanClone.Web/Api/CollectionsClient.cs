@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Http.Headers;
 using System.Text.Json;
 
 namespace PostmanClone.Web.Api;
@@ -47,6 +48,12 @@ public sealed record CollectionAnswer(CollectionOutcome Outcome, string? Code);
 
 /// <summary>A call that returns a body on success. <see cref="Code"/> is the problem's <c>code</c> when refused.</summary>
 public sealed record CollectionAnswer<T>(CollectionOutcome Outcome, T? Value, string? Code);
+
+/// <summary>
+/// A streamed download. On success <see cref="Response"/> is the open answer, and its owner disposes it once the body is copied;
+/// on any other outcome it is null.
+/// </summary>
+public sealed record CollectionDownload(CollectionOutcome Outcome, string? Code, HttpResponseMessage? Response);
 
 /// <summary>
 /// The Web's client for CollectionsService (CONTRACTS §2, §5). Each call takes the bearer it needs and passes it through
@@ -113,6 +120,51 @@ public sealed class CollectionsClient(IHttpClientFactory clients)
     public Task<CollectionAnswer> DeleteRequestAsync(string accessToken, Guid requestId, CancellationToken cancellationToken) =>
         SendEmptyAsync(AuthenticatedRequest.Create(HttpMethod.Delete, $"/api/v1/requests/{requestId}", accessToken), cancellationToken);
 
+    /// <summary>
+    /// Uploads a Postman v2.1 file as a multipart <c>file</c> part (CONTRACTS §2). The file is streamed from <paramref name="file"/>
+    /// into the request: it is never copied into a buffer of the Web. The caller owns the stream and disposes it.
+    /// </summary>
+    public Task<CollectionAnswer<ImportResult>> ImportPostmanAsync(string accessToken, Stream file, string fileName, CancellationToken cancellationToken)
+    {
+        var part = new StreamContent(file);
+        part.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        var content = new MultipartFormDataContent { { part, "file", fileName } };
+        var request = AuthenticatedRequest.Create(HttpMethod.Post, "/api/v1/import/postman", accessToken);
+        request.Content = content;
+        return SendAsync<ImportResult>(request, cancellationToken);
+    }
+
+    public Task<CollectionAnswer<ImportResult>> ImportCurlAsync(string accessToken, CurlImportBody body, CancellationToken cancellationToken) =>
+        SendAsync<ImportResult>(JsonRequest(HttpMethod.Post, "/api/v1/import/curl", accessToken, body), cancellationToken);
+
+    /// <summary>The request as a cURL command (CONTRACTS §2): a <c>text/plain</c> body, not JSON.</summary>
+    public Task<CollectionAnswer<string>> GetRequestCurlAsync(string accessToken, Guid requestId, CancellationToken cancellationToken) =>
+        SendTextAsync(AuthenticatedRequest.Create(HttpMethod.Get, $"/api/v1/requests/{requestId}/export/curl", accessToken), cancellationToken);
+
+    /// <summary>
+    /// Opens a collection's Postman export for streaming. Only the headers are read here; the body stays on the wire until the
+    /// caller copies it. On success the caller owns <see cref="CollectionDownload.Response"/> and disposes it.
+    /// </summary>
+    public async Task<CollectionDownload> OpenPostmanExportAsync(string accessToken, Guid collectionId, CancellationToken cancellationToken)
+    {
+        using var request = AuthenticatedRequest.Create(HttpMethod.Get, $"/api/v1/collections/{collectionId}/export/postman", accessToken);
+        var response = await TrySendAsync(request, cancellationToken, HttpCompletionOption.ResponseHeadersRead);
+        if (response is null)
+        {
+            return new CollectionDownload(CollectionOutcome.Unavailable, null, null);
+        }
+
+        if (response.IsSuccessStatusCode)
+        {
+            return new CollectionDownload(CollectionOutcome.Succeeded, null, response);
+        }
+
+        using (response)
+        {
+            return new CollectionDownload(FromStatus(response.StatusCode), await ProblemCodeAsync(response, cancellationToken), null);
+        }
+    }
+
     /// <summary>The value CollectionsService sends as <c>ETag</c> and compares on <c>If-Match</c> (EntityTags.Format).</summary>
     public static string EntityTag(int version) => $"\"{version.ToString(CultureInfo.InvariantCulture)}\"";
 
@@ -169,15 +221,34 @@ public sealed class CollectionsClient(IHttpClientFactory clients)
         }
     }
 
+    private async Task<CollectionAnswer<string>> SendTextAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        using (request)
+        {
+            using var response = await TrySendAsync(request, cancellationToken);
+            if (response is null)
+            {
+                return new CollectionAnswer<string>(CollectionOutcome.Unavailable, null, null);
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return new CollectionAnswer<string>(FromStatus(response.StatusCode), null, await ProblemCodeAsync(response, cancellationToken));
+            }
+
+            return new CollectionAnswer<string>(CollectionOutcome.Succeeded, await response.Content.ReadAsStringAsync(cancellationToken), null);
+        }
+    }
+
     /// <summary>
     /// Sends one request through the named client. A transport failure or timeout is no answer (null). The caller's own
     /// cancellation still propagates, so a circuit that closed stops its calls.
     /// </summary>
-    private async Task<HttpResponseMessage?> TrySendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    private async Task<HttpResponseMessage?> TrySendAsync(HttpRequestMessage request, CancellationToken cancellationToken, HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead)
     {
         try
         {
-            return await clients.CreateClient(BackendServices.CollectionsName).SendAsync(request, cancellationToken);
+            return await clients.CreateClient(BackendServices.CollectionsName).SendAsync(request, completion, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
