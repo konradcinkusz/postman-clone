@@ -12,7 +12,7 @@ public sealed record EditorIssues(string? Name, IReadOnlyDictionary<Guid, IReadO
 }
 
 /// <summary>
-/// One open environment: its name and its variable rows (ADR-0024). It checks what the service would check, so a save is refused
+/// One open environment: its name and its variable rows (ADR-0025). It checks what the service would check, so a save is refused
 /// in the page before a request, and it maps the service's own field messages back to the fields. It holds no secret value that
 /// the service has not just been given by the user.
 /// </summary>

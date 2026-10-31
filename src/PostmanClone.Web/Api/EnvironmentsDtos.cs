@@ -5,7 +5,7 @@ namespace PostmanClone.Web.Api;
 // types and reads them back through these copies, so a renamed or retyped field is a failing test.
 //
 // A secret's value is never in an EnvironmentDto: VariableDto.Value is null for a secret, and HasValue says whether one is
-// stored. The write body carries a secret's value only when the user typed a new one (ADR-0024).
+// stored. The write body carries a secret's value only when the user typed a new one (ADR-0025).
 
 /// <summary>One row of the environment list (CONTRACTS §3).</summary>
 public sealed record EnvironmentSummary(Guid Id, string Name, int VariableCount, DateTimeOffset UpdatedAt);

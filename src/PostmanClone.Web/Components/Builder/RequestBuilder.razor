@@ -78,7 +78,7 @@
 
     <div class="card stack save-bar" data-testid="builder-save-bar">
         <div class="cluster">
-            <button type="button" class="btn btn-primary" data-testid="builder-save" disabled="@Busy" @onclick="SaveAsync">Save</button>
+            <button type="button" class="btn btn-primary" data-testid="builder-save" disabled="@(Busy || !Editor.IsSaved)" @onclick="SaveAsync">Save</button>
             <button type="button" class="btn" data-testid="builder-save-as" disabled="@Busy" aria-expanded="@(_saveAsOpen ? "true" : "false")" @onclick="ToggleSaveAs">Save as…</button>
             @if (Editor.IsDirty)
             {

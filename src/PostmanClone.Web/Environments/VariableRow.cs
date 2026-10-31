@@ -11,7 +11,7 @@ namespace PostmanClone.Web.Environments;
 public sealed record StoredVariable(string Key, bool IsSecret, bool Enabled, string? PlainValue, bool HasValue);
 
 /// <summary>
-/// One row of the variable table (ADR-0024). A stored secret's value is not in the row: the row knows that a value is stored, and
+/// One row of the variable table (ADR-0025). A stored secret's value is not in the row: the row knows that a value is stored, and
 /// holds only what the user typed since, in <see cref="TypedSecret"/>. A typed value is never rendered back; the page's input
 /// has no value attribute, so the markup carries nothing the user typed.
 /// </summary>

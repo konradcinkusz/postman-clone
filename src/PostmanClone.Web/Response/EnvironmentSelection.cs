@@ -1,7 +1,7 @@
 namespace PostmanClone.Web.Response;
 
 /// <summary>
-/// The environment the circuit's sends use (WP21, ADR-0024). It is held in the circuit's memory, not in the browser: the choice is
+/// The environment the circuit's sends use (WP21, ADR-0025). It is held in the circuit's memory, not in the browser: the choice is
 /// kept while the page stays open, and a send carries its id so ExecutionService resolves the variables (CONTRACTS §4).
 /// <see cref="KnownKeys"/> is the set of enabled variable names the builder marks as known; it is null when no environment is
 /// chosen, so nothing is marked as unresolved. Names only: no value is kept here.

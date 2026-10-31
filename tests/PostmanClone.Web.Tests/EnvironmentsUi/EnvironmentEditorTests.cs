@@ -3,7 +3,7 @@ using PostmanClone.Web.Environments;
 
 namespace PostmanClone.Web.Tests.EnvironmentsUi;
 
-/// <summary>The editing model of one environment (WP21, ADR-0024): the write-only secret rules, keepExistingSecret, and the checks.</summary>
+/// <summary>The editing model of one environment (WP21, ADR-0025): the write-only secret rules, keepExistingSecret, and the checks.</summary>
 public sealed class EnvironmentEditorTests
 {
     private static readonly Guid EnvironmentId = Guid.NewGuid();

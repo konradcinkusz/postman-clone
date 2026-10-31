@@ -1,4 +1,4 @@
-# ADR-0024: Environments in the Web: secrets are write-only in the page, the chosen environment lives in the circuit, and the page checks what the service checks
+# ADR-0025: Environments in the Web: secrets are write-only in the page, the chosen environment lives in the circuit, and the page checks what the service checks
 
 - **Status:** Accepted
 - **Date:** 2026-10-31
