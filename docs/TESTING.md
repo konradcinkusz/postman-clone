@@ -1,0 +1,130 @@
+# Testing
+
+What each layer proves, what runs where, what was run for this page, and what has never run. Counts and
+results are from the session that wrote WP27 (2026-10-31, .NET SDK 10.0.114, PostgreSQL 16 on localhost).
+
+## 1. Layers
+
+| Layer | Where | What it proves | Example |
+|---|---|---|---|
+| Unit (pure logic) | each `tests/*.Tests` project | a rule holds on its own: validators, parsers, interpolation, masking, SSRF range tables, the Postman and cURL readers | `RequestDefinitionValidator` limits; `TargetValidator` on `2130706433`; `cURL` tokenizer quoting |
+| In-process service (`WebApplicationFactory`) | the service test projects | the endpoint, its auth, its status codes and its scoping, on the InMemory provider; PostgreSQL when `TEST_POSTGRES` is set | `Scoping_GET_requests_id` answers 404 for another workspace |
+| Real network, in process | `ExecutionService.Tests` | the sender against real Kestrel targets on loopback: redirects, timeouts, caps, gzip bombs, masking of what comes back | 50 MB generated body stops at the cap; redirect loop gives `too_many_redirects` |
+| Architecture and tenancy rules | `ServiceDefaults.Tests/Architecture` | R1–R10 of [ADR-0020](decisions/0020-architecture-fitness-tests.md): isolation, manifests, routes authorized, a scoping test per id route, Dockerfile shape, one resilience handler, exact versions | R6 fails when an id route has no `Scoping_` test |
+| Components (bUnit) | `Web.Tests` | Blazor components render the right states, with fake backends | the tree, the empty and error states, the members page |
+| Browser-facing host | `Web.Tests` (`WebApplicationFactory`) | the origin guard, the security headers, the CSP and the interactive render mode | cross-site POST refused; `Referrer-Policy` set |
+| Contract smoke against a real authservice | `scripts/smoke-auth.sh` | the authservice endpoints and claims the services rely on, against v0.3.4 | register, login, organization, refresh, logout |
+| Repository checks | `scripts/check-doc-links.sh`, `scripts/check-kernel-size.sh`, `scripts/hooks/pre-commit` | links resolve; the kernel stays at most 800 lines; no secret in a staged change | |
+| End to end (browser) | **not built** (`tests/PostmanClone.E2E` is WP26) | the protected journeys in the browser | see §4 |
+
+Tests assert behaviour, not presence: there are no `Assert.True(true)` placeholders and no `Thread.Sleep` in
+`tests/` (checked by search). The one `Task.Delay` in `ExecuteSecurityTests` is a slow target that waits for the
+client to abort, not a timed wait. Time comes from `TimeProvider` and `FakeTimeProvider`; no test pins a calendar date.
+
+## 2. Counts
+
+Discovered with `dotnet test --project <p> --list-tests`, and the full run totals.
+
+| Project | Tests |
+|---|---|
+| `PostmanClone.ServiceDefaults.Tests` (includes the architecture rules) | 104 |
+| `PostmanClone.CollectionsService.Tests` | 457 |
+| `PostmanClone.EnvironmentsService.Tests` | 86 |
+| `PostmanClone.ExecutionService.Tests` | 699 |
+| `PostmanClone.Web.Tests` | 253 |
+| **Total** | **1599** |
+
+`PostmanClone.TestKit` (shared fixtures, `TestTokens`, `PostgresFixture`, `FakeHttpMessageHandler`) and `tests/Shared/validation-cases.json`
+(the case list the server validator reads) contain no tests of their own.
+
+Eleven test files take the PostgreSQL path, which runs only when `TEST_POSTGRES` is set. Without it those tests are
+skipped, not failing: CI sets it, and so does any run that should prove the PostgreSQL paths.
+
+**Skipped:** one test, `CollectionSearchTests.Search_treats_backslash_as_a_literal_character` on the InMemory provider. It
+calls `Assert.Skip` with the reason *the InMemory provider's LIKE does not implement the backslash escape; the PostgreSQL run
+covers it*. The PostgreSQL run of the same assertion passes.
+
+## 3. What was run for this page
+
+| Command | Result |
+|---|---|
+| `dotnet build PostmanClone.sln` (Debug) | 0 warnings, 0 errors |
+| `TEST_POSTGRES=... dotnet test --solution PostmanClone.sln` (Debug) | 1599 total, 1598 passed, 1 skipped (above), 0 failed |
+| `dotnet build PostmanClone.sln -c Release` and `dotnet test --solution PostmanClone.sln -c Release --no-build` | 1599 total, 1598 passed, 1 skipped, 0 failed |
+| `dotnet test --project tests/PostmanClone.ServiceDefaults.Tests -c Release --no-build --filter FullyQualifiedName~TelemetryTests` | **1 failed** (see §5, OI-06) |
+| `dotnet list PostmanClone.sln package --vulnerable --include-transitive` | no vulnerable packages |
+| `scripts/check-kernel-size.sh` | 726 of 800 lines |
+| `scripts/check-doc-links.sh` | 73 relative links resolve |
+| `scripts/gen-dev-secrets.sh`, `scripts/run-local-stack.sh up` | authservice v0.3.4, CollectionsService and ExecutionService healthy; the databases created |
+| `scripts/smoke-auth.sh` | PASS against the running authservice |
+| `scripts/run-local-stack.sh status` | all three report running and healthy |
+| `scripts/hooks/pre-commit` (staged dummy secret) | refused, exit 1; with nothing staged, clean |
+| Ad hoc sender and collections checks (curl, not committed) | collection create 201; loopback target `blocked` `ssrf_blocked_address`; `environmentId` `502 upstream_unavailable`; history list 200 |
+| Ad hoc Web checks (curl and headless Chromium, not committed) | curl sign-in works with the settings in OPERATIONS §4.3; **a browser sign-in POST returns 403** (OI-01) |
+
+The ad hoc scripts lived in the session's scratch directory and are not part of the repository. The repository's own
+check for the sign-in journey is the E2E layer, which does not exist yet.
+
+## 4. What CI runs
+
+`.github/workflows/pr-validation.yml`, on a pull request to `main` that is not a draft:
+
+| Job | Runs | Notes |
+|---|---|---|
+| `detect-changes` | finds the solution, the Dockerfiles and the kernel-size script | decides which jobs run |
+| `dotnet` | `dotnet restore` (fails on a vulnerable package), `dotnet build -c Release`, `dotnet test --solution -c Release` | PostgreSQL 16 service; `TEST_POSTGRES` set |
+| `docker-build` | `docker build --file <Dockerfile> .` for each of the four Dockerfiles, no push | never run in a session (no Docker daemon); CI is the first real build |
+| `kernel-size` | `scripts/check-kernel-size.sh` | |
+| `auth-smoke` | `scripts/run-local-stack.sh up`, `scripts/smoke-auth.sh`, `down` | PostgreSQL 16 service; authservice built from its tag |
+| `docs-links` | `scripts/check-doc-links.sh` | |
+| `pr-validation` | aggregate of the above | the one required status check (owner action) |
+
+`.github/workflows/secret-scan.yml` runs gitleaks v8.19.0 in Docker over the full history, on a pull request, on a push to
+`main`, and weekly. The pre-commit hook runs the same scanner locally (§5).
+
+**There is no E2E job yet** (WP26), and no job runs the AppHost.
+
+## 5. Known problems in the test and check layers
+
+- **OI-06, `TelemetryTests.Requests_are_traced_but_health_probes_are_filtered_out_of_traces`.** Passes in the full Debug and
+  full Release runs. Run alone in Release it fails: `Assert.Contains() Failure: Filter not matched in collection`, with an empty
+  collection: the server span was not captured (PR #21 reports the same on a clean `main`). It predates WP25. It is timing-dependent, and it is not skipped.
+- **OI-05, the secret scanner.** The pre-commit hook runs `gitleaks git --staged`. gitleaks v8.19.0, built from its module
+  source (`go install github.com/zricethezav/gitleaks/v8@v8.19.0`), fails that form with `flag accessed but not defined: source`,
+  and the hook then refuses every commit (it fails closed, as designed). gitleaks from the latest module passes the hook and
+  refuses a dummy secret. The hook was not modified. CI uses the v8.19.0 Docker image in its own `detect` form.
+- **OI-14, the two local-stack definitions.** Changes to `Auth__*` in the AppHost and in `run-local-stack.sh` have to be made in both
+  places. Nothing checks that they agree.
+
+## 6. What has never run
+
+| Item | Why | What would close it |
+|---|---|---|
+| The AppHost (`dotnet run --project src/PostmanClone.AppHost`) | no Docker daemon in sessions | a machine with Docker, once per release |
+| `docker build` of any of the four Dockerfiles, here | no Docker daemon | CI's `docker-build` job (not yet seen green for this head at the time of writing) |
+| The E2E journeys | not built (WP26) | WP26 |
+| A browser sign-in that completes | the origin guard refuses the browser's `Origin: null` (OI-01); this was seen, not fixed | fixing OI-01, then an E2E journey |
+| The OTLP exporter against a collector | no collector; no test covers the branch | an integration test with a stub collector (OI-18) |
+| Layout at 390 px and both themes, in a real browser | WP07 and WP18 checked widths headlessly; no browser suite | WP26 journey 11 |
+| Real internet egress from the sender | the SSRF tests use loopback targets and scripted resolvers; no public host was contacted | a manual check against one public host with the default settings |
+| EnvironmentsService started by the no-Docker script | the script does not start it (OI-13) | a change to `run-local-stack.sh` (WP26) |
+
+## 7. Manual checks
+
+TESTING-STRATEGY names four situations where a human must test, because automation cannot substitute:
+
+| Situation | Applies here? | Why |
+|---|---|---|
+| Third-party DOM you do not control | no | the product does not drive other sites' pages |
+| Entitlement gating where errors cost twice | no | there are no paid tiers (ADR-0001, billing out of scope) |
+| Extension or native contexts | no | no extension, no native app |
+| Client-side-only data, where a bug is permanent loss | no | the Web stores nothing in the browser (verified by search for `localStorage`, `sessionStorage`, JS interop); the server holds the data |
+
+So none of the four situations requires a scheduled human pass. The manual checks that do apply are:
+
+1. **Sign-in in a real browser**, both correct and wrong passwords, then sign-out. Expected today: the form POST is refused
+   with 403 (OI-01). Re-run after the fix.
+2. **Invitation round trip** with two accounts, using the token from the authservice log (AUTH.md, Members and invitations).
+   Done once live in WP24; repeat after any change to the flow.
+3. **Layout at 390 px and in dark mode**, on the home page and the members page.
+4. **The pre-commit hook** on each developer machine: a staged dummy secret must be refused.
