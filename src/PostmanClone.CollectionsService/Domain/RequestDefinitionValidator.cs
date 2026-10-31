@@ -191,9 +191,12 @@ public static class RequestDefinitionValidator
     }
 
     /// <summary>A secret is never stored as a literal (ADR-0006). The message never repeats the value.</summary>
+    /// <summary>True when a secret field holds no literal: it is empty, or exactly one <c>{{name}}</c> reference (ADR-0006).</summary>
+    public static bool IsSecretReference(string? value) => string.IsNullOrEmpty(value) || SecretReference.IsMatch(value);
+
     private static void CheckSecret(string? value, string field, List<RequestIssue> issues)
     {
-        if (string.IsNullOrEmpty(value) || SecretReference.IsMatch(value))
+        if (IsSecretReference(value))
         {
             return;
         }
