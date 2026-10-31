@@ -62,8 +62,8 @@ putting the choice in the browser where another tab or a stale cookie could chan
 - The page was rendered in bUnit, not in a browser: the layout at 390 px, the two themes and the focus order were not
   looked at unless the PR body says otherwise.
 - The service's 409 on create carries no code, so the page reads the workspace limit from the outcome, not from a code.
-- A key with a trailing newline is refused on both sides by the same pattern. The service's own pattern was tightened only
-  in the sense that the Web now matches its attribute; the service's code was not changed.
+- A key with a trailing newline is refused by both sides. The service's attribute requires a whole-string match, and the
+  Web's pattern is anchored with `\A` and `\z` to match it. The service was not changed.
 
 ## Revisit when
 
