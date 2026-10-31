@@ -138,7 +138,7 @@ Facts the flow relies on:
   writes the token only when `ASPNETCORE_ENVIRONMENT` is `Development`; otherwise it writes `[withheld]`
   (`NoOpEmailService.cs`, `Redact`). The local stack runs authservice in Production unless told otherwise, so a developer
   starts it with `AUTHSERVICE_ENVIRONMENT=Development scripts/run-local-stack.sh up` and reads the token from
-  `.local-stack/authservice.log`:
+  `.local-stack/logs/authservice.log`:
 
   ```text
   Email sending is not configured. Invitation email to <address> for organization <name> was not sent. Invitation token: <token>. ...
@@ -163,6 +163,10 @@ Local dev token retrieval is the path above; a token is single-use and expires a
 
 ## Limits (ADR-0004)
 
+- **Sign-in window per client IP.** The `auth` policy (`Program.cs`) allows 20 requests a minute per client IP, with a fixed window
+  and a queue of five. A request past the window waits inside authservice until the window reopens, up to a minute; a request past
+  the queue is refused. Measured by WP26 (2026-10-31, OI-26): the action took 93 ms and the request 31 s. Every caller behind one address
+  shares the window. The E2E suite keeps its own register, login and logout calls at 18 a minute (ADR-0018).
 - **No workspace switch.** authservice issues no organization-scoped token and has no switch endpoint. A user
   with two memberships is refused by every domain endpoint (`403 multiple_workspaces`) until one membership is
   removed.
@@ -208,7 +212,7 @@ Runtime values are recorded here only from a real run. Nothing below is copied f
     invite body has `email`, `role`, `emailStatus`, `isAccepted`, `organizationId`, `organizationName`, `role`, and no token.
     A second invite to the same address `400 "An invitation has already been sent to this email"`. A malformed address
     `400` as a validation problem with `errors` and no `error` text. `GET …/invitations` 200 with `emailStatus` `Sent`.
-  - The invitation token appears in `.local-stack/authservice.log` in Development (see above).
+  - The invitation token appears in `.local-stack/logs/authservice.log` in Development (see above).
   - Invitee: `GET /api/v1/organizations/{id}` `404` for a non-member. `GET /api/v1/organizations/invitations` lists the
     pending invitation with its organization name. `POST …/invitations/accept` with another address's session: `404`;
     with the right one `200` `organizationId`; again: `400 "Invitation has already been accepted"`; an unknown token: `404`.

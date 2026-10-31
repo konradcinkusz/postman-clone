@@ -20,7 +20,8 @@ The build plan is the source of truth for scope and contracts:
 | `scripts/install-hooks.sh`, `scripts/hooks/pre-commit` | The local secret scan |
 | `scripts/check-doc-links.sh` | Every relative Markdown link resolves (run in CI) |
 | `scripts/check-kernel-size.sh` | The shared kernel stays within 800 non-blank, non-comment lines (run in CI) |
-| `scripts/run-local-stack.sh`, `scripts/gen-dev-secrets.sh` | authservice at its pinned tag, CollectionsService (port 5301) and ExecutionService (port 5303) without Docker, against a local PostgreSQL; the gitignored `.local-stack/` secrets (WP03, WP04, WP06). `AUTHSERVICE_ENVIRONMENT=Development` makes authservice log invitation tokens locally (WP24) |
+| `scripts/run-local-stack.sh`, `scripts/gen-dev-secrets.sh` | the whole estate without Docker, against a local PostgreSQL: authservice at its pinned tag (5300), CollectionsService (5301), EnvironmentsService (5302), ExecutionService (5303) and the Web (5310); the gitignored `.local-stack/` secrets (WP03, WP04, WP06, WP26). `E2E_SENDER_LOOPBACK=1` is the test-only switch that lets the sender reach loopback (ADR-0018). `AUTHSERVICE_ENVIRONMENT=Development` makes authservice log invitation tokens locally (WP24) |
+| `tests/PostmanClone.Web.E2E` | The browser journeys (WP26, ADR-0018): Playwright for .NET on Chromium, 17 journeys over the protected flows. They run against the local stack, one at a time, and skip with the reason when the stack or the browser is missing (they fail in CI). See docs/TESTING.md §1 and OPERATIONS §4.5 |
 | `scripts/smoke-auth.sh` | The authservice contract the services rely on: register, login, organization, refresh, claims (run in CI as `auth-smoke`) |
 | `docs/AUTH.md` | How sign-in works through authservice v0.3.4: the flow, the claims, the endpoints read from source, the differences from CONTRACTS §6 |
 | `.github/workflows/` | `pr-validation.yml` (the required check), `secret-scan.yml` |
@@ -42,7 +43,7 @@ The build plan is the source of truth for scope and contracts:
 | `src/PostmanClone.Web/Environments`, `Components/Environments`, `Components/Pages/Environments.razor`, `Api/EnvironmentsClient.cs`, `Api/EnvironmentsDtos.cs`, `Response/EnvironmentSelection.cs` | The environments UI (WP21, ADR-0025): `/environments` (list, create, rename, delete, variables), the top-bar `EnvironmentSelector` that chooses the environment for the sends, and the typed client for EnvironmentsService. A secret's value is write-only: `VariableRow` holds only "a value is stored" and what was typed since, and the input has no value attribute. `EnvironmentRules` mirrors the service's limits and patterns, and a parity test runs the service's own attributes on the same inputs |
 | `src/PostmanClone.Web/History`, `Components/Pages/History.razor`, `Components/Shell/HistoryPanel.razor`, `Api/HistoryClient.cs`, `Api/HistoryDtos.cs` | The request history (WP22, ADR-0024): `/history` (the caller's entries, paged, filtered on the masked URL, detail through `ResponsePanel`, delete one and clear all with a two-step confirm), the workspace shell's history panel, and *Open in builder* (`/?reopen=<id>`), which opens an unsaved draft that cannot be saved by id and is refused by send and save while it still holds the mask. `HistoryPaging`, `RelativeTime` and `HistoryReopen` are the pure rules; `HistoryChangeSignal` (`IHistoryChanged`) reloads the panel after a recorded send |
 
-Not yet present: `tests/PostmanClone.E2E` (Playwright, WP26). Still placeholders: the Web's `/environments`, `/history` and `/about` pages (WP21, WP22 are in progress). The plan's README, §3 lists the target layout.
+Still a placeholder: the Web's `/about` page. The plan's README, §3 lists the target layout.
 
 The documentation that describes the system as it is: `README.md`, `docs/ARCHITECTURE.md` (diagrams and flows), `docs/OPERATIONS.md` (configuration, running locally), `docs/TESTING.md` (what runs and what has never run), `docs/PRIVACY.md` (personal data and erasure), `docs/architecture/COMPLIANCE.md` (the reference checklist) and `docs/architecture/OPEN-ITEMS.md` (what is still open). Keep them true when a change touches what they describe.
 
@@ -50,7 +51,8 @@ The documentation that describes the system as it is: `README.md`, `docs/ARCHITE
 
 ```bash
 dotnet build PostmanClone.sln                  # warnings are errors; restore fails on vulnerable packages
-dotnet test --solution PostmanClone.sln         # PostgreSQL-backed tests run when TEST_POSTGRES is set
+dotnet test --solution PostmanClone.sln         # PostgreSQL-backed tests run when TEST_POSTGRES is set; the browser journeys
+                                                # skip with the reason unless the local stack is up (see below)
 ```
 
 `--solution` is required: `global.json` selects Microsoft.Testing.Platform, and the .NET 10 SDK takes the solution as a flag there.
@@ -62,10 +64,18 @@ bash scripts/check-doc-links.sh   # relative Markdown links resolve
 bash scripts/check-kernel-size.sh # the kernel stays within 800 lines
 scripts/install-hooks.sh          # once per clone: the pre-commit secret scan
 scripts/gen-dev-secrets.sh        # once per clone: .local-stack/secrets.env (never printed)
-scripts/run-local-stack.sh up     # authservice v0.3.4 on :5300 and CollectionsService on :5301, local PostgreSQL (no Docker)
+scripts/run-local-stack.sh up     # the estate on :5300-:5303 and the Web on :5310, local PostgreSQL (no Docker)
 scripts/smoke-auth.sh             # against the running authservice: the sign-in contract
 scripts/run-local-stack.sh down
 dotnet run --project src/PostmanClone.Web   # the Web on http://localhost:5310; backends not running show as unreachable
+
+# The browser journeys (ADR-0018). Two runs, because the sender's loopback switch is part of the local stack:
+E2E_SENDER_LOOPBACK=1 scripts/run-local-stack.sh up
+dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj -c Release --filter "Mode!=strict"
+scripts/run-local-stack.sh down
+scripts/run-local-stack.sh up
+dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj -c Release --filter "Mode!=loopback"
+scripts/run-local-stack.sh down
 ```
 
 The SDK is pinned by `global.json` (.NET 10.0.100, `rollForward: latestFeature`). Package versions

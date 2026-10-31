@@ -11,6 +11,10 @@ name: PR validation
 #  • kernel-size    — scripts/check-kernel-size.sh (the kernel stays ≤ 800 lines, P2). Skipped until it exists.
 #  • auth-smoke     — authservice at its pinned tag, built from source against a PostgreSQL service container
 #                     (scripts/run-local-stack.sh up), then scripts/smoke-auth.sh (ADR-0004, docs/AUTH.md).
+#  • e2e            — the browser journeys (tests/PostmanClone.Web.E2E, ADR-0018): the whole local estate on this runner,
+#                     Chromium installed by Playwright, twice: once with the test-only loopback flag (the sender may send to the
+#                     local target) and once without it (the default refuses loopback). Runs when src/, tests/, scripts/ or this
+#                     workflow changed. POSTMANCLONE_E2E_REQUIRED=1, so a missing prerequisite fails the job, never skips it.
 #  • docs-links     — every relative link in the Markdown files resolves.
 #  • pr-validation  — the aggregate check. Its name is the one required status to configure
 #                     on `main` (owner action). It fails if any job above failed.
@@ -47,8 +51,11 @@ jobs:
       solution: ${{ steps.detect.outputs.solution }}
       dockerfiles: ${{ steps.detect.outputs.dockerfiles }}
       kernel: ${{ steps.detect.outputs.kernel }}
+      e2e: ${{ steps.detect.outputs.e2e }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the E2E path filter compares the pull request's base and head
 
       - name: Detect inputs
         id: detect
@@ -75,6 +82,18 @@ jobs:
             echo "kernel=false" >> "$GITHUB_OUTPUT"
             echo "No scripts/check-kernel-size.sh yet: the kernel-size job is skipped."
           fi
+
+          # The browser journeys run on a pull request that changes the code they test, and on a manual run.
+          e2e=true
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            e2e=false
+            changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" || echo "unknown")
+            if [ "$changed" = "unknown" ] || echo "$changed" | grep -Eq '^(src/|tests/|scripts/|\.github/workflows/pr-validation\.yml|Directory\.Packages\.props|PostmanClone\.sln|global\.json)'; then
+              e2e=true
+            fi
+          fi
+          echo "e2e=${e2e}" >> "$GITHUB_OUTPUT"
+          echo "E2E journeys: ${e2e}"
 
   dotnet:
     name: .NET build and tests
@@ -110,8 +129,8 @@ jobs:
       - name: Build (warnings are errors)
         run: dotnet build PostmanClone.sln --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test --solution PostmanClone.sln --configuration Release --no-build
+      - name: Test (unit and in-process; the browser journeys are the e2e job)
+        run: dotnet test --solution PostmanClone.sln --configuration Release --no-build --filter "FullyQualifiedName!~PostmanClone.Web.E2E"
 
   docker-build:
     name: Docker build (${{ matrix.dockerfile }})
@@ -183,12 +202,80 @@ jobs:
       - name: authservice logs (on failure)
         if: failure()
         run: |
-          for log in .local-stack/authservice-build.log .local-stack/authservice.log; do
+          for log in .local-stack/logs/authservice-build.log .local-stack/logs/authservice.log; do
             if [ -f "$log" ]; then
               echo "== $log"
               tail -n 200 "$log"
             fi
           done
+
+  e2e:
+    name: Browser journeys (E2E)
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.e2e == 'true' && needs.detect-changes.outputs.solution == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # The throwaway CI database (same as the other jobs). The value is not a credential.
+      PG_CONNECTION: Host=localhost;Username=postgres;Password=postgres # gitleaks:allow
+      # A missing stack or browser fails the journeys instead of skipping them (E2E-ACCEPTANCE-TESTING).
+      POSTMANCLONE_E2E_REQUIRED: '1'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build the journeys
+        run: dotnet build tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj --configuration Release
+
+      - name: Install Chromium for Playwright (the suite never downloads one itself)
+        run: pwsh tests/PostmanClone.Web.E2E/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Start the estate with the test-only loopback flag
+        env:
+          E2E_SENDER_LOOPBACK: '1'
+        run: scripts/run-local-stack.sh up
+
+      - name: Journeys that send to the local target (loopback)
+        run: dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj --configuration Release --no-build --filter "Mode!=strict"
+
+      - name: Stop the estate
+        if: always()
+        run: scripts/run-local-stack.sh down
+
+      - name: Start the estate without the loopback flag (the default configuration)
+        run: scripts/run-local-stack.sh up
+
+      - name: Journeys that expect the sender to refuse loopback (strict)
+        run: dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj --configuration Release --no-build --filter "Mode!=loopback"
+
+      - name: Stop the estate
+        if: always()
+        run: scripts/run-local-stack.sh down
+
+      - name: Service logs and browser artifacts (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: |
+            .local-stack/logs/
+            tests/PostmanClone.Web.E2E/bin/Release/net10.0/TestResults/
+          if-no-files-found: warn
+          retention-days: 7
 
   docs-links:
     name: Markdown relative links
@@ -203,7 +290,7 @@ jobs:
 
   pr-validation:
     name: pr-validation
-    needs: [detect-changes, dotnet, docker-build, kernel-size, auth-smoke, docs-links]
+    needs: [detect-changes, dotnet, docker-build, kernel-size, auth-smoke, e2e, docs-links]
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -215,6 +302,7 @@ jobs:
           DOCKER: ${{ needs.docker-build.result }}
           KERNEL: ${{ needs.kernel-size.result }}
           AUTH: ${{ needs.auth-smoke.result }}
+          E2E: ${{ needs.e2e.result }}
           DOCS: ${{ needs.docs-links.result }}
         run: |
           {
@@ -227,9 +315,10 @@ jobs:
             echo "| Docker build | ${DOCKER} |"
             echo "| Kernel size | ${KERNEL} |"
             echo "| authservice smoke | ${AUTH} |"
+            echo "| Browser journeys (E2E) | ${E2E} |"
             echo "| Markdown links | ${DOCS} |"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$DETECT" "$DOTNET" "$DOCKER" "$KERNEL" "$AUTH" "$DOCS"; do
+          for result in "$DETECT" "$DOTNET" "$DOCKER" "$KERNEL" "$AUTH" "$E2E" "$DOCS"; do
             case "$result" in
               success|skipped) ;;
               *) echo "A validation job ended with: ${result}"; exit 1 ;;

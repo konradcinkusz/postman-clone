@@ -87,7 +87,11 @@ and `scripts/run-local-stack.sh`: `Jwt__PrivateKeyPem` (RS256 PKCS#8 key), `Jwt_
 
 | Variable | Default | Used by |
 |---|---|---|
-| `AUTH_PORT` / `COLLECTIONS_PORT` / `EXEC_PORT` / `WEB_PORT` | 5300 / 5301 / 5303 / 5310 | `run-local-stack.sh` |
+| `AUTH_PORT` / `COLLECTIONS_PORT` / `ENVIRONMENTS_PORT` / `EXEC_PORT` / `WEB_PORT` | 5300 / 5301 / 5302 / 5303 / 5310 | `run-local-stack.sh` |
+| `E2E_SENDER_LOOPBACK` | unset (refuses loopback) | `run-local-stack.sh`. `1` allows the sender to reach loopback: local tests only (§4.2, ADR-0018) |
+| `E2E_WEB_URL` / `E2E_AUTH_URL` / `E2E_COLLECTIONS_URL` | `http://localhost:5310` / `…:5300` / `…:5301` | the browser journeys |
+| `E2E_CHROMIUM_PATH` | unset (search, §4.5) | the browser journeys |
+| `POSTMANCLONE_E2E_REQUIRED` | unset (skip with the reason) | the browser journeys. `1` makes a missing stack or browser a failure (CI sets it) |
 | `PG_CONNECTION` | `Host=localhost;Username=postgres;Password=postgres` | `run-local-stack.sh`, `smoke-auth.sh`. Development password of a local server, not a credential. |
 | `AUTHSERVICE_ENVIRONMENT` | `Production` | `run-local-stack.sh`. `Development` makes authservice write the invitation token to its log (AUTH.md, Members and invitations). |
 | `TEST_POSTGRES` | unset | `dotnet test`. Set it to run the PostgreSQL-backed tests; unset, they are skipped. |
@@ -123,22 +127,24 @@ Production secret management is an owner decision and is not described here.
 
 ```bash
 scripts/install-hooks.sh                  # once per clone
-scripts/run-local-stack.sh up             # generates the dev secrets if missing, clones authservice v0.3.4,
-                                          # builds it, starts authservice (5300), CollectionsService (5301)
-                                          # and ExecutionService (5303); waits for each /health
+scripts/run-local-stack.sh up             # generates the dev secrets if missing, clones authservice v0.3.4, builds it, then
+                                          # starts authservice (5300), CollectionsService (5301), EnvironmentsService (5302),
+                                          # ExecutionService (5303) and the Web (5310); waits for each /health
 scripts/run-local-stack.sh status
 scripts/smoke-auth.sh                     # the authservice contract the services rely on
-scripts/run-local-stack.sh down           # stops the processes; databases and .local-stack/ are kept
+scripts/run-local-stack.sh down           # stops the processes it started; databases and .local-stack/ are kept
 ```
 
-Logs: `.local-stack/authservice.log`, `collections.log`, `execution.log`, and the build logs next to them.
+Logs: `.local-stack/logs/` (`authservice.log`, `collections.log`, `environments.log`, `execution.log`, `web.log`, and the
+build logs next to them). The Web runs from its publish folder, `.local-stack/web-bin`: started from another folder it finds
+no `wwwroot`, and every static file answers 200 with an empty body (OI-27).
 
-**What the stack does not run:** EnvironmentsService (port 5302 in the plan) and the Web. The consequences
-were checked against the live stack on 2026-10-31:
+The whole estate is up after `up`. Two switches change the sender for local tests only:
 
-- A request to `POST /api/v1/execute` with an `environmentId` answers `502 upstream_unavailable`, because nothing
-  is listening where ExecutionService looks for EnvironmentsService.
-- The Web is started separately (§4.3).
+- `E2E_SENDER_LOOPBACK=1` sets `Execution:Ssrf:AllowLoopback=true`, so the sender may reach a target on this machine. The
+  default refuses loopback (ADR-0011). The E2E loopback journeys need it; the service refuses the flag in Production, so the
+  ExecutionService of this stack runs as Development when it is set.
+- `AUTHSERVICE_ENVIRONMENT=Development` makes authservice write invitation tokens to its log (§2, AUTH.md).
 
 ### 4.3 The Web (`dotnet run`)
 
@@ -156,8 +162,8 @@ env services__authservice__http__0=http://localhost:5300 \
     dotnet run --project src/PostmanClone.Web
 ```
 
-The last two discovery settings are needed only for sending from the builder (WP19, WP20). EnvironmentsService is not in the
-no-Docker stack (§4.2), so a send that names an environment answers 502 there.
+The last two discovery settings are needed only for sending from the builder (WP19, WP20). The script (§4.2) starts the Web
+with these settings and EnvironmentsService included, so a send that names an environment reaches its variables there.
 
 Without these settings the Web answers the sign-in form with `error=unavailable`. In the test on 2026-10-31, the discovery
 names alone still gave `error=unavailable` for a correct password (the token check failed); the metadata address and the Development
@@ -177,6 +183,25 @@ dotnet run --project src/PostmanClone.AppHost
 It starts PostgreSQL with four databases, the authservice container (`ghcr.io/konradcinkusz/authservice:v0.3.4`), the
 three services and the Web on port 5310. It needs Docker and the two AppHost parameters (§3). **It has never been run
 in a development session**, because sessions have no Docker daemon (see [TESTING.md](TESTING.md#4-what-has-never-run)).
+
+### 4.5 The browser journeys (`tests/PostmanClone.Web.E2E`, ADR-0018)
+
+```bash
+E2E_SENDER_LOOPBACK=1 scripts/run-local-stack.sh up
+dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj -c Release --filter "Mode!=strict"
+scripts/run-local-stack.sh down
+scripts/run-local-stack.sh up                       # no loopback flag: the default configuration
+dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj -c Release --filter "Mode!=loopback"
+scripts/run-local-stack.sh down
+```
+
+The journeys need Chromium: `E2E_CHROMIUM_PATH` names one, otherwise the suite looks under `/opt/pw-browsers` and
+Playwright's cache (`playwright install chromium` puts one there). It never downloads one. Without the stack or the browser a
+journey skips with the reason; with `POSTMANCLONE_E2E_REQUIRED=1` (CI) it fails. The journeys run one at a time
+(`xunit.runner.json`) and stay within authservice's 20 auth requests a minute per address (`AuthBudget`).
+
+Each run leaves its test data in the local databases. To start from empty, run `down`, drop the four service databases
+(`authdb`, `collectionsdb`, `environmentsdb`, `executiondb`) and run `up` again.
 
 ## 5. Health endpoints
 
@@ -207,9 +232,9 @@ Startup prints the same optional-integration list (`StartupBanner`).
 |---|---|---|
 | authservice | 5300 | container, port 8080 inside |
 | CollectionsService | 5301 | floats |
-| EnvironmentsService | not run by the script (5302 in the plan) | floats |
+| EnvironmentsService | 5302 | floats |
 | ExecutionService | 5303 | floats |
-| Web | 5310 (`dotnet run`) | 5310 (fixed) |
+| Web | 5310 (the script, or `dotnet run`) | 5310 (fixed) |
 | PostgreSQL | 5432 | container |
 
 ## 8. What an owner would have to add before any deployment

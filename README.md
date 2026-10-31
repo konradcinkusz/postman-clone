@@ -26,7 +26,7 @@ This page describes `main` at WP27.
 | Environments page, history page | In progress (WP21, WP22). Placeholders on `main`. |
 | About page | Placeholder |
 | Legal pages (`/legal/privacy`, `/legal/terms`) | Placeholders (OI-04) |
-| Browser end-to-end tests | Not built (WP26) |
+| Browser end-to-end tests | Built (WP26): `tests/PostmanClone.Web.E2E`, 17 journeys over the protected flows, run by the `e2e` CI job; ADR-0018 |
 | Final review and the review document | Not started (WP28) |
 
 Known open items, with their evidence, are in [`docs/architecture/OPEN-ITEMS.md`](docs/architecture/OPEN-ITEMS.md).
@@ -155,9 +155,10 @@ The kernel holds no domain (rule R1), and no service references another (R2); bo
 | [0020](docs/decisions/0020-architecture-fitness-tests.md) | Architecture and tenancy rules as tests |
 | [0021](docs/decisions/0021-import-export-in-the-web.md) | Import and export in the Web |
 | [0022](docs/decisions/0022-referrer-policy-same-origin.md) | Referrer-Policy same-origin, so browser sign-in passes the origin guard |
+| [0018](docs/decisions/0018-e2e-scope-and-charter.md) | End-to-end journeys: scope, the two sender modes, and what the suite may not do |
 | [0023](docs/decisions/0023-response-viewer-rendering.md) | Response viewer rendering |
 
-Numbers 0018 (E2E charter) and 0019 (review outcomes) are reserved for WP26 and WP28. The index is in
+Number 0019 (review outcomes) is reserved for WP28. The index is in
 [`docs/decisions/README.md`](docs/decisions/README.md).
 
 ## Working on it

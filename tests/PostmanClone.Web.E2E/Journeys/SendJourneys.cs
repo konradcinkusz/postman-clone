@@ -99,6 +99,10 @@ public sealed class SendJourneys : Journey
         await page.WaitForURLAsync(new Regex("reopen="));
         await Circuit.WaitForConnectedAsync(page);
         await Expect(page.GetByTestId("builder-url")).ToHaveValueAsync(url);
+
+        // An unsaved draft: the page says it is not saved, and the builder's "unsaved changes" badge is shown.
+        await Expect(page.GetByText("Opened from history as a new request", new() { Exact = false })).ToBeVisibleAsync();
+        await Expect(page.GetByTestId("builder-dirty")).ToBeVisibleAsync();
     }
 
     [Fact]
