@@ -37,6 +37,9 @@ public static class ServiceCollectionExtensions
         builder.Services.Configure<FormOptions>(options =>
             options.MultipartBodyLengthLimit = PostmanImportLimits.MaxFileBytes + PostmanImportLimits.MaxMultipartEnvelopeBytes);
 
+        builder.Services.AddScoped<ICurlImportService, CurlImportService>();
+        builder.Services.AddScoped<ICurlExportService, CurlExportService>();
+
         if (builder.Environment.IsDevelopment())
         {
             builder.Services.AddOpenApi();

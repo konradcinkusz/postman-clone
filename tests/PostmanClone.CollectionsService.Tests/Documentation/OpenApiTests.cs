@@ -41,6 +41,8 @@ public sealed class OpenApiTests
             "/api/v1/requests/{id}",
             "/api/v1/requests/{id}/duplicate",
             "/api/v1/requests/{id}/move",
+            "/api/v1/import/curl",
+            "/api/v1/requests/{id}/export/curl",
         };
         foreach (var route in expected)
         {

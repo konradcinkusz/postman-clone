@@ -64,9 +64,6 @@ public static class RequestDefinitionValidator
         RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(1));
 
-    /// <summary>True when the text is empty or exactly one <c>{{name}}</c> reference, with optional surrounding whitespace (ADR-0006).</summary>
-    public static bool IsSecretReference(string? value) => string.IsNullOrEmpty(value) || SecretReference.IsMatch(value);
-
     /// <summary>The definition as it is stored: null lists become empty, null objects become <c>none</c>, a null value becomes "".</summary>
     public static RequestDefinition Normalize(RequestDefinition definition) => definition with
     {
@@ -194,6 +191,9 @@ public static class RequestDefinitionValidator
     }
 
     /// <summary>A secret is never stored as a literal (ADR-0006). The message never repeats the value.</summary>
+    /// <summary>True when a secret field holds no literal: it is empty, or exactly one <c>{{name}}</c> reference (ADR-0006).</summary>
+    public static bool IsSecretReference(string? value) => string.IsNullOrEmpty(value) || SecretReference.IsMatch(value);
+
     private static void CheckSecret(string? value, string field, List<RequestIssue> issues)
     {
         if (IsSecretReference(value))
