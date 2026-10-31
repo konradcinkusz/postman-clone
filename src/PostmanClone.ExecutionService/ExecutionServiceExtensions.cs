@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using PostmanClone.ExecutionService.Clients;
 using PostmanClone.ExecutionService.Data;
+using PostmanClone.ExecutionService.History;
 using PostmanClone.ExecutionService.Options;
 using PostmanClone.ExecutionService.Sending.Assembly;
 using PostmanClone.ExecutionService.Sending.Execution;
@@ -38,7 +39,7 @@ public static class ExecutionServiceExtensions
         builder.Services.AddSingleton(provider => new RequestAssembler(provider.GetRequiredService<IOptions<ExecutionOptions>>().Value, CryptographicRandomBytes.Instance));
         builder.Services.AddSingleton<IHostResolver, SystemHostResolver>();
         builder.Services.AddSingleton<IAddressDialer, SocketAddressDialer>();
-        builder.Services.AddSingleton<IHistoryRecorder, NullHistoryRecorder>();
+        builder.Services.AddScoped<IHistoryRecorder, HistoryRecorder>();
         builder.Services.AddScoped<RequestExecutor>();
 
         builder.Services.AddEnvironmentsClient(builder.Configuration);

@@ -4,8 +4,9 @@ using PostmanClone.ExecutionService.Sending.Assembly;
 namespace PostmanClone.ExecutionService.Sending.Execution;
 
 /// <summary>
-/// What a history entry is made of: the request as the user saved it (with references, never expanded values) and the
-/// masked result. WP15 stores it; until then <see cref="NullHistoryRecorder"/> drops it.
+/// What a history entry is made of (ADR-0015): the request as the user wrote it, with <c>{{name}}</c> references and never
+/// expanded values; the masker built from the request's secret values, so the request can be masked in every form; and the
+/// result, which the sender has already masked.
 /// </summary>
 public sealed record HistoryDraft(
     Guid WorkspaceId,
@@ -13,16 +14,11 @@ public sealed record HistoryDraft(
     Guid? SavedRequestId,
     Guid? EnvironmentId,
     RequestDefinition Request,
+    SecretMasker Masker,
     ExecutionResult Result);
 
-/// <summary>Records one execution in the caller's history and returns the new entry's id, or null when nothing was stored.</summary>
+/// <summary>Records one execution in the caller's history and returns the new entry's id. A failure is caught by the caller, which then reports no id.</summary>
 public interface IHistoryRecorder
 {
     Task<Guid?> RecordAsync(HistoryDraft draft, CancellationToken cancellationToken);
-}
-
-/// <summary>The history seam until WP15: records nothing, so <c>historyId</c> is always null.</summary>
-public sealed class NullHistoryRecorder : IHistoryRecorder
-{
-    public Task<Guid?> RecordAsync(HistoryDraft draft, CancellationToken cancellationToken) => Task.FromResult<Guid?>(null);
 }

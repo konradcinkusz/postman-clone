@@ -19,6 +19,7 @@ var app = builder.Build();
 app.UseProblemDetailsDefaults();
 app.UseSecurityDefaults();
 app.MapExecutionEndpoints();
+app.MapHistoryEndpoints();
 app.MapDefaultEndpoints();
 
 app.Run();
