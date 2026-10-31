@@ -37,20 +37,21 @@ public sealed class RequestService(CollectionsDbContext db, TimeProvider clock) 
 
     public async Task<Outcome<SavedRequestDto>> CreateAsync(Caller caller, Guid collectionId, CreateRequestBody body, CancellationToken cancellationToken)
     {
-        var accepted = Accept(body.Request);
-        if (accepted.Failure is { } refusal)
-        {
-            return refusal;
-        }
-
-        var definition = accepted.Value!;
         return await CollectionsTransactions.RunAsync<Outcome<SavedRequestDto>>(db, async token =>
         {
+            // The collection is checked before the body, as for every id endpoint: a foreign collection is 404 whatever the body says.
             if (!await OwnsCollectionAsync(caller, collectionId, token))
             {
                 return Failures.NotFound();
             }
 
+            var accepted = Accept(body.Request);
+            if (accepted.Failure is { } refusal)
+            {
+                return refusal;
+            }
+
+            var definition = accepted.Value!;
             await CollectionsTransactions.LockCollectionAsync(db, collectionId, token);
 
             if (await db.SavedRequests.CountAsync(request => request.CollectionId == collectionId, token) >= CollectionLimits.MaxRequestsPerCollection)
