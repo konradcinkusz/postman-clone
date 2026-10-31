@@ -1,21 +1,26 @@
 #!/usr/bin/env bash
 #
-# run-local-stack.sh — runs authservice on this machine, without Docker, against a local PostgreSQL.
+# run-local-stack.sh — runs the whole estate on this machine, without Docker, against a local PostgreSQL.
 #
-#   scripts/run-local-stack.sh up       build and start authservice on AUTH_PORT (default 5300), then
-#                                       CollectionsService on COLLECTIONS_PORT (default 5301) and
-#                                       ExecutionService on EXEC_PORT (default 5303)
-#   scripts/run-local-stack.sh down     stop them all (the databases and .local-stack/ are kept)
-#   scripts/run-local-stack.sh status   show whether they run and whether their health answers
+#   scripts/run-local-stack.sh up       start, in order: authservice (AUTH_PORT, default 5300), CollectionsService
+#                                       (5301), EnvironmentsService (5302), ExecutionService (5303), the Web (5310)
+#   scripts/run-local-stack.sh down     stop the processes this script started (databases and .local-stack/ are kept)
+#   scripts/run-local-stack.sh status   whether each one runs and whether its health answers
 #
-# The AppHost (src/PostmanClone.AppHost) runs the same authservice image through Docker. This script
-# is the sessions' and developers' route when there is no Docker daemon. It runs the same pinned tag,
-# built from source into .local-stack/ (gitignored), so no image is pulled.
+# Flags (environment variables, read by `up`):
+#   E2E_SENDER_LOOPBACK=1   the sender may reach loopback addresses (Execution:Ssrf:AllowLoopback=true). This is the
+#                           test-only flag the E2E suite needs to send to its local target. The default refuses loopback
+#                           (ADR-0011), and the refusal is what the E2E suite checks when this flag is absent.
+#   AUTHSERVICE_ENVIRONMENT=Development   authservice logs invitation tokens locally (WP24, docs/AUTH.md).
 #
-# PostgreSQL comes from PG_CONNECTION (ADO.NET form). The default targets a local server with the
-# development password. Each service database (authdb, collectionsdb, environmentsdb, executiondb) is
-# created if it is missing. Secrets come from .local-stack/secrets.env (scripts/gen-dev-secrets.sh) and
-# are never printed. Logs go to .local-stack/authservice.log.
+# The AppHost (src/PostmanClone.AppHost) runs the same authservice image through Docker. This script is the route
+# when there is no Docker daemon. It runs the same pinned tag, built from source into .local-stack/ (gitignored),
+# so no image is pulled. Logs and build logs go to .local-stack/logs/. Each service writes its health answer to the
+# log when it fails to start; the script waits for /health (or /health/ready for authservice) before it returns.
+#
+# PostgreSQL comes from PG_CONNECTION (ADO.NET form). The default targets a local server with the development
+# password. Each service database (authdb, collectionsdb, environmentsdb, executiondb) is created if it is missing.
+# Secrets come from .local-stack/secrets.env (scripts/gen-dev-secrets.sh) and are never printed.
 #
 # Requires: git, dotnet (10.0), openssl, psql, curl, base64.
 
@@ -27,6 +32,7 @@ AUTHSERVICE_REPO="https://github.com/konradcinkusz/authservice"
 
 AUTH_PORT="${AUTH_PORT:-5300}"
 COLLECTIONS_PORT="${COLLECTIONS_PORT:-5301}"
+ENVIRONMENTS_PORT="${ENVIRONMENTS_PORT:-5302}"
 EXEC_PORT="${EXEC_PORT:-5303}"
 WEB_PORT="${WEB_PORT:-5310}"
 # gitleaks:allow — the default is a local development server, not a credential.
@@ -36,19 +42,20 @@ SERVICE_DATABASES=(authdb collectionsdb environmentsdb executiondb)
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "${REPO_ROOT}"
 STACK_DIR="${REPO_ROOT}/.local-stack"
-SRC_DIR="${STACK_DIR}/authservice-src"
-BIN_DIR="${STACK_DIR}/authservice-bin"
-PID_FILE="${STACK_DIR}/authservice.pid"
-LOG_FILE="${STACK_DIR}/authservice.log"
-COLLECTIONS_SRC_DIR="${REPO_ROOT}/src/PostmanClone.CollectionsService"
-COLLECTIONS_BIN_DIR="${STACK_DIR}/collections-bin"
-COLLECTIONS_PID_FILE="${STACK_DIR}/collections.pid"
-COLLECTIONS_LOG_FILE="${STACK_DIR}/collections.log"
-EXEC_SRC_PROJECT="${REPO_ROOT}/src/PostmanClone.ExecutionService/PostmanClone.ExecutionService.csproj"
-EXEC_BIN_DIR="${STACK_DIR}/execution-bin"
-EXEC_PID_FILE="${STACK_DIR}/execution.pid"
-EXEC_LOG_FILE="${STACK_DIR}/execution.log"
+LOG_DIR="${STACK_DIR}/logs"
 SECRETS_FILE="${STACK_DIR}/secrets.env"
+
+AUTH_SRC_DIR="${STACK_DIR}/authservice-src"
+AUTH_BIN_DIR="${STACK_DIR}/authservice-bin"
+COLLECTIONS_BIN_DIR="${STACK_DIR}/collections-bin"
+ENVIRONMENTS_BIN_DIR="${STACK_DIR}/environments-bin"
+EXEC_BIN_DIR="${STACK_DIR}/execution-bin"
+WEB_BIN_DIR="${STACK_DIR}/web-bin"
+
+SRC_COLLECTIONS="${REPO_ROOT}/src/PostmanClone.CollectionsService/PostmanClone.CollectionsService.csproj"
+SRC_ENVIRONMENTS="${REPO_ROOT}/src/PostmanClone.EnvironmentsService/PostmanClone.EnvironmentsService.csproj"
+SRC_EXEC="${REPO_ROOT}/src/PostmanClone.ExecutionService/PostmanClone.ExecutionService.csproj"
+SRC_WEB="${REPO_ROOT}/src/PostmanClone.Web/PostmanClone.Web.csproj"
 
 # Reads one key from PG_CONNECTION; empty when absent.
 pg_value() {
@@ -96,60 +103,109 @@ ensure_secrets() {
   fi
 }
 
+# Secrets are sourced into the calling subshell only and passed to a service by environment, never echoed.
+load_secrets() {
+  # shellcheck disable=SC1090
+  set -a; . "${SECRETS_FILE}"; set +a
+}
+
 ensure_source() {
-  if [ ! -d "${SRC_DIR}/.git" ]; then
-    git clone --depth 1 --branch "${AUTHSERVICE_TAG}" "${AUTHSERVICE_REPO}" "${SRC_DIR}"
+  if [ ! -d "${AUTH_SRC_DIR}/.git" ]; then
+    git clone --depth 1 --branch "${AUTHSERVICE_TAG}" "${AUTHSERVICE_REPO}" "${AUTH_SRC_DIR}"
   fi
   # The clone sits inside this repository, so MSBuild would import this repository's Directory.Build.props
   # (warnings as errors, audit settings) and Directory.Packages.props (central package versions) into
   # authservice. MSBuild imports only the nearest file, so empty files here shadow ours for the clone.
-  printf '<Project />\n' > "${SRC_DIR}/Directory.Build.props"
-  printf '<Project />\n' > "${SRC_DIR}/Directory.Packages.props"
+  printf '<Project />\n' > "${AUTH_SRC_DIR}/Directory.Build.props"
+  printf '<Project />\n' > "${AUTH_SRC_DIR}/Directory.Packages.props"
 }
 
-build_authservice() {
-  local log="${STACK_DIR}/authservice-build.log"
-  if ! dotnet build "${SRC_DIR}/src/AuthService/AuthService.csproj" -c Release -o "${BIN_DIR}" > "${log}" 2>&1; then
-    echo "authservice build failed. Last 80 lines of ${log}:" >&2
+# Builds or publishes one project into its bin directory. A failure prints the end of its build log and stops the script.
+build_into() {
+  local name="$1" log="${LOG_DIR}/$1-build.log"
+  shift
+  if ! "$@" > "${log}" 2>&1; then
+    echo "${name} build failed. Last 80 lines of ${log}:" >&2
     tail -n 80 "${log}" >&2
     exit 1
   fi
 }
 
+# Pid files and health. A service is "running" when its pid file names a live process.
+pid_file() { echo "${STACK_DIR}/$1.pid"; }
+
 is_running() {
-  [ -f "${PID_FILE}" ] && kill -0 "$(cat "${PID_FILE}")" 2>/dev/null
+  local pf
+  pf="$(pid_file "$1")"
+  [ -f "${pf}" ] && kill -0 "$(cat "${pf}")" 2>/dev/null
 }
 
-health_status() {
-  curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:${AUTH_PORT}/health/ready" || true
+health_code() {
+  curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$1" || true
+}
+
+# Starts one service detached. The caller exports its environment in a subshell first.
+#   start_detached <name> <log file> <command...>
+start_detached() {
+  local name="$1" log="$2"
+  shift 2
+  nohup "$@" > "${log}" 2>&1 &
+  echo $! > "$(pid_file "${name}")"
+}
+
+# Waits until <url> answers 200. Exits when the process dies first or after 180 s. <name> is the pid-file name.
+#   wait_healthy <name> <label> <url> <log file>
+wait_healthy() {
+  local name="$1" label="$2" url="$3" log="$4" attempt
+  for attempt in $(seq 1 90); do
+    if [ "$(health_code "${url}")" = "200" ]; then
+      echo "${label} is ready at ${url} (pid $(cat "$(pid_file "${name}")"))."
+      return 0
+    fi
+    if ! is_running "${name}"; then
+      echo "${label} exited during start; see ${log}" >&2
+      tail -n 40 "${log}" >&2 || true
+      exit 1
+    fi
+    sleep 2
+  done
+  echo "${label} did not become ready within 180 s; see ${log}" >&2
+  exit 1
+}
+
+# Common Auth__ settings for the .NET services. Their discovery document is served over plain HTTP here.
+auth_env() {
+  export Auth__MetadataAddress="http://localhost:${AUTH_PORT}/.well-known/openid-configuration"
+  export Auth__Issuer=PostmanClone
+  export Auth__Audience=PostmanClone
+  export Auth__RequireHttpsMetadata=false
 }
 
 up() {
   require git dotnet openssl psql curl base64
-  mkdir -p "${STACK_DIR}"
+  mkdir -p "${LOG_DIR}"
   chmod 700 "${STACK_DIR}"
 
   up_authservice
   up_collections
+  up_environments
   up_execution
+  up_web
 }
 
 up_authservice() {
-  if is_running; then
-    echo "authservice already running (pid $(cat "${PID_FILE}")) on port ${AUTH_PORT}."
+  if is_running authservice; then
+    echo "authservice already running (pid $(cat "$(pid_file authservice)")) on port ${AUTH_PORT}."
     return 0
   fi
 
   ensure_secrets
   ensure_source
   ensure_databases
-  build_authservice
-
-  # Secrets are sourced into this shell only and passed to authservice by environment, never echoed.
-  # shellcheck disable=SC1090
-  set -a; . "${SECRETS_FILE}"; set +a
+  build_into authservice dotnet build "${AUTH_SRC_DIR}/src/AuthService/AuthService.csproj" -c Release -o "${AUTH_BIN_DIR}"
 
   (
+    load_secrets
     export ASPNETCORE_URLS="http://localhost:${AUTH_PORT}"
     export DATABASE_PROVIDER=PostgreSQL
     export ConnectionStrings__DefaultConnection="Host=${PG_HOST};Port=${PG_PORT};Username=${PG_USER};Password=${PG_PASSWORD};Database=authdb"
@@ -163,178 +219,151 @@ up_authservice() {
     # Production withholds an invitation token from the log when no email provider is configured. Set
     # AUTHSERVICE_ENVIRONMENT=Development to read the token there locally (docs/AUTH.md, Invitations).
     export ASPNETCORE_ENVIRONMENT="${AUTHSERVICE_ENVIRONMENT:-Production}"
-    nohup dotnet "${BIN_DIR}/AuthService.dll" > "${LOG_FILE}" 2>&1 &
-    echo $! > "${PID_FILE}"
+    start_detached authservice "${LOG_DIR}/authservice.log" dotnet "${AUTH_BIN_DIR}/AuthService.dll"
   )
-
   # Schema migration runs after Kestrel starts (MigrateAsync), so /health/ready answers 503 until it is done.
-  local attempt
-  for attempt in $(seq 1 90); do
-    if [ "$(health_status)" = "200" ]; then
-      echo "authservice ${AUTHSERVICE_TAG} is ready on http://localhost:${AUTH_PORT} (pid $(cat "${PID_FILE}"))."
-      return 0
-    fi
-    if ! is_running; then
-      echo "authservice exited during start; see ${LOG_FILE}" >&2
-      exit 1
-    fi
-    sleep 2
-  done
-  echo "authservice did not become ready within 180 s; see ${LOG_FILE}" >&2
-  exit 1
+  wait_healthy authservice "authservice ${AUTHSERVICE_TAG}" "http://localhost:${AUTH_PORT}/health/ready" "${LOG_DIR}/authservice.log"
 }
 
-# CollectionsService runs from its own build output. It reads collectionsdb (created above) and checks tokens
-# against authservice's discovery document on the same loopback origin. The secrets are not needed here.
-collections_is_running() {
-  [ -f "${COLLECTIONS_PID_FILE}" ] && kill -0 "$(cat "${COLLECTIONS_PID_FILE}")" 2>/dev/null
-}
-
-collections_health_status() {
-  curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:${COLLECTIONS_PORT}/health" || true
-}
-
+# The .NET services of this repository run from their own publish output, with the same database and token settings.
+# CollectionsService checks tokens against authservice's discovery document on the same loopback origin.
 up_collections() {
-  if collections_is_running; then
-    echo "CollectionsService already running (pid $(cat "${COLLECTIONS_PID_FILE}")) on port ${COLLECTIONS_PORT}."
+  if is_running collections; then
+    echo "CollectionsService already running (pid $(cat "$(pid_file collections)")) on port ${COLLECTIONS_PORT}."
     return 0
   fi
-
-  local log="${STACK_DIR}/collections-build.log"
-  if ! dotnet publish "${COLLECTIONS_SRC_DIR}/PostmanClone.CollectionsService.csproj" -c Release -o "${COLLECTIONS_BIN_DIR}" > "${log}" 2>&1; then
-    echo "CollectionsService build failed. Last 80 lines of ${log}:" >&2
-    tail -n 80 "${log}" >&2
-    exit 1
-  fi
+  build_into collections dotnet publish "${SRC_COLLECTIONS}" -c Release -o "${COLLECTIONS_BIN_DIR}"
 
   (
+    auth_env
     export ASPNETCORE_URLS="http://localhost:${COLLECTIONS_PORT}"
     export DATABASE_PROVIDER=PostgreSQL
     export ConnectionStrings__collectionsdb="Host=${PG_HOST};Port=${PG_PORT};Username=${PG_USER};Password=${PG_PASSWORD};Database=collectionsdb"
-    export Auth__MetadataAddress="http://localhost:${AUTH_PORT}/.well-known/openid-configuration"
-    export Auth__Issuer=PostmanClone
-    export Auth__Audience=PostmanClone
-    export Auth__RequireHttpsMetadata=false
-    nohup dotnet "${COLLECTIONS_BIN_DIR}/PostmanClone.CollectionsService.dll" > "${COLLECTIONS_LOG_FILE}" 2>&1 &
-    echo $! > "${COLLECTIONS_PID_FILE}"
+    start_detached collections "${LOG_DIR}/collections.log" dotnet "${COLLECTIONS_BIN_DIR}/PostmanClone.CollectionsService.dll"
   )
-
   # /health is 503 until the migration has run (MigrateAsync after Kestrel starts), then 200.
-  local attempt
-  for attempt in $(seq 1 90); do
-    if [ "$(collections_health_status)" = "200" ]; then
-      echo "CollectionsService is ready on http://localhost:${COLLECTIONS_PORT} (pid $(cat "${COLLECTIONS_PID_FILE}"))."
-      return 0
-    fi
-    if ! collections_is_running; then
-      echo "CollectionsService exited during start; see ${COLLECTIONS_LOG_FILE}" >&2
-      exit 1
-    fi
-    sleep 2
-  done
-  echo "CollectionsService did not become healthy within 180 s; see ${COLLECTIONS_LOG_FILE}" >&2
-  exit 1
+  wait_healthy collections "CollectionsService" "http://localhost:${COLLECTIONS_PORT}/health" "${LOG_DIR}/collections.log"
 }
 
-execution_is_running() {
-  [ -f "${EXEC_PID_FILE}" ] && kill -0 "$(cat "${EXEC_PID_FILE}")" 2>/dev/null
-}
-
-execution_health_status() {
-  curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:${EXEC_PORT}/health" || true
-}
-
-up_execution() {
-  if execution_is_running; then
-    echo "ExecutionService already running (pid $(cat "${EXEC_PID_FILE}")) on port ${EXEC_PORT}."
+# EnvironmentsService seals secret values with Secrets:EncryptionKey (ADR-0006). Without the key it still starts, and
+# secret writes answer 503 (the health endpoint reports `secrets`).
+up_environments() {
+  if is_running environments; then
+    echo "EnvironmentsService already running (pid $(cat "$(pid_file environments)")) on port ${ENVIRONMENTS_PORT}."
     return 0
   fi
-
-  local log="${STACK_DIR}/execution-build.log"
-  if ! dotnet build "${EXEC_SRC_PROJECT}" -c Release -o "${EXEC_BIN_DIR}" > "${log}" 2>&1; then
-    echo "ExecutionService build failed. Last 80 lines of ${log}:" >&2
-    tail -n 80 "${log}" >&2
-    exit 1
-  fi
+  build_into environments dotnet publish "${SRC_ENVIRONMENTS}" -c Release -o "${ENVIRONMENTS_BIN_DIR}"
 
   (
-    export ASPNETCORE_URLS="http://localhost:${EXEC_PORT}"
-    export ASPNETCORE_ENVIRONMENT=Production
+    load_secrets
+    auth_env
+    export ASPNETCORE_URLS="http://localhost:${ENVIRONMENTS_PORT}"
     export DATABASE_PROVIDER=PostgreSQL
-    export ConnectionStrings__executiondb="Host=${PG_HOST};Port=${PG_PORT};Username=${PG_USER};Password=${PG_PASSWORD};Database=executiondb"
-    export Auth__MetadataAddress="http://localhost:${AUTH_PORT}/.well-known/openid-configuration"
-    export Auth__Issuer=PostmanClone
-    export Auth__Audience=PostmanClone
-    # authservice listens on plain HTTP here, so its discovery document is fetched over HTTP (development stack only).
-    export Auth__RequireHttpsMetadata=false
-    nohup dotnet "${EXEC_BIN_DIR}/PostmanClone.ExecutionService.dll" > "${EXEC_LOG_FILE}" 2>&1 &
-    echo $! > "${EXEC_PID_FILE}"
+    export ConnectionStrings__environmentsdb="Host=${PG_HOST};Port=${PG_PORT};Username=${PG_USER};Password=${PG_PASSWORD};Database=environmentsdb"
+    export Secrets__EncryptionKey="${SECRETS_ENCRYPTION_KEY}"
+    start_detached environments "${LOG_DIR}/environments.log" dotnet "${ENVIRONMENTS_BIN_DIR}/PostmanClone.EnvironmentsService.dll"
   )
-
-  # MigrateAsync runs after Kestrel starts, so /health answers 503 until the schema is in place.
-  local attempt
-  for attempt in $(seq 1 90); do
-    if [ "$(execution_health_status)" = "200" ]; then
-      echo "ExecutionService is ready on http://localhost:${EXEC_PORT} (pid $(cat "${EXEC_PID_FILE}"))."
-      return 0
-    fi
-    if ! execution_is_running; then
-      echo "ExecutionService exited during start; see ${EXEC_LOG_FILE}" >&2
-      exit 1
-    fi
-    sleep 2
-  done
-  echo "ExecutionService did not become ready within 180 s; see ${EXEC_LOG_FILE}" >&2
-  exit 1
+  wait_healthy environments "EnvironmentsService" "http://localhost:${ENVIRONMENTS_PORT}/health" "${LOG_DIR}/environments.log"
 }
 
-stop_execution() {
-  if execution_is_running; then
-    kill "$(cat "${EXEC_PID_FILE}")"
-    echo "Stopped ExecutionService."
-  else
-    echo "ExecutionService is not running."
+# The sender. Loopback is refused unless E2E_SENDER_LOOPBACK=1 (the test-only flag). A relaxed SSRF setting is refused by the
+# service in Production (ExecutionOptionsValidator), so a loopback-enabled stack runs as Development. This is local only.
+up_execution() {
+  if is_running execution; then
+    echo "ExecutionService already running (pid $(cat "$(pid_file execution)")) on port ${EXEC_PORT}."
+    return 0
   fi
-  rm -f "${EXEC_PID_FILE}"
+  build_into execution dotnet build "${SRC_EXEC}" -c Release -o "${EXEC_BIN_DIR}"
+
+  (
+    auth_env
+    export ASPNETCORE_URLS="http://localhost:${EXEC_PORT}"
+    export DATABASE_PROVIDER=PostgreSQL
+    export ConnectionStrings__executiondb="Host=${PG_HOST};Port=${PG_PORT};Username=${PG_USER};Password=${PG_PASSWORD};Database=executiondb"
+    export Environments__BaseAddress="http://localhost:${ENVIRONMENTS_PORT}"
+    if [ "${E2E_SENDER_LOOPBACK:-0}" = "1" ]; then
+      export ASPNETCORE_ENVIRONMENT=Development
+      export Execution__Ssrf__AllowLoopback=true
+      echo "ExecutionService: loopback is ALLOWED for the sender (E2E_SENDER_LOOPBACK=1, local test use only)."
+    else
+      export ASPNETCORE_ENVIRONMENT=Production
+    fi
+    start_detached execution "${LOG_DIR}/execution.log" dotnet "${EXEC_BIN_DIR}/PostmanClone.ExecutionService.dll"
+  )
+  wait_healthy execution "ExecutionService" "http://localhost:${EXEC_PORT}/health" "${LOG_DIR}/execution.log"
+}
+
+# The Web reaches its backends by service-discovery names (docs/OPERATIONS.md §4.3). It is one instance (ADR-0008).
+up_web() {
+  if is_running web; then
+    echo "Web already running (pid $(cat "$(pid_file web)")) on port ${WEB_PORT}."
+    return 0
+  fi
+  build_into web dotnet publish "${SRC_WEB}" -c Release -o "${WEB_BIN_DIR}"
+
+  (
+    auth_env
+    export ASPNETCORE_URLS="http://localhost:${WEB_PORT}"
+    export ASPNETCORE_ENVIRONMENT=Development
+    export Auth__MetadataAddress="http://localhost:${AUTH_PORT}/.well-known/openid-configuration"
+    # Service-discovery names contain hyphens, which bash cannot export, so they go through env(1).
+    # The content root is the working directory. Started from anywhere else, the Web finds no wwwroot and every static
+    # asset (CSS, the Blazor bundle) answers 200 with an empty body, so the page never starts its circuit.
+    cd "${WEB_BIN_DIR}"
+    start_detached web "${LOG_DIR}/web.log" env \
+      "services__authservice__http__0=http://localhost:${AUTH_PORT}" \
+      "services__collections-service__http__0=http://localhost:${COLLECTIONS_PORT}" \
+      "services__environments-service__http__0=http://localhost:${ENVIRONMENTS_PORT}" \
+      "services__execution-service__http__0=http://localhost:${EXEC_PORT}" \
+      dotnet "${WEB_BIN_DIR}/PostmanClone.Web.dll"
+  )
+  wait_healthy web "Web" "http://localhost:${WEB_PORT}/health" "${LOG_DIR}/web.log"
+}
+
+stop_one() {
+  local name="$1" label="$2"
+  if is_running "${name}"; then
+    kill "$(cat "$(pid_file "${name}")")"
+    echo "Stopped ${label}."
+  else
+    echo "${label} is not running."
+  fi
+  rm -f "$(pid_file "${name}")"
 }
 
 down() {
-  if is_running; then
-    kill "$(cat "${PID_FILE}")"
-    echo "Stopped authservice."
-  else
-    echo "authservice is not running."
-  fi
-  rm -f "${PID_FILE}"
-
-  if collections_is_running; then
-    kill "$(cat "${COLLECTIONS_PID_FILE}")"
-    echo "Stopped CollectionsService."
-  else
-    echo "CollectionsService is not running."
-  fi
-  rm -f "${COLLECTIONS_PID_FILE}"
-
-  stop_execution
+  stop_one web "Web"
+  stop_one execution "ExecutionService"
+  stop_one environments "EnvironmentsService"
+  stop_one collections "CollectionsService"
+  stop_one authservice "authservice"
 }
 
 status() {
-  if is_running; then
-    echo "authservice running (pid $(cat "${PID_FILE}")); /health/ready -> $(health_status)"
+  if is_running authservice; then
+    echo "authservice running (pid $(cat "$(pid_file authservice)")); /health/ready -> $(health_code "http://localhost:${AUTH_PORT}/health/ready")"
   else
     echo "authservice not running."
   fi
-
-  if collections_is_running; then
-    echo "CollectionsService running (pid $(cat "${COLLECTIONS_PID_FILE}")); /health -> $(collections_health_status)"
+  if is_running collections; then
+    echo "CollectionsService running (pid $(cat "$(pid_file collections)")); /health -> $(health_code "http://localhost:${COLLECTIONS_PORT}/health")"
   else
     echo "CollectionsService not running."
   fi
-
-  if execution_is_running; then
-    echo "ExecutionService running (pid $(cat "${EXEC_PID_FILE}")); /health -> $(execution_health_status)"
+  if is_running environments; then
+    echo "EnvironmentsService running (pid $(cat "$(pid_file environments)")); /health -> $(health_code "http://localhost:${ENVIRONMENTS_PORT}/health")"
+  else
+    echo "EnvironmentsService not running."
+  fi
+  if is_running execution; then
+    echo "ExecutionService running (pid $(cat "$(pid_file execution)")); /health -> $(health_code "http://localhost:${EXEC_PORT}/health")"
   else
     echo "ExecutionService not running."
+  fi
+  if is_running web; then
+    echo "Web running (pid $(cat "$(pid_file web)")); /health -> $(health_code "http://localhost:${WEB_PORT}/health")"
+  else
+    echo "Web not running."
   fi
 }
 
