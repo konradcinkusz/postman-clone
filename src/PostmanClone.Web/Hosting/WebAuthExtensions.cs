@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using PostmanClone.Web.Api;
 using PostmanClone.Web.Auth;
+using PostmanClone.Web.Collections;
 using PostmanClone.Web.Membership;
 
 namespace PostmanClone.Web.Hosting;
@@ -48,6 +49,7 @@ public static class WebAuthExtensions
         builder.Services.AddScoped<WorkspaceState>();
         builder.Services.AddScoped<CircuitSession>();
         builder.Services.AddScoped<MembershipService>();
+        builder.Services.AddScoped<WorkspaceShell>();
         builder.Services.AddScoped<CircuitHandler, WorkspaceCircuitHandler>();
         return builder;
     }

@@ -1,0 +1,86 @@
+/* The workspace home (WP18): the tree beside the open requests, stacked below 48 rem (UI-STYLE §3). Tokens only (§1). */
+
+.page-header {
+    align-items: center;
+    margin-bottom: var(--space-3);
+}
+
+.page-header h1 {
+    margin: 0;
+}
+
+.user-menu {
+    position: relative;
+}
+
+.user-menu summary {
+    cursor: pointer;
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+}
+
+.user-menu .card {
+    margin-top: var(--space-2);
+    min-width: 14rem;
+    max-width: 100%;
+}
+
+.workspace-grid {
+    display: grid;
+    gap: var(--space-4);
+    grid-template-columns: minmax(0, 18rem) minmax(0, 1fr);
+    align-items: start;
+}
+
+.workspace-tree,
+.workspace-main {
+    min-width: 0;
+}
+
+.workspace-main {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.tab-group {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
+.tab-close {
+    min-width: 2rem;
+    min-height: 2rem;
+    padding: 0;
+    line-height: 1;
+}
+
+.request-area h2 {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-lg);
+}
+
+.workspace-actions {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.workspace-actions h3 {
+    margin: 0;
+    font-size: var(--text-base);
+}
+
+.workspace-actions form {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.workspace-actions .field select {
+    max-width: 100%;
+}
+
+@media (max-width: 48rem) {
+    .workspace-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

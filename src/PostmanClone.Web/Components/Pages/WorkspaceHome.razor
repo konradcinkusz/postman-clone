@@ -1,0 +1,814 @@
+@page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using PostmanClone.ServiceDefaults.Authentication
+@using PostmanClone.Web.Api
+@using PostmanClone.Web.Auth
+@using PostmanClone.Web.Collections
+@using PostmanClone.Web.Components.Shell
+@inject WorkspaceState State
+@inject WorkspaceShell Shell
+@inject AuthenticationStateProvider AuthenticationState
+@implements IDisposable
+
+<PageTitle>Home · PostmanClone</PageTitle>
+
+<header class="split page-header">
+    <h1 data-testid="page-title">@(_identity?.WorkspaceName ?? "Workspace")</h1>
+    <details class="user-menu" data-testid="user-menu">
+        <summary data-testid="user-menu-summary">@(_identity?.Email ?? "Signed in")</summary>
+        <div class="card stack">
+            <p>Your role here is <strong data-testid="user-role">@Shell.Role</strong>.</p>
+            <a class="btn" href="/workspace" data-testid="user-members">Members of this workspace</a>
+        </div>
+    </details>
+</header>
+
+@if (!_hasWorkspace)
+{
+    <section class="empty-state" data-testid="shell-no-workspace">
+        <p>The workspace shell needs exactly one workspace. <a href="/no-workspace">See what to do next</a>.</p>
+    </section>
+}
+else
+{
+    @if (_listFailure is { } listFailure)
+    {
+        <div class="callout callout-danger" role="alert" data-testid="shell-alert">@listFailure</div>
+    }
+
+    @if (_notice is { } notice)
+    {
+        <div class="callout @(notice.IsError ? "callout-danger" : "callout-success")"
+             role="@(notice.IsError ? "alert" : "status")"
+             data-testid="shell-notice">@notice.Text</div>
+    }
+
+    <div class="workspace-grid">
+        <aside class="workspace-tree">
+            <CollectionTreeView Rows="@_rows"
+                                Filter="@_filter"
+                                Filtering="@(TreeFilter.Normalize(_filter) is not null)"
+                                EmptyMessage="@(_listFailure is null ? "No collections yet. Create one to start." : null)"
+                                SelectedId="@_selected?.Id"
+                                FailedCollections="@_failedTrees"
+                                Busy="@_busy"
+                                FilterChanged="@FilterChangedAsync"
+                                ToggleRow="@ToggleAsync"
+                                SelectRow="@SelectAsync"
+                                NewCollection="@BeginNewCollection" />
+        </aside>
+
+        <section class="workspace-main" aria-label="Open requests and the selected item">
+            <div class="tabs" role="tablist" aria-label="Open requests" data-testid="tabs">
+                @for (var index = 0; index < _tabs.Tabs.Count; index++)
+                {
+                    var tab = _tabs.Tabs[index];
+                    var position = index + 1;
+                    var selected = tab.RequestId == _tabs.ActiveRequestId;
+                    <div class="tab-group" role="presentation">
+                        <button type="button"
+                                role="tab"
+                                class="tab"
+                                aria-selected="@(selected ? "true" : "false")"
+                                data-testid="tabs-tab-@position"
+                                @onclick="() => ActivateTab(tab)">@(tab.Dirty ? "● " : string.Empty)@tab.Title</button>
+                        <button type="button"
+                                class="btn tab-close"
+                                data-testid="tabs-close-@position"
+                                aria-label="Close @tab.Title"
+                                @onclick="() => CloseTab(tab)">×</button>
+                    </div>
+                }
+            </div>
+
+            <div role="tabpanel" class="card request-area" data-testid="request-area">
+                @if (_tabs.Active is { } active)
+                {
+                    <h2 data-testid="request-title">@active.Title</h2>
+                    <p data-testid="request-placeholder">The request builder is not built yet. This tab keeps its place until it is.</p>
+                }
+                else
+                {
+                    <p class="empty-state" data-testid="request-empty">Open a request from the tree to see it here.</p>
+                }
+            </div>
+
+            <section class="card workspace-actions" aria-labelledby="actions-heading" data-testid="actions">
+                <h2 id="actions-heading">Selected item</h2>
+
+                @if (_selected is null)
+                {
+                    <p data-testid="selection-empty">Select a collection, folder or request in the tree to act on it.</p>
+                }
+                else
+                {
+                    <p>
+                        <span class="badge" data-testid="selection-kind">@KindLabel(_selected.Kind)</span>
+                        <strong data-testid="selection-name">@_selected.Name</strong>
+                    </p>
+
+                    <div class="cluster" role="group" aria-label="Actions on the selected item">
+                        @if (_selected.Kind != ShellRowKind.Request)
+                        {
+                            <button type="button" class="btn" data-testid="action-new-folder" disabled="@_busy" @onclick="BeginNewFolder">New folder</button>
+                        }
+                        <button type="button" class="btn" data-testid="action-rename" disabled="@_busy" @onclick="BeginRename">Rename</button>
+                        @if (_selected.Kind == ShellRowKind.Request)
+                        {
+                            <button type="button" class="btn" data-testid="action-duplicate" disabled="@_busy" @onclick="DuplicateAsync">Duplicate</button>
+                            <button type="button" class="btn" data-testid="action-move" disabled="@_busy" @onclick="BeginMove">Move to…</button>
+                        }
+                        @if (CanDeleteSelected)
+                        {
+                            <button type="button" class="btn btn-danger" data-testid="action-delete" disabled="@_busy" @onclick="BeginDelete">Delete…</button>
+                        }
+                    </div>
+                }
+
+                @if (_panel == Panel.NewCollection)
+                {
+                    <form class="stack" data-testid="new-collection-form" @onsubmit="SubmitNewCollectionAsync" @onsubmit:preventDefault>
+                        <h3>New collection</h3>
+                        <div class="field">
+                            <label for="new-collection-name">Name</label>
+                            <input id="new-collection-name" type="text" maxlength="100" required autocomplete="off" data-testid="new-collection-name" @bind="_newName" @bind:event="oninput" />
+                        </div>
+                        <div class="field">
+                            <label for="new-collection-description">Description (optional)</label>
+                            <input id="new-collection-description" type="text" maxlength="500" autocomplete="off" data-testid="new-collection-description" @bind="_newDescription" @bind:event="oninput" />
+                        </div>
+                        @if (_formError is { } formError)
+                        {
+                            <p class="callout callout-danger" role="alert" data-testid="form-error">@formError</p>
+                        }
+                        <div class="cluster">
+                            <button type="submit" class="btn btn-primary" data-testid="new-collection-submit" disabled="@_busy">Create collection</button>
+                            <button type="button" class="btn" data-testid="action-cancel" @onclick="CancelPanel">Cancel</button>
+                        </div>
+                    </form>
+                }
+
+                @if (_panel == Panel.NewFolder && _selected is not null)
+                {
+                    <form class="stack" data-testid="folder-form" @onsubmit="SubmitNewFolderAsync" @onsubmit:preventDefault>
+                        <h3>New folder</h3>
+                        <div class="field">
+                            <label for="folder-name">Name</label>
+                            <input id="folder-name" type="text" maxlength="100" required autocomplete="off" data-testid="folder-name" @bind="_folderName" @bind:event="oninput" />
+                        </div>
+                        @if (_formError is { } formError)
+                        {
+                            <p class="callout callout-danger" role="alert" data-testid="form-error">@formError</p>
+                        }
+                        <div class="cluster">
+                            <button type="submit" class="btn btn-primary" data-testid="folder-submit" disabled="@_busy">Create folder</button>
+                            <button type="button" class="btn" data-testid="action-cancel" @onclick="CancelPanel">Cancel</button>
+                        </div>
+                    </form>
+                }
+
+                @if (_panel == Panel.Rename && _selected is not null)
+                {
+                    <form class="stack" data-testid="rename-form" @onsubmit="SubmitRenameAsync" @onsubmit:preventDefault>
+                        <h3>Rename</h3>
+                        <div class="field">
+                            <label for="rename-name">Name</label>
+                            <input id="rename-name" type="text" maxlength="@NameLimit" required autocomplete="off" data-testid="rename-name" @bind="_renameName" @bind:event="oninput" />
+                        </div>
+                        @if (_formError is { } formError)
+                        {
+                            <p class="callout callout-danger" role="alert" data-testid="form-error">@formError</p>
+                        }
+                        <div class="cluster">
+                            <button type="submit" class="btn btn-primary" data-testid="rename-submit" disabled="@_busy">Save name</button>
+                            <button type="button" class="btn" data-testid="action-cancel" @onclick="CancelPanel">Cancel</button>
+                        </div>
+                    </form>
+                }
+
+                @if (_panel == Panel.Move && _selected is not null)
+                {
+                    <form class="stack" data-testid="move-form" @onsubmit="SubmitMoveAsync" @onsubmit:preventDefault>
+                        <h3>Move to</h3>
+                        <div class="field">
+                            <label for="move-target">Destination</label>
+                            <select id="move-target" data-testid="move-target" @bind="_moveTarget">
+                                <option value="">Top of the collection</option>
+                                @foreach (var choice in MoveChoices())
+                                {
+                                    <option value="@choice.Id">@choice.Path</option>
+                                }
+                            </select>
+                        </div>
+                        @if (_formError is { } formError)
+                        {
+                            <p class="callout callout-danger" role="alert" data-testid="form-error">@formError</p>
+                        }
+                        <div class="cluster">
+                            <button type="submit" class="btn btn-primary" data-testid="move-submit" disabled="@_busy">Move</button>
+                            <button type="button" class="btn" data-testid="action-cancel" @onclick="CancelPanel">Cancel</button>
+                        </div>
+                    </form>
+                }
+
+                @if (_panel == Panel.ConfirmDelete && _selected is not null)
+                {
+                    <div class="stack" data-testid="delete-confirm">
+                        <p>Delete <strong>@_selected.Name</strong>@DeleteConsequence()? This cannot be undone.</p>
+                        <div class="cluster">
+                            <button type="button" class="btn btn-danger" data-testid="action-confirm-delete" disabled="@_busy" @onclick="ConfirmDeleteAsync">Delete</button>
+                            <button type="button" class="btn" data-testid="action-cancel" @onclick="CancelPanel">Keep it</button>
+                        </div>
+                    </div>
+                }
+            </section>
+        </section>
+    </div>
+}
+
+@code {
+    /// <summary>The one form the actions area shows at a time.</summary>
+    private enum Panel
+    {
+        None,
+        NewCollection,
+        NewFolder,
+        Rename,
+        Move,
+        ConfirmDelete,
+    }
+
+    /// <summary>What is selected in the tree: enough to act on it without looking the row up again.</summary>
+    private sealed record Selected(ShellRowKind Kind, Guid Id, Guid CollectionId, string Name);
+
+    /// <summary>A message for the shell's alert or status box. Errors are alerts, the rest are status.</summary>
+    private sealed record Notice(string Text, bool IsError);
+
+    private const int NameLimit = 100;
+
+    private readonly CancellationTokenSource _cancellation = new();
+    private readonly HashSet<Guid> _expanded = [];
+    private readonly HashSet<Guid> _failedTrees = [];
+    private readonly Dictionary<Guid, CollectionTreeModel> _trees = [];
+    private readonly OpenTabs _tabs = new();
+
+    private List<CollectionSummary> _collections = [];
+    private IReadOnlyList<ShellRow> _rows = Array.Empty<ShellRow>();
+    private ShellIdentity? _identity;
+    private bool _hasWorkspace;
+    private bool _busy;
+    private string? _listFailure;
+    private Notice? _notice;
+    private string? _formError;
+    private string _filter = string.Empty;
+    private Selected? _selected;
+    private Panel _panel;
+    private string _newName = string.Empty;
+    private string _newDescription = string.Empty;
+    private string _folderName = string.Empty;
+    private string _renameName = string.Empty;
+    private string _moveTarget = string.Empty;
+
+    private CancellationToken Token => _cancellation.Token;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await State.CaptureAsync(AuthenticationState);
+        _hasWorkspace = Shell.HasWorkspace;
+        if (!_hasWorkspace)
+        {
+            return;
+        }
+
+        // Read-only, so the double call of prerendering is accepted (BLAZOR-WEB-APP §3).
+        await RunAsync(async () =>
+        {
+            _identity = await Shell.IdentityAsync(Token);
+            await ReloadCollectionsAsync();
+        });
+        Rebuild();
+    }
+
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+
+    private bool CanDeleteSelected
+    {
+        get
+        {
+            if (_selected is null)
+            {
+                return false;
+            }
+
+            if (_selected.Kind != ShellRowKind.Collection)
+            {
+                return true;
+            }
+
+            return _collections.Find(collection => collection.Id == _selected.Id) is { } summary
+                && CollectionRules.CanDeleteCollection(Shell.Role, summary.CreatedBy, _identity?.UserId);
+        }
+    }
+
+    private static string KindLabel(ShellRowKind kind) => kind switch
+    {
+        ShellRowKind.Collection => "Collection",
+        ShellRowKind.Folder => "Folder",
+        _ => "Request",
+    };
+
+    /// <summary>What a delete takes with it, said in the confirmation (CONTRACTS §2 cascades to the requests).</summary>
+    private string DeleteConsequence()
+    {
+        if (_selected is null || _selected.Kind == ShellRowKind.Request || !_trees.TryGetValue(_selected.CollectionId, out var tree))
+        {
+            return string.Empty;
+        }
+
+        var count = tree.RequestIdsWithin(_selected.Kind == ShellRowKind.Collection ? null : _selected.Id).Count;
+        return count == 0 ? string.Empty : $" and the {count} request{(count == 1 ? string.Empty : "s")} in it";
+    }
+
+    private IReadOnlyList<FolderChoice> MoveChoices()
+    {
+        if (_selected is not null && _trees.TryGetValue(_selected.CollectionId, out var tree))
+        {
+            return tree.FolderChoices();
+        }
+
+        return Array.Empty<FolderChoice>();
+    }
+
+    // ---- Loading -------------------------------------------------------------------------------------
+
+    private async Task ReloadCollectionsAsync()
+    {
+        var answer = await Shell.ListCollectionsAsync(Token);
+        if (answer.Value is { } collections)
+        {
+            _collections = collections.OrderBy(collection => collection.Name, StringComparer.OrdinalIgnoreCase).ThenBy(collection => collection.Id).ToList();
+            _listFailure = null;
+            return;
+        }
+
+        _listFailure = answer.Outcome is CollectionOutcome.SessionEnded or CollectionOutcome.NoWorkspace
+            ? CollectionMessages.For(answer.Outcome, answer.Code)
+            : CollectionMessages.CollectionsNotLoaded;
+    }
+
+    /// <summary>Loads a collection's tree unless it is loaded already. A failure is a row alert, and the rest of the shell stays.</summary>
+    private async Task<bool> EnsureTreeAsync(Guid collectionId)
+    {
+        if (_trees.ContainsKey(collectionId))
+        {
+            return true;
+        }
+
+        var answer = await Shell.LoadTreeAsync(collectionId, Token);
+        if (answer.Value is { } tree)
+        {
+            var model = CollectionTreeModel.From(tree);
+            _trees[collectionId] = model;
+            _failedTrees.Remove(collectionId);
+            if (model.Issues.Count > 0)
+            {
+                _notice = new Notice(CollectionMessages.IssueNote(model.Issues, model.Collection.Name), IsError: false);
+            }
+
+            return true;
+        }
+
+        if (answer.Outcome == CollectionOutcome.NotFound)
+        {
+            // Deleted elsewhere since the list was read: the list is the truth, so read it again.
+            _notice = new Notice(CollectionMessages.For(answer.Outcome, answer.Code), IsError: true);
+            await ReloadCollectionsAsync();
+            return false;
+        }
+
+        if (answer.Outcome is CollectionOutcome.SessionEnded or CollectionOutcome.NoWorkspace)
+        {
+            _notice = new Notice(CollectionMessages.For(answer.Outcome, answer.Code), IsError: true);
+            return false;
+        }
+
+        _failedTrees.Add(collectionId);
+        return false;
+    }
+
+    private async Task ReloadTreeAsync(Guid collectionId)
+    {
+        _trees.Remove(collectionId);
+        _failedTrees.Remove(collectionId);
+        await EnsureTreeAsync(collectionId);
+    }
+
+    /// <summary>Recomputes the flat rows the view draws from the page's state.</summary>
+    private void Rebuild() => _rows = ShellTree.Build(_collections, _trees, _expanded, _filter);
+
+    // ---- Tree interaction ----------------------------------------------------------------------------
+
+    private async Task ToggleAsync(ShellRow row)
+    {
+        if (_expanded.Remove(row.Id))
+        {
+            Rebuild();
+            return;
+        }
+
+        _expanded.Add(row.Id);
+        if (row.Kind == ShellRowKind.Collection)
+        {
+            await RunAsync(() => EnsureTreeAsync(row.Id));
+        }
+
+        Rebuild();
+    }
+
+    private async Task SelectAsync(ShellRow row)
+    {
+        _formError = null;
+        _panel = Panel.None;
+        _selected = new Selected(row.Kind, row.Id, row.CollectionId, row.Name);
+        if (row.Kind == ShellRowKind.Request)
+        {
+            OpenRequestTab(row.Id, row.Name);
+        }
+
+        // The delete confirmation counts what goes with a collection, and the move list needs its folders, so both are read on select.
+        if (row.Kind == ShellRowKind.Collection)
+        {
+            await RunAsync(() => EnsureTreeAsync(row.Id));
+        }
+
+        Rebuild();
+    }
+
+    private async Task FilterChangedAsync(string text)
+    {
+        _filter = text;
+        // A filter searches the requests too, so every collection's tree is read once while a filter is set.
+        if (TreeFilter.Normalize(text) is not null)
+        {
+            await RunAsync(async () =>
+            {
+                foreach (var collection in _collections.ToArray())
+                {
+                    if (!_trees.ContainsKey(collection.Id) && !_failedTrees.Contains(collection.Id))
+                    {
+                        await EnsureTreeAsync(collection.Id);
+                    }
+                }
+            });
+        }
+
+        Rebuild();
+    }
+
+    private void OpenRequestTab(Guid requestId, string title)
+    {
+        if (_tabs.Open(requestId, title) == OpenTabResult.Full)
+        {
+            _notice = new Notice(CollectionMessages.TabLimit, IsError: true);
+        }
+    }
+
+    private Task ActivateTab(OpenTab tab)
+    {
+        _tabs.Activate(tab.RequestId);
+        var collectionId = _trees.FirstOrDefault(entry => entry.Value.Find(tab.RequestId) is not null).Key;
+        _selected = collectionId == Guid.Empty ? null : new Selected(ShellRowKind.Request, tab.RequestId, collectionId, tab.Title);
+        Rebuild();
+        return Task.CompletedTask;
+    }
+
+    private Task CloseTab(OpenTab tab)
+    {
+        if (_tabs.Close(tab.RequestId) == CloseTabResult.Dirty)
+        {
+            _notice = new Notice(CollectionMessages.UnsavedChanges, IsError: true);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    // ---- Actions -------------------------------------------------------------------------------------
+
+    private Task BeginNewCollection()
+    {
+        _panel = Panel.NewCollection;
+        _formError = null;
+        _newName = string.Empty;
+        _newDescription = string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private Task BeginNewFolder()
+    {
+        _panel = Panel.NewFolder;
+        _formError = null;
+        _folderName = string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private Task BeginRename()
+    {
+        _panel = Panel.Rename;
+        _formError = null;
+        _renameName = _selected?.Name ?? string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private Task BeginMove()
+    {
+        _panel = Panel.Move;
+        _formError = null;
+        _moveTarget = string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private Task BeginDelete()
+    {
+        _panel = Panel.ConfirmDelete;
+        _formError = null;
+        return Task.CompletedTask;
+    }
+
+    private Task CancelPanel()
+    {
+        _panel = Panel.None;
+        _formError = null;
+        return Task.CompletedTask;
+    }
+
+    private static string? OrNull(string text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+    private async Task SubmitNewCollectionAsync()
+    {
+        var name = _newName.Trim();
+        if (name.Length == 0)
+        {
+            _formError = "Give the collection a name.";
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var answer = await Shell.CreateCollectionAsync(name, OrNull(_newDescription), Token);
+            if (answer.Value is not { } created)
+            {
+                _formError = CollectionMessages.For(answer.Outcome, answer.Code);
+                return;
+            }
+
+            await ReloadCollectionsAsync();
+            _expanded.Add(created.Id);
+            _selected = new Selected(ShellRowKind.Collection, created.Id, created.Id, created.Name);
+            _panel = Panel.None;
+            _notice = new Notice($"Created the collection \"{created.Name}\".", IsError: false);
+        });
+        Rebuild();
+    }
+
+    private async Task SubmitNewFolderAsync()
+    {
+        var selected = _selected;
+        var name = _folderName.Trim();
+        if (selected is null || selected.Kind == ShellRowKind.Request)
+        {
+            return;
+        }
+
+        if (name.Length == 0)
+        {
+            _formError = "Give the folder a name.";
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var parent = selected.Kind == ShellRowKind.Folder ? selected.Id : (Guid?)null;
+            var answer = await Shell.CreateFolderAsync(selected.CollectionId, name, parent, Token);
+            if (answer.Value is not { } folder)
+            {
+                _formError = CollectionMessages.For(answer.Outcome, answer.Code);
+                return;
+            }
+
+            _expanded.Add(selected.CollectionId);
+            if (parent is { } parentId)
+            {
+                _expanded.Add(parentId);
+            }
+
+            await ReloadTreeAsync(selected.CollectionId);
+            _selected = new Selected(ShellRowKind.Folder, folder.Id, selected.CollectionId, folder.Name);
+            _panel = Panel.None;
+            _notice = new Notice($"Created the folder \"{folder.Name}\".", IsError: false);
+        });
+        Rebuild();
+    }
+
+    private async Task SubmitRenameAsync()
+    {
+        var selected = _selected;
+        var name = _renameName.Trim();
+        if (selected is null)
+        {
+            return;
+        }
+
+        if (name.Length == 0)
+        {
+            _formError = "The name cannot be blank.";
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            switch (selected.Kind)
+            {
+                case ShellRowKind.Collection:
+                {
+                    var description = _collections.Find(collection => collection.Id == selected.Id)?.Description;
+                    var answer = await Shell.RenameCollectionAsync(selected.Id, name, description, Token);
+                    if (answer.Value is null)
+                    {
+                        _formError = CollectionMessages.For(answer.Outcome, answer.Code);
+                        return;
+                    }
+
+                    await ReloadCollectionsAsync();
+                    break;
+                }
+
+                case ShellRowKind.Folder:
+                {
+                    var answer = await Shell.RenameFolderAsync(selected.Id, name, Token);
+                    if (answer.Value is null)
+                    {
+                        _formError = CollectionMessages.For(answer.Outcome, answer.Code);
+                        return;
+                    }
+
+                    await ReloadTreeAsync(selected.CollectionId);
+                    break;
+                }
+
+                default:
+                {
+                    var answer = await Shell.RenameRequestAsync(selected.Id, name, Token);
+                    if (answer.Value is null)
+                    {
+                        _formError = CollectionMessages.For(answer.Outcome, answer.Code);
+                        return;
+                    }
+
+                    _tabs.Retitle(selected.Id, name);
+                    await ReloadTreeAsync(selected.CollectionId);
+                    break;
+                }
+            }
+
+            _selected = selected with { Name = name };
+            _panel = Panel.None;
+            _notice = new Notice($"Renamed to \"{name}\".", IsError: false);
+        });
+        Rebuild();
+    }
+
+    private async Task DuplicateAsync()
+    {
+        var selected = _selected;
+        if (selected is null || selected.Kind != ShellRowKind.Request)
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var answer = await Shell.DuplicateRequestAsync(selected.Id, Token);
+            if (answer.Value is not { } copy)
+            {
+                _notice = new Notice(CollectionMessages.For(answer.Outcome, answer.Code), IsError: true);
+                return;
+            }
+
+            await ReloadTreeAsync(selected.CollectionId);
+            _notice = new Notice($"Duplicated as \"{copy.Name}\".", IsError: false);
+        });
+        Rebuild();
+    }
+
+    private async Task SubmitMoveAsync()
+    {
+        var selected = _selected;
+        if (selected is null || selected.Kind != ShellRowKind.Request)
+        {
+            return;
+        }
+
+        var folderId = Guid.TryParse(_moveTarget, out var parsed) ? parsed : (Guid?)null;
+        await RunAsync(async () =>
+        {
+            var answer = await Shell.MoveRequestAsync(selected.Id, folderId, Token);
+            if (answer.Value is null)
+            {
+                _formError = CollectionMessages.For(answer.Outcome, answer.Code);
+                return;
+            }
+
+            await ReloadTreeAsync(selected.CollectionId);
+            _panel = Panel.None;
+            _notice = new Notice($"Moved \"{selected.Name}\".", IsError: false);
+        });
+        Rebuild();
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        var selected = _selected;
+        if (selected is null)
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            // The requests a delete takes with it are known before the call, so their open tabs can close after it.
+            IReadOnlyList<Guid> removed = Array.Empty<Guid>();
+            if (_trees.TryGetValue(selected.CollectionId, out var tree))
+            {
+                removed = tree.RequestIdsWithin(selected.Kind == ShellRowKind.Collection ? null : selected.Id);
+            }
+
+            var answer = selected.Kind switch
+            {
+                ShellRowKind.Collection => await Shell.DeleteCollectionAsync(selected.Id, Token),
+                ShellRowKind.Folder => await Shell.DeleteFolderAsync(selected.Id, Token),
+                _ => await Shell.DeleteRequestAsync(selected.Id, Token),
+            };
+
+            if (answer.Outcome != CollectionOutcome.Succeeded)
+            {
+                // The confirmation closes, so the refusal is said where the page says everything else: the notice.
+                _panel = Panel.None;
+                _notice = new Notice(CollectionMessages.For(answer.Outcome, answer.Code), IsError: true);
+                return;
+            }
+
+            foreach (var requestId in removed)
+            {
+                _tabs.Close(requestId, discardChanges: true);
+            }
+
+            _selected = null;
+            _panel = Panel.None;
+            _formError = null;
+            if (selected.Kind == ShellRowKind.Collection)
+            {
+                _trees.Remove(selected.Id);
+                _failedTrees.Remove(selected.Id);
+                _expanded.Remove(selected.Id);
+                await ReloadCollectionsAsync();
+            }
+            else
+            {
+                await ReloadTreeAsync(selected.CollectionId);
+            }
+
+            _notice = new Notice($"Deleted \"{selected.Name}\".", IsError: false);
+        });
+        Rebuild();
+    }
+
+    /// <summary>
+    /// Runs one call of the page. Every outcome lands in state: an exception becomes the "not saved" notice, and the page
+    /// keeps rendering (BLAZOR-WEB-APP §5, §15). A busy page disables its buttons while the call runs.
+    /// </summary>
+    private async Task RunAsync(Func<Task> action)
+    {
+        _busy = true;
+        try
+        {
+            await action();
+        }
+        catch (OperationCanceledException) when (Token.IsCancellationRequested)
+        {
+            // The circuit closed. Nothing is shown to nobody.
+        }
+        catch (Exception)
+        {
+            _notice = new Notice(CollectionMessages.For(CollectionOutcome.Unavailable, null), IsError: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
