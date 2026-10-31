@@ -19,6 +19,7 @@ public static class Ui
         await OpenAsync(page, "/sign-in");
         await page.GetByTestId("sign-in-email").FillAsync(email);
         await page.GetByTestId("sign-in-password").FillAsync(password);
+        await AuthBudget.AcquireAsync(TestContext.Current.CancellationToken);
         await page.GetByTestId("sign-in-submit").ClickAsync();
         await page.WaitForURLAsync(url => new Uri(url).AbsolutePath is "/" or "/no-workspace");
         await Circuit.WaitForConnectedAsync(page);
@@ -28,6 +29,7 @@ public static class Ui
     public static async Task SignOutAsync(IPage page)
     {
         await Circuit.WaitForConnectedAsync(page);
+        await AuthBudget.AcquireAsync(TestContext.Current.CancellationToken);
         await page.GetByTestId("sign-out").ClickAsync();
         await page.WaitForURLAsync(url => new Uri(url).AbsolutePath == "/sign-in");
     }

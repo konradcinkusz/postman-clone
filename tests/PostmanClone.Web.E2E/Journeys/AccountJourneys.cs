@@ -25,6 +25,7 @@ public sealed class AccountJourneys : Journey
         await page.GetByTestId("register-password").FillAsync(password);
         await page.GetByTestId("register-accept-terms").CheckAsync();
         await page.GetByTestId("register-accept-privacy").CheckAsync();
+        await AuthBudget.AcquireAsync(TestContext.Current.CancellationToken);
         await page.GetByTestId("register-submit").ClickAsync();
 
         // A new account has no workspace yet, so the Web sends it to the page that creates one.
@@ -49,6 +50,7 @@ public sealed class AccountJourneys : Journey
         await Ui.OpenAsync(page, "/sign-in");
         await page.GetByTestId("sign-in-email").FillAsync(user.Email);
         await page.GetByTestId("sign-in-password").FillAsync($"Wrong-{Guid.NewGuid():N}-Aa1");
+        await AuthBudget.AcquireAsync(TestContext.Current.CancellationToken);
         await page.GetByTestId("sign-in-submit").ClickAsync();
 
         await Expect(page).ToHaveURLAsync(new Regex("error=invalid"));

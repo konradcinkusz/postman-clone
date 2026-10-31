@@ -9,6 +9,12 @@ namespace PostmanClone.Web.E2E.Support;
 /// </summary>
 public abstract class Journey : IAsyncLifetime
 {
+    static Journey()
+    {
+        // Assertions wait for their state up to this long; the stack's stalls are the reason it is above the 5 s default.
+        Assertions.SetDefaultExpectTimeout(15_000);
+    }
+
     private IPlaywright? _playwright;
     private IBrowser? _browser;
     private readonly List<IBrowserContext> _contexts = [];
@@ -32,11 +38,18 @@ public abstract class Journey : IAsyncLifetime
         return context;
     }
 
-    /// <summary>A page in a new context, with the Blazor circuit connected before the caller interacts with it.</summary>
+    /// <summary>
+    /// A page in a new context. The timeouts are longer than Playwright's defaults because the local stack's sign-in calls
+    /// authservice, which can stall for tens of seconds in a session (TestUsers). A journey that waits that long still
+    /// asserts its outcome; the wait is bounded, not a sleep.
+    /// </summary>
     protected async Task<IPage> NewPageAsync(ViewportSize? viewport = null, ColorScheme? colorScheme = null)
     {
         var context = await NewContextAsync(viewport, colorScheme);
-        return await context.NewPageAsync();
+        var page = await context.NewPageAsync();
+        page.SetDefaultTimeout(30_000);
+        page.SetDefaultNavigationTimeout(60_000);
+        return page;
     }
 
     private async Task<IBrowser> LaunchAsync()
