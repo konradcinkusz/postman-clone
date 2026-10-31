@@ -47,8 +47,7 @@ public sealed class ReopenFromHistoryTests
         var gateway = new RecordingGateway(respond ?? (_ => new CollectionAnswer<ExecutionResultDto>(CollectionOutcome.Succeeded, Result(), null)));
         var state = HistoryPageHarness.Applied(principal);
         var session = new CircuitSession(state, harness.Refresher);
-        var context = CollectionsPageHarness.Create(harness, principal, collections, gateway, state, session);
-        HistoryPageHarness.AddHistoryServices(context, state, session, history, clock);
+        var context = CollectionsPageHarness.Create(harness, principal, collections, gateway, state, session, history, clock);
         return (context, gateway);
     }
 

@@ -17,7 +17,7 @@ namespace PostmanClone.Web.Tests.HistoryPages;
 internal static class HistoryPageHarness
 {
     /// <summary>A context for the history page and the panel: the history services, the fake clock and the circuit's session.</summary>
-    public static BunitContext Create(AuthHarness harness, ClaimsPrincipal principal, FakeHistoryClient history, FakeTimeProvider clock)
+    public static BunitContext Create(AuthHarness harness, ClaimsPrincipal principal, FakeHistoryClient history, TimeProvider clock)
     {
         var context = new BunitContext();
         var state = Applied(principal);
@@ -47,7 +47,7 @@ internal static class HistoryPageHarness
     /// Adds the history services to a context. It must be called before the context resolves a service (bUnit refuses a registration
     /// after that), so the callers pass the state and the session they already hold.
     /// </summary>
-    public static void AddHistoryServices(BunitContext context, WorkspaceState state, CircuitSession session, FakeHistoryClient history, FakeTimeProvider clock)
+    public static void AddHistoryServices(BunitContext context, WorkspaceState state, CircuitSession session, FakeHistoryClient history, TimeProvider clock)
     {
         var signal = new HistoryChangeSignal();
         context.Services.AddSingleton<TimeProvider>(clock);
