@@ -30,6 +30,7 @@ Numbers are reserved per work package in
 | [0017](0017-builder-state-model.md) | Builder state model: the query lives in the table, drafts live in the circuit, saves are versioned | Accepted |
 | [0020](0020-architecture-fitness-tests.md) | Architecture and tenancy rules as tests: ten rules, each shown to fail on a broken sample; framework endpoints and the anonymous allow-list | Accepted |
 | [0021](0021-import-export-in-the-web.md) | Import and export in the Web: a streamed download with the bearer kept on the server, an upload through the page circuit, warnings shown as text and grouped by code | Accepted |
+| [0022](0022-response-viewer-rendering.md) | Response viewer: every response value is encoded text, one send per circuit with the newest answer winning, and per-client limits on the kernel's one handler, with no retry of unsafe methods | Accepted |
 
 Reserved for later work packages (see WORK-PACKAGES.md):
-0018 E2E scope and charter, 0019 review outcomes. 0022–0029 are spare.
+0018 E2E scope and charter, 0019 review outcomes. 0023–0029 are spare.
