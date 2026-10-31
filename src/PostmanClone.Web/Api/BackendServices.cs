@@ -12,6 +12,9 @@ public static class BackendServices
     /// <summary>The logical name of CollectionsService. The collections client resolves its HttpClient by this name.</summary>
     public const string CollectionsName = "collections";
 
+    /// <summary>The logical name of EnvironmentsService. The environments client resolves its HttpClient by this name (WP21).</summary>
+    public const string EnvironmentsName = "environments";
+
     /// <summary>The logical name of ExecutionService. Its resilience options are longer than the others (see <see cref="ConfigureExecution"/>).</summary>
     public const string ExecutionName = "execution";
 
@@ -25,7 +28,7 @@ public static class BackendServices
     [
         new(AuthServiceName, "http://authservice"),
         new(CollectionsName, "http://collections-service"),
-        new("environments", "http://environments-service"),
+        new(EnvironmentsName, "http://environments-service"),
         new(ExecutionName, "http://execution-service"),
     ];
 
@@ -47,6 +50,7 @@ public static class BackendServices
         services.AddScoped<IBackendStatusReader, BackendStatusReader>();
         services.AddSingleton<AuthServiceClient>();
         services.AddSingleton<CollectionsClient>();
+        services.AddSingleton<EnvironmentsClient>();
         services.AddSingleton<IExecutionClient, ExecutionClient>();
         return services;
     }
