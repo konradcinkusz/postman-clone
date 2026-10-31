@@ -238,7 +238,7 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Build the journeys (not in PostmanClone.sln: they need the running estate, so the unit run leaves them out)
+      - name: Build the journeys (outside PostmanClone.sln, which the unit run uses; they need the running estate)
         run: dotnet build tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj --configuration Release
 
       - name: Install Chromium for Playwright (the suite never downloads one itself)
