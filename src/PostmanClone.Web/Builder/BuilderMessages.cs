@@ -1,3 +1,6 @@
+using PostmanClone.Web.Api;
+using PostmanClone.Web.Collections;
+
 namespace PostmanClone.Web.Builder;
 
 /// <summary>
@@ -38,6 +41,18 @@ public static class BuilderMessages
 
     /// <summary>The default URL of a new request. It is not a host, so nothing is sent until the sender exists.</summary>
     public const string NewRequestUrl = "https://";
+
+    /// <summary>The line the page shows for a refused save, from the service's answer (CONTRACTS §0 codes).</summary>
+    public static string ForSave(CollectionOutcome outcome, string? code) => (outcome, code) switch
+    {
+        (CollectionOutcome.Conflict, _) => SaveConflict,
+        (CollectionOutcome.TooLarge, _) => SaveTooLarge,
+        (CollectionOutcome.Invalid, "secret_literal_not_allowed") => $"Not saved: a secret field holds a literal value. {SecretLiteral}",
+        (CollectionOutcome.Invalid, _) => SaveRefused,
+        (CollectionOutcome.Unavailable or CollectionOutcome.NotFound or CollectionOutcome.Forbidden or CollectionOutcome.RateLimited
+            or CollectionOutcome.SessionEnded or CollectionOutcome.NoWorkspace, _) => CollectionMessages.For(outcome, code),
+        _ => SaveFailed,
+    };
 
     /// <summary>A field name the page can show next to its input, from the service's field path.</summary>
     public static string ForField(string field) => field switch

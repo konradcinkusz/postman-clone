@@ -32,7 +32,9 @@ internal static class CollectionsPageHarness
         context.Services.AddSingleton(state);
         context.Services.AddSingleton<AuthenticationStateProvider>(new FixedAuthentication(principal));
         context.Services.AddSingleton(session);
-        context.Services.AddSingleton(new WorkspaceShell(state, session, client, harness.Client));
+        var shell = new WorkspaceShell(state, session, client, harness.Client);
+        context.Services.AddSingleton(shell);
+        context.Services.AddSingleton(new RequestWorkbench(shell));
         return context;
     }
 

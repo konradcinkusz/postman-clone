@@ -75,6 +75,13 @@ public sealed class RequestEditor
 
     public void MarkConflicted() => Conflicted = true;
 
+    /// <summary>The service's current version, read before an overwrite. The draft stays; the next save carries this version.</summary>
+    public void RebaseOnto(int version)
+    {
+        Version = version;
+        Conflicted = false;
+    }
+
     /// <summary>The definition the next save writes.</summary>
     public RequestDefinition Definition => Draft.ToDefinition();
 

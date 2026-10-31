@@ -1,0 +1,88 @@
+/* The key/value list (WP19). One row is a grid; below 768 px the row stacks, so 390 px needs no page scroll. */
+.kv-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.kv-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 2fr) auto;
+    align-items: start;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+}
+
+.kv-row input[type="text"] {
+    width: 100%;
+    min-height: 2.5rem;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-family: var(--font-mono);
+}
+
+.kv-row input[aria-invalid="true"] {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 1px var(--danger);
+}
+
+.kv-enabled {
+    display: flex;
+    align-items: center;
+    min-height: 2.5rem;
+}
+
+.kv-enabled input {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.kv-cell {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.field-error {
+    margin: 0;
+    color: var(--danger);
+    font-size: var(--text-sm);
+    font-weight: 600;
+}
+
+.hint {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+
+@media (max-width: 47.99rem) {
+    /* Name beside the enabled box, the value on the next line, the remove button at the end of the name's row. */
+    .kv-row {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .kv-row > .kv-cell:first-of-type {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .kv-row > .kv-cell:nth-of-type(2) {
+        grid-column: 2 / 4;
+        grid-row: 2;
+    }
+
+    .kv-row > .btn {
+        grid-column: 3;
+        grid-row: 1;
+    }
+}

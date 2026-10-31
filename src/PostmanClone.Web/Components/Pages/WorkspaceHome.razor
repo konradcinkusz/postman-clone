@@ -4,10 +4,13 @@
 @using PostmanClone.ServiceDefaults.Authentication
 @using PostmanClone.Web.Api
 @using PostmanClone.Web.Auth
+@using PostmanClone.Web.Builder
 @using PostmanClone.Web.Collections
+@using PostmanClone.Web.Components.Builder
 @using PostmanClone.Web.Components.Shell
 @inject WorkspaceState State
 @inject WorkspaceShell Shell
+@inject RequestWorkbench Workbench
 @inject AuthenticationStateProvider AuthenticationState
 @implements IDisposable
 
@@ -82,11 +85,34 @@ else
                 }
             </div>
 
-            <div role="tabpanel" class="card request-area" data-testid="request-area">
+            <div role="tabpanel" class="request-area stack" data-testid="request-area">
                 @if (_tabs.Active is { } active)
                 {
                     <h2 data-testid="request-title">@active.Title</h2>
-                    <p data-testid="request-placeholder">The request builder is not built yet. This tab keeps its place until it is.</p>
+                    @if (Workbench.TryGet(active.RequestId, out var editor))
+                    {
+                        <RequestBuilder Editor="editor"
+                                        Busy="@_busy"
+                                        Collections="@_collections"
+                                        FolderChoices="@FolderChoicesFor"
+                                        OnChanged="@ChangedAsync"
+                                        OnSave="@SaveAsync"
+                                        OnReload="@ReloadAsync"
+                                        OnOverwrite="@OverwriteAsync"
+                                        OnSaveAs="@SaveAsNewAsync"
+                                        OnCollectionChosen="@ChooseCollectionAsync" />
+                    }
+                    else if (_loadFailures.Contains(active.RequestId))
+                    {
+                        <div class="callout callout-danger" role="alert" data-testid="request-load-failed">
+                            <p>@BuilderMessages.LoadFailed</p>
+                            <button type="button" class="btn" data-testid="request-retry" disabled="@_busy" @onclick="() => RetryLoadAsync(active.RequestId)">Try again</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <p role="status" data-testid="request-loading">Loading the request…</p>
+                    }
                 }
                 else
                 {
@@ -112,6 +138,7 @@ else
                         @if (_selected.Kind != ShellRowKind.Request)
                         {
                             <button type="button" class="btn" data-testid="action-new-folder" disabled="@_busy" @onclick="BeginNewFolder">New folder</button>
+                            <button type="button" class="btn" data-testid="action-new-request" disabled="@_busy" @onclick="NewRequestAsync">New request</button>
                         }
                         <button type="button" class="btn" data-testid="action-rename" disabled="@_busy" @onclick="BeginRename">Rename</button>
                         @if (_selected.Kind == ShellRowKind.Request)
@@ -252,6 +279,7 @@ else
     private readonly HashSet<Guid> _failedTrees = [];
     private readonly Dictionary<Guid, CollectionTreeModel> _trees = [];
     private readonly OpenTabs _tabs = new();
+    private readonly HashSet<Guid> _loadFailures = [];
 
     private List<CollectionSummary> _collections = [];
     private IReadOnlyList<ShellRow> _rows = Array.Empty<ShellRow>();
@@ -435,9 +463,9 @@ else
         _formError = null;
         _panel = Panel.None;
         _selected = new Selected(row.Kind, row.Id, row.CollectionId, row.Name);
-        if (row.Kind == ShellRowKind.Request)
+        if (row.Kind == ShellRowKind.Request && OpenRequestTab(row.Id, row.Name))
         {
-            OpenRequestTab(row.Id, row.Name);
+            await RunAsync(() => EnsureEditorAsync(row.Id));
         }
 
         // The delete confirmation counts what goes with a collection, and the move list needs its folders, so both are read on select.
@@ -470,28 +498,38 @@ else
         Rebuild();
     }
 
-    private void OpenRequestTab(Guid requestId, string title)
+    /// <summary>Opens a tab for a request. False when the tab limit refused it, with the notice said.</summary>
+    private bool OpenRequestTab(Guid requestId, string title)
     {
-        if (_tabs.Open(requestId, title) == OpenTabResult.Full)
+        if (_tabs.Open(requestId, title) != OpenTabResult.Full)
         {
-            _notice = new Notice(CollectionMessages.TabLimit, IsError: true);
+            return true;
         }
+
+        _notice = new Notice(CollectionMessages.TabLimit, IsError: true);
+        return false;
     }
 
-    private Task ActivateTab(OpenTab tab)
+    private async Task ActivateTab(OpenTab tab)
     {
         _tabs.Activate(tab.RequestId);
         var collectionId = _trees.FirstOrDefault(entry => entry.Value.Find(tab.RequestId) is not null).Key;
         _selected = collectionId == Guid.Empty ? null : new Selected(ShellRowKind.Request, tab.RequestId, collectionId, tab.Title);
+        await RunAsync(() => EnsureEditorAsync(tab.RequestId));
         Rebuild();
-        return Task.CompletedTask;
     }
 
     private Task CloseTab(OpenTab tab)
     {
-        if (_tabs.Close(tab.RequestId) == CloseTabResult.Dirty)
+        var result = _tabs.Close(tab.RequestId);
+        if (result == CloseTabResult.Dirty)
         {
             _notice = new Notice(CollectionMessages.UnsavedChanges, IsError: true);
+        }
+        else if (result == CloseTabResult.Closed)
+        {
+            Workbench.Forget(tab.RequestId);
+            _loadFailures.Remove(tab.RequestId);
         }
 
         return Task.CompletedTask;
@@ -669,6 +707,7 @@ else
                         return;
                     }
 
+                    Workbench.AcceptServerCopy(answer.Value);
                     _tabs.Retitle(selected.Id, name);
                     await ReloadTreeAsync(selected.CollectionId);
                     break;
@@ -723,6 +762,7 @@ else
                 return;
             }
 
+            Workbench.AcceptServerCopy(answer.Value);
             await ReloadTreeAsync(selected.CollectionId);
             _panel = Panel.None;
             _notice = new Notice($"Moved \"{selected.Name}\".", IsError: false);
@@ -765,6 +805,8 @@ else
             foreach (var requestId in removed)
             {
                 _tabs.Close(requestId, discardChanges: true);
+                Workbench.Forget(requestId);
+                _loadFailures.Remove(requestId);
             }
 
             _selected = null;
@@ -783,6 +825,203 @@ else
             }
 
             _notice = new Notice($"Deleted \"{selected.Name}\".", IsError: false);
+        });
+        Rebuild();
+    }
+
+    // ---- Builder -------------------------------------------------------------------------------------
+
+    /// <summary>Reads an open request into the workbench, unless it is held already. A failure is shown in the request area.</summary>
+    private async Task EnsureEditorAsync(Guid requestId)
+    {
+        if (Workbench.TryGet(requestId, out _))
+        {
+            _loadFailures.Remove(requestId);
+            return;
+        }
+
+        var answer = await Workbench.OpenAsync(requestId, Token);
+        if (answer.Value is not null)
+        {
+            _loadFailures.Remove(requestId);
+            return;
+        }
+
+        if (answer.Outcome == CollectionOutcome.NotFound)
+        {
+            // Deleted elsewhere since the tree was read: the tab goes, and the list is read again.
+            _tabs.Close(requestId, discardChanges: true);
+            _loadFailures.Remove(requestId);
+            _notice = new Notice(CollectionMessages.For(answer.Outcome, answer.Code), IsError: true);
+            await ReloadCollectionsAsync();
+            return;
+        }
+
+        if (answer.Outcome is CollectionOutcome.SessionEnded or CollectionOutcome.NoWorkspace)
+        {
+            _notice = new Notice(CollectionMessages.For(answer.Outcome, answer.Code), IsError: true);
+        }
+
+        _loadFailures.Add(requestId);
+    }
+
+    private async Task RetryLoadAsync(Guid requestId)
+    {
+        await RunAsync(() => EnsureEditorAsync(requestId));
+        Rebuild();
+    }
+
+    /// <summary>An edit changed the draft: the tab's dirty flag follows it. The builder re-renders itself.</summary>
+    private Task ChangedAsync()
+    {
+        if (_tabs.ActiveRequestId is { } requestId)
+        {
+            SyncDirty(requestId);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void SyncDirty(Guid requestId)
+    {
+        if (Workbench.TryGet(requestId, out var editor))
+        {
+            _tabs.SetDirty(requestId, editor.IsDirty);
+        }
+    }
+
+    private Task SaveAsync() => SaveWithAsync(requestId => Workbench.SaveAsync(requestId, Token));
+
+    private Task OverwriteAsync() => SaveWithAsync(requestId => Workbench.OverwriteAsync(requestId, Token));
+
+    /// <summary>
+    /// Runs a save of the active request. A success re-reads the tree (the method or the name may have changed). A refusal is
+    /// said in the notice, and the draft stays as it was typed.
+    /// </summary>
+    private async Task SaveWithAsync(Func<Guid, Task<CollectionAnswer<RequestEditor>>> save)
+    {
+        if (_tabs.ActiveRequestId is not { } requestId)
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var answer = await save(requestId);
+            SyncDirty(requestId);
+            if (answer.Value is { } saved)
+            {
+                await ReloadTreeAsync(saved.CollectionId);
+                _notice = new Notice(BuilderMessages.Saved, IsError: false);
+                return;
+            }
+
+            _notice = new Notice(BuilderMessages.ForSave(answer.Outcome, answer.Code), IsError: true);
+        });
+        Rebuild();
+    }
+
+    /// <summary>Takes the service's version in place of the draft, which the user chose to discard.</summary>
+    private async Task ReloadAsync()
+    {
+        if (_tabs.ActiveRequestId is not { } requestId)
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var answer = await Workbench.ReloadAsync(requestId, Token);
+            SyncDirty(requestId);
+            _notice = answer.Value is null
+                ? new Notice(CollectionMessages.For(answer.Outcome, answer.Code), IsError: true)
+                : new Notice("Reloaded the saved version. The unsaved changes were replaced.", IsError: false);
+        });
+        Rebuild();
+    }
+
+    /// <summary>Saves the draft as a new request. The original tab keeps its own draft. True when the request was created.</summary>
+    private async Task<bool> SaveAsNewAsync(string name, Guid collectionId, Guid? folderId)
+    {
+        if (_tabs.ActiveRequestId is not { } sourceId)
+        {
+            return false;
+        }
+
+        var created = false;
+        await RunAsync(async () =>
+        {
+            var answer = await Workbench.SaveAsNewAsync(sourceId, name, collectionId, folderId, Token);
+            if (answer.Value is not { } copy)
+            {
+                _notice = new Notice(BuilderMessages.ForSave(answer.Outcome, answer.Code), IsError: true);
+                return;
+            }
+
+            if (_tabs.Open(copy.RequestId, copy.Name) == OpenTabResult.Full)
+            {
+                Workbench.Forget(copy.RequestId);
+                _notice = new Notice(CollectionMessages.TabLimit, IsError: true);
+                return;
+            }
+
+            _expanded.Add(collectionId);
+            await ReloadTreeAsync(collectionId);
+            _selected = new Selected(ShellRowKind.Request, copy.RequestId, collectionId, copy.Name);
+            _notice = new Notice($"Saved as \"{copy.Name}\".", IsError: false);
+            created = true;
+        });
+        Rebuild();
+        // The builder passes this as a delegate, not as an EventCallback, so the page is not re-rendered for it: say so here.
+        StateHasChanged();
+        return created;
+    }
+
+    /// <summary>The save-as choice of a collection: its tree is read, so its folders can be listed.</summary>
+    private async Task ChooseCollectionAsync(Guid collectionId)
+    {
+        await RunAsync(() => EnsureTreeAsync(collectionId));
+        Rebuild();
+    }
+
+    private IReadOnlyList<FolderChoice> FolderChoicesFor(Guid collectionId) =>
+        _trees.TryGetValue(collectionId, out var tree) ? tree.FolderChoices() : Array.Empty<FolderChoice>();
+
+    /// <summary>Creates an untitled request in the selected collection or folder, and opens it.</summary>
+    private async Task NewRequestAsync()
+    {
+        var selected = _selected;
+        if (selected is null || selected.Kind == ShellRowKind.Request)
+        {
+            return;
+        }
+
+        var folderId = selected.Kind == ShellRowKind.Folder ? selected.Id : (Guid?)null;
+        await RunAsync(async () =>
+        {
+            var answer = await Workbench.CreateUntitledAsync(selected.CollectionId, folderId, Token);
+            if (answer.Value is not { } created)
+            {
+                _notice = new Notice(CollectionMessages.For(answer.Outcome, answer.Code), IsError: true);
+                return;
+            }
+
+            if (_tabs.Open(created.RequestId, created.Name) == OpenTabResult.Full)
+            {
+                Workbench.Forget(created.RequestId);
+                _notice = new Notice(CollectionMessages.TabLimit, IsError: true);
+                return;
+            }
+
+            _expanded.Add(selected.CollectionId);
+            if (folderId is { } parentId)
+            {
+                _expanded.Add(parentId);
+            }
+
+            await ReloadTreeAsync(selected.CollectionId);
+            _selected = new Selected(ShellRowKind.Request, created.RequestId, selected.CollectionId, created.Name);
+            _notice = new Notice("Created an untitled request. Rename it in the tree.", IsError: false);
         });
         Rebuild();
     }

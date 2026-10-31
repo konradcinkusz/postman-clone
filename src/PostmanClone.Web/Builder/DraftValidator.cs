@@ -70,6 +70,10 @@ public static class DraftValidator
         return issues;
     }
 
+    /// <summary>The UTF-8 JSON size of the definition in its stored form, in bytes: what the service measures against 1.5 MB.</summary>
+    public static int JsonBytes(RequestDefinition definition) =>
+        System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(definition, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)).Length;
+
     /// <summary>True when a secret field holds no literal: it is empty, or exactly one reference (client mirror, ADR-0006).</summary>
     public static bool IsSecretReference(string? value) => string.IsNullOrEmpty(value) || SecretReference.IsMatch(value);
 
