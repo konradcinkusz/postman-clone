@@ -99,9 +99,9 @@ Two findings from the runs, both recorded in OPERATIONS and the open-items regis
 `.github/workflows/secret-scan.yml` runs gitleaks v8.19.0 in Docker over the full history, on a pull request, on a push to
 `main`, and weekly. The pre-commit hook runs the same scanner locally (§5).
 
-The `dotnet` job excludes the E2E namespace (`--filter "FullyQualifiedName!~PostmanClone.Web.E2E"`): its journeys need the
-running estate, and the `e2e` job runs them. Locally, `dotnet test --solution PostmanClone.sln` runs the journeys too, and they
-skip with the reason when the stack is not up. No job runs the AppHost.
+`tests/PostmanClone.Web.E2E` is **not in `PostmanClone.sln`**: its journeys need the running estate, and a solution run of a project with
+no matching tests ends with exit code 8. The `dotnet` job therefore does not see it, and the `e2e` job builds and runs it on its own.
+No job runs the AppHost.
 
 ## 5. Known problems in the test and check layers
 

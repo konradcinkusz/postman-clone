@@ -71,6 +71,10 @@ at 18 per minute. The journeys also run one at a time (`xunit.runner.json`). Bot
 serial run keeps the count predictable. The limit is authservice's; the suite adapts to it and does not change it (no authservice
 feature is invented, docs/AUTH.md).
 
+**Where it lives.** The project is not in `PostmanClone.sln`. A solution run would have to start the estate, and a solution run whose
+project has no matching tests exits 8. The unit job runs the solution and nothing else; the `e2e` job builds the project and runs its
+two sets. `dotnet build` of the solution therefore does not compile the journeys: the `e2e` job is what keeps them compiling.
+
 **Data and cleanup.** Each journey creates its own users (a GUID address and a generated password, through authservice's own
 API) and its own workspace, and signs in through the real form. Nothing a journey creates is shared with another. The suite does
 not delete server data: the local databases accumulate test rows, and a fresh set is one command away (drop the four service

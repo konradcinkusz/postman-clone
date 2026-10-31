@@ -129,8 +129,8 @@ jobs:
       - name: Build (warnings are errors)
         run: dotnet build PostmanClone.sln --configuration Release --no-restore
 
-      - name: Test (unit and in-process; the browser journeys are the e2e job)
-        run: dotnet test --solution PostmanClone.sln --configuration Release --no-build --filter "FullyQualifiedName!~PostmanClone.Web.E2E"
+      - name: Test
+        run: dotnet test --solution PostmanClone.sln --configuration Release --no-build
 
   docker-build:
     name: Docker build (${{ matrix.dockerfile }})
@@ -238,7 +238,7 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Build the journeys
+      - name: Build the journeys (not in PostmanClone.sln: they need the running estate, so the unit run leaves them out)
         run: dotnet build tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj --configuration Release
 
       - name: Install Chromium for Playwright (the suite never downloads one itself)

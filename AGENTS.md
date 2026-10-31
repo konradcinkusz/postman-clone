@@ -21,7 +21,7 @@ The build plan is the source of truth for scope and contracts:
 | `scripts/check-doc-links.sh` | Every relative Markdown link resolves (run in CI) |
 | `scripts/check-kernel-size.sh` | The shared kernel stays within 800 non-blank, non-comment lines (run in CI) |
 | `scripts/run-local-stack.sh`, `scripts/gen-dev-secrets.sh` | the whole estate without Docker, against a local PostgreSQL: authservice at its pinned tag (5300), CollectionsService (5301), EnvironmentsService (5302), ExecutionService (5303) and the Web (5310); the gitignored `.local-stack/` secrets (WP03, WP04, WP06, WP26). `E2E_SENDER_LOOPBACK=1` is the test-only switch that lets the sender reach loopback (ADR-0018). `AUTHSERVICE_ENVIRONMENT=Development` makes authservice log invitation tokens locally (WP24) |
-| `tests/PostmanClone.Web.E2E` | The browser journeys (WP26, ADR-0018): Playwright for .NET on Chromium, 17 journeys over the protected flows. They run against the local stack, one at a time, and skip with the reason when the stack or the browser is missing (they fail in CI). See docs/TESTING.md §1 and OPERATIONS §4.5 |
+| `tests/PostmanClone.Web.E2E` | The browser journeys (WP26, ADR-0018): Playwright for .NET on Chromium, 17 journeys over the protected flows. Not in `PostmanClone.sln`; they run against the local stack, one at a time, and skip with the reason when the stack or the browser is missing (they fail in CI). See docs/TESTING.md §1 and OPERATIONS §4.5 |
 | `scripts/smoke-auth.sh` | The authservice contract the services rely on: register, login, organization, refresh, claims (run in CI as `auth-smoke`) |
 | `docs/AUTH.md` | How sign-in works through authservice v0.3.4: the flow, the claims, the endpoints read from source, the differences from CONTRACTS §6 |
 | `.github/workflows/` | `pr-validation.yml` (the required check), `secret-scan.yml` |
@@ -51,8 +51,8 @@ The documentation that describes the system as it is: `README.md`, `docs/ARCHITE
 
 ```bash
 dotnet build PostmanClone.sln                  # warnings are errors; restore fails on vulnerable packages
-dotnet test --solution PostmanClone.sln         # PostgreSQL-backed tests run when TEST_POSTGRES is set; the browser journeys
-                                                # skip with the reason unless the local stack is up (see below)
+dotnet test --solution PostmanClone.sln         # PostgreSQL-backed tests run when TEST_POSTGRES is set. The browser journeys are
+                                                # not in the solution (they need the running stack): see below
 ```
 
 `--solution` is required: `global.json` selects Microsoft.Testing.Platform, and the .NET 10 SDK takes the solution as a flag there.

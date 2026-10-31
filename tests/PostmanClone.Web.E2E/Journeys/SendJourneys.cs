@@ -106,6 +106,33 @@ public sealed class SendJourneys : Journey
     }
 
     [Fact]
+    [Trait(E2ESettings.ModeTrait, E2ESettings.LoopbackMode)]
+    public async Task Deleting_a_history_entry_removes_it_from_the_list()
+    {
+        await using var target = new TargetServer();
+        await target.StartAsync();
+        var user = await TestUsers.CreateAsync();
+        var page = await NewPageAsync();
+        await Ui.SignInAsync(page, user.Email, user.Password);
+
+        await Workspace.NewRequestInNewCollectionAsync(page);
+        await Workspace.SetUrlAsync(page, new Uri(target.BaseAddress, "json").ToString());
+        await Workspace.SendAsync(page);
+        await Expect(page.GetByTestId("response-status")).ToContainTextAsync("200");
+
+        await Ui.OpenAsync(page, "/history");
+        var row = page.Locator("[data-testid^=history-row-]").First;
+        await Expect(row).ToBeVisibleAsync();
+        await row.ClickAsync();
+        await Expect(page.GetByTestId("history-detail")).ToBeVisibleAsync();
+
+        await page.GetByTestId("history-delete").ClickAsync();
+        await page.GetByTestId("history-delete-confirm").ClickAsync();
+        await Expect(page.GetByTestId("history-empty")).ToBeVisibleAsync();
+        Assert.Equal(0, await page.Locator("[data-testid^=history-row-]").CountAsync());
+    }
+
+    [Fact]
     [Trait(E2ESettings.ModeTrait, E2ESettings.StrictMode)]
     public async Task Default_configuration_refuses_a_loopback_target_with_the_reason()
     {
