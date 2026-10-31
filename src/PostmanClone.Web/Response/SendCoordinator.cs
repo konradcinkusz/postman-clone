@@ -18,7 +18,7 @@ public sealed record SendView(SendPhase Phase, Guid? RequestId, ResponseView? Re
     public static readonly SendView Idle = new(SendPhase.Idle, null, null, null);
 }
 
-/// <summary>Sends a request for the caller. The workspace comes from the session's token (ADR-0022); this seam is a fake in tests.</summary>
+/// <summary>Sends a request for the caller. The workspace comes from the session's token (ADR-0023); this seam is a fake in tests.</summary>
 public interface IExecutionGateway
 {
     Task<CollectionAnswer<ExecutionResultDto>> ExecuteAsync(ExecuteBody body, CancellationToken cancellationToken);
@@ -35,7 +35,7 @@ public sealed class EnvironmentSelection
 }
 
 /// <summary>
-/// Runs the circuit's sends (WP20, ADR-0022). One send is in flight at a time per circuit: a new send cancels the one before it,
+/// Runs the circuit's sends (WP20, ADR-0023). One send is in flight at a time per circuit: a new send cancels the one before it,
 /// and a result that arrives for a send that was superseded is dropped, so an old answer never overwrites a newer one. Cancelling
 /// cancels the HTTP call, and leaves the page idle with no exception to observe. The page subscribes to <see cref="Changed"/>
 /// and re-renders through <c>InvokeAsync</c>.

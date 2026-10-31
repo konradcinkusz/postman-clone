@@ -337,7 +337,7 @@ else
     public void Dispose()
     {
         // The sender re-renders this page through the event; it is unsubscribed before the send is cancelled, so a late
-        // answer never reaches a page that has gone (ADR-0022).
+        // answer never reaches a page that has gone (ADR-0023).
         Sender.Changed -= OnSendChanged;
         Sender.Cancel();
         _cancellation.Cancel();

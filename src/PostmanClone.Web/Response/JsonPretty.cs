@@ -1,6 +1,6 @@
 namespace PostmanClone.Web.Response;
 
-/// <summary>The kind of a piece of text on the page. Each kind has a token colour; none is markup (ADR-0022).</summary>
+/// <summary>The kind of a piece of text on the page. Each kind has a token colour; none is markup (ADR-0023).</summary>
 public enum TokenKind
 {
     Text,

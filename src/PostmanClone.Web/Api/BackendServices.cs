@@ -52,7 +52,7 @@ public static class BackendServices
     }
 
     /// <summary>
-    /// The execute client's total timeout (ADR-0022). The kernel's one resilience handler reads it for this client by name; the
+    /// The execute client's total timeout (ADR-0023). The kernel's one resilience handler reads it for this client by name; the
     /// handler is not added here, so no second one exists (architecture rule R9).
     /// </summary>
     private static void ConfigureExecution(IServiceCollection services, TimeSpan timeout) =>

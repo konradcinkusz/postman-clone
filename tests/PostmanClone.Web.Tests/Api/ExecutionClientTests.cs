@@ -43,7 +43,7 @@ public sealed class ExecutionClientTests
         TimeSpan? executionTimeout = null,
         HttpMessageHandler? inner = null)
     {
-        // The kernel's defaults are applied as in production: the one resilience handler, read per client (ADR-0022).
+        // The kernel's defaults are applied as in production: the one resilience handler, read per client (ADR-0023).
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
         builder.AddServiceDefaults();
         builder.Services.AddBackendClients(executionTimeout);

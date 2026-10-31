@@ -4,7 +4,7 @@ using PostmanClone.Web.Auth;
 namespace PostmanClone.Web.Response;
 
 /// <summary>
-/// The production gateway: the circuit's access token and its one workspace, then the execution client (ADR-0022). No workspace
+/// The production gateway: the circuit's access token and its one workspace, then the execution client (ADR-0023). No workspace
 /// and no session are outcomes, so the page can say which, as the shell does.
 /// </summary>
 public sealed class SessionExecutionGateway(WorkspaceState workspace, CircuitSession session, IExecutionClient client) : IExecutionGateway

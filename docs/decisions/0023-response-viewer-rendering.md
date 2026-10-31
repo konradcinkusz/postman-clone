@@ -1,4 +1,4 @@
-# ADR-0022: Response viewer: text only, one send per circuit, and per-client limits on the kernel's handler
+# ADR-0023: Response viewer: text only, one send per circuit, and per-client limits on the kernel's handler
 
 - **Status:** Accepted
 - **Date:** 2026-10-31

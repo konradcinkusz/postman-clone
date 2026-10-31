@@ -22,7 +22,7 @@ public sealed record RedirectHop(int StatusCode, string Location);
 
 /// <summary>
 /// The response body. <c>Encoding</c> is <c>utf8</c> for text whose bytes are valid UTF-8, otherwise <c>base64</c>.
-/// <c>Content</c> is untrusted: the view renders it as encoded text only (ADR-0022).
+/// <c>Content</c> is untrusted: the view renders it as encoded text only (ADR-0023).
 /// </summary>
 public sealed record ResponseBodyDto(string Encoding, string Content, long SizeBytes, bool Truncated, string? ContentType);
 

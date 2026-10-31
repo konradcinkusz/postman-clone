@@ -22,7 +22,7 @@ public enum BodyMode
 }
 
 /// <summary>
-/// A send's result, ready for the page (ADR-0022). It holds what ExecutionService returned and derives the rest: the outcome's
+/// A send's result, ready for the page (ADR-0023). It holds what ExecutionService returned and derives the rest: the outcome's
 /// words, the status family, the times and sizes as text, and the lines each body view shows. It never holds markup; every string
 /// here is text the page encodes. Lines are built lazily and once, so a re-render does not re-format a large body.
 /// </summary>
@@ -91,7 +91,7 @@ public sealed class ResponseView
     /// <summary>The body, or null when the send produced no response.</summary>
     public BodyView? Body { get; }
 
-    /// <summary>The lines of the body in a mode. Preview has none: HTML is never rendered (ADR-0022).</summary>
+    /// <summary>The lines of the body in a mode. Preview has none: HTML is never rendered (ADR-0023).</summary>
     public IReadOnlyList<IReadOnlyList<ViewToken>> Lines(BodyMode mode) => mode switch
     {
         BodyMode.Pretty => _pretty.Value ?? _raw.Value,

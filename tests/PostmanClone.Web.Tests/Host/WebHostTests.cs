@@ -46,7 +46,7 @@ public sealed class WebHostTests(WebHostFactory factory) : IClassFixture<WebHost
         using var response = await client.GetAsync("/about", TestContext.Current.CancellationToken);
 
         Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
-        Assert.Equal("no-referrer", response.Headers.GetValues("Referrer-Policy").Single());
+        Assert.Equal("same-origin", response.Headers.GetValues("Referrer-Policy").Single());
         Assert.Equal("DENY", response.Headers.GetValues("X-Frame-Options").Single());
         // One policy, exactly ours: Blazor's own frame-ancestors header must not sit beside it.
         Assert.Equal(ContentSecurityPolicyMiddleware.Policy, response.Headers.GetValues("Content-Security-Policy").Single());
