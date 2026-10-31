@@ -1,4 +1,5 @@
 using PostmanClone.CollectionsService.Contracts;
+using System.Text.Json;
 using PostmanClone.CollectionsService.Domain;
 
 namespace PostmanClone.CollectionsService.Services;
@@ -28,5 +29,19 @@ public static class Mapping
         request.Name,
         request.Method,
         request.SortOrder,
+        request.UpdatedAt);
+
+    /// <summary>A saved request with its whole definition, read back from the stored document.</summary>
+    public static SavedRequestDto ToRequestDto(SavedRequest request) => new(
+        request.Id,
+        request.CollectionId,
+        request.FolderId,
+        request.Name,
+        request.Description,
+        request.Definition.RootElement.Deserialize<RequestDefinition>(JsonSerializerOptions.Web)!,
+        request.SortOrder,
+        request.Version,
+        request.CreatedBy,
+        request.CreatedAt,
         request.UpdatedAt);
 }

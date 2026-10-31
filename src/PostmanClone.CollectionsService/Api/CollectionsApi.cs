@@ -21,6 +21,7 @@ public static class CollectionsApi
 
         api.MapCollectionEndpoints();
         api.MapFolderEndpoints();
+        api.MapRequestEndpoints();
 
         if (app.Environment.IsDevelopment())
         {

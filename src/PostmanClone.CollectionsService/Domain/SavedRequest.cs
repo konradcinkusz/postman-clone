@@ -24,7 +24,7 @@ public sealed class SavedRequest
     /// <summary>The HTTP method, denormalized from <see cref="Definition"/> (GET, POST, ...).</summary>
     public string Method { get; set; } = string.Empty;
 
-    /// <summary>The <c>RequestDefinition</c> JSON document. Written and read by the request endpoints (WP08 onward).</summary>
+    /// <summary>The <c>RequestDefinition</c> JSON document. Written and read by the request endpoints (WP13), always the validated document.</summary>
     public JsonDocument Definition { get; set; } = JsonDocument.Parse("{}");
 
     public int SortOrder { get; set; }
