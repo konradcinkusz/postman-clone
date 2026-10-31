@@ -49,6 +49,7 @@ public sealed class WorkspaceRoutingTests
     [InlineData("/sign-in")]
     [InlineData("/register")]
     [InlineData("/legal/terms")]
+    [InlineData("/accept-invitation")]
     public void The_pages_that_work_without_a_workspace_are_exempt(string path)
     {
         Assert.Equal(WorkspaceDecision.Continue, WorkspaceRouting.Decide(path, authenticated: true, WorkspaceResolution.None));
