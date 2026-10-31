@@ -1,0 +1,50 @@
+/* The history panel in the workspace shell (WP22). Colours come only from the tokens in wwwroot/app.css (UI-STYLE §1). */
+
+.history-panel {
+    min-width: 0;
+}
+
+.history-panel > summary {
+    cursor: pointer;
+    font-weight: 600;
+    padding: var(--space-1) 0;
+}
+
+.history-panel-body {
+    margin-top: var(--space-2);
+    min-width: 0;
+}
+
+.history-panel-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.history-panel-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.history-panel-open {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: 0;
+    text-align: start;
+}
+
+.history-panel-time {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+.history-url {
+    font-family: var(--font-mono);
+    overflow-wrap: anywhere;
+    min-width: 0;
+}
