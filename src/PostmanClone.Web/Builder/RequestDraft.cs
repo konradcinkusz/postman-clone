@@ -35,6 +35,9 @@ public sealed class RequestDraft
 {
     private readonly Func<Guid> _newId;
 
+    /// <summary>The fingerprint of what was saved last: the definition as it was read, or as it was last written.</summary>
+    private string _saved = string.Empty;
+
     public RequestDraft(Func<Guid>? newId = null)
     {
         _newId = newId ?? Guid.NewGuid;
@@ -100,6 +103,7 @@ public sealed class RequestDraft
         draft.ApiKeyName = definition.Auth?.ApiKeyName ?? string.Empty;
         draft.ApiKeyValue = definition.Auth?.ApiKeyValue ?? string.Empty;
         draft.ApiKeyIn = definition.Auth?.ApiKeyIn ?? "header";
+        draft._saved = draft.Fingerprint();
         return draft;
     }
 
@@ -124,6 +128,12 @@ public sealed class RequestDraft
 
     /// <summary>A stable text of <see cref="ToDefinition"/>. Two drafts with the same text send the same request.</summary>
     public string Fingerprint() => JsonSerializer.Serialize(ToDefinition(), JsonOptions);
+
+    /// <summary>True when the draft would send something other than what was saved (see <see cref="MarkSaved"/>).</summary>
+    public bool IsDirty => Fingerprint() != _saved;
+
+    /// <summary>Takes the draft as saved: from now on it is clean until it changes again.</summary>
+    public void MarkSaved() => _saved = Fingerprint();
 
     /// <summary>The rules the service enforces, judged on this draft (see <see cref="DraftValidator"/>).</summary>
     public IReadOnlyList<DraftIssue> Validate() => DraftValidator.Validate(ToDefinition());

@@ -152,6 +152,24 @@ public sealed class BuilderPageTests
     }
 
     [Fact]
+    public async Task A_save_the_service_cannot_answer_is_an_alert_and_the_draft_stays_dirty()
+    {
+        using var harness = new AuthHarness();
+        var (context, cut, fake, _, request) = await SeededAsync(harness);
+        using var _ = context;
+
+        cut.Find("[data-testid='builder-url']").Input("https://api.example.test/offline");
+        fake.Unavailable = true;
+        Save(cut);
+
+        cut.WaitForState(() => cut.FindAll("[data-testid='shell-notice']").Count == 1);
+        Assert.Equal("alert", cut.Find("[data-testid='shell-notice']").GetAttribute("role"));
+        Assert.Contains("did not answer", cut.Find("[data-testid='shell-notice']").TextContent);
+        Assert.Single(cut.FindAll("[data-testid='builder-dirty']"));
+        Assert.Equal("https://api.example.test/items", fake.DefinitionOf(request)!.Url);
+    }
+
+    [Fact]
     public async Task A_save_over_a_newer_version_is_a_conflict_that_offers_reload_or_overwrite()
     {
         using var harness = new AuthHarness();

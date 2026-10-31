@@ -5,7 +5,7 @@ namespace PostmanClone.Web.Builder;
 /// <summary>
 /// The builder's state for one open request (WP19, ADR-0017): the saved name and version, the draft, and whether the draft
 /// differs from what was saved. It holds no token and no renderer, so the save rules are tested as plain C#.
-/// The saved baseline is a fingerprint of the canonical definition, so "dirty" means "would send something different".
+/// "Dirty" is the draft's own check against the definition it was read or last written as (see <see cref="RequestDraft.IsDirty"/>).
 /// </summary>
 public sealed class RequestEditor
 {
@@ -13,7 +13,6 @@ public sealed class RequestEditor
     public const int MaximumNameLength = 200;
 
     private readonly Func<Guid>? _newId;
-    private string _savedFingerprint = string.Empty;
 
     public RequestEditor(SavedRequestDto saved, Func<Guid>? newId = null)
     {
@@ -38,7 +37,7 @@ public sealed class RequestEditor
     public RequestDraft Draft { get; private set; } = new();
 
     /// <summary>True when the draft would send something other than what was saved.</summary>
-    public bool IsDirty => Draft.Fingerprint() != _savedFingerprint;
+    public bool IsDirty => Draft.IsDirty;
 
     /// <summary>True after a save was refused with a conflict, until the user reloads or overwrites.</summary>
     public bool Conflicted { get; private set; }
@@ -52,7 +51,6 @@ public sealed class RequestEditor
         Description = saved.Description;
         Version = saved.Version;
         Draft = RequestDraft.FromDefinition(saved.Request, _newId);
-        _savedFingerprint = Draft.Fingerprint();
         Conflicted = false;
     }
 

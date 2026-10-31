@@ -10,7 +10,7 @@ public sealed record DraftIssue(string Field, string Code, string Message);
 /// The client mirror of the service's <c>RequestDefinitionValidator</c> (CONTRACTS §1, §4; ADR-0006, ADR-0017). It answers the
 /// same fields and codes for the same definition, so the page refuses what the service would refuse, and the parity test
 /// (<c>ValidatorParityTests</c>) fails when the two disagree. The service stays the boundary; this only saves a round trip.
-/// Every rule here is marked "client mirror" in its name so a reader can find its twin in CollectionsService.
+/// Each rule carries the service's field path and code, so the parity test can compare the two lists rule for rule.
 /// </summary>
 public static class DraftValidator
 {
@@ -74,7 +74,7 @@ public static class DraftValidator
     public static int JsonBytes(RequestDefinition definition) =>
         System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(definition, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)).Length;
 
-    /// <summary>True when a secret field holds no literal: it is empty, or exactly one reference (client mirror, ADR-0006).</summary>
+    /// <summary>True when a secret field holds no literal: it is empty, or exactly one reference (ADR-0006).</summary>
     public static bool IsSecretReference(string? value) => string.IsNullOrEmpty(value) || SecretReference.IsMatch(value);
 
     private static void CheckRows(IReadOnlyList<KeyValue> rows, string field, bool headers, List<DraftIssue> issues)

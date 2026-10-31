@@ -295,4 +295,30 @@ public sealed class DraftTests
 
         Assert.Equal(ids, draft.Params.Select(row => row.Id).ToArray());
     }
+
+    [Fact]
+    public void A_draft_read_from_a_definition_is_clean_until_it_changes()
+    {
+        var draft = RequestDraft.FromDefinition(Get("https://api.example.test/items?a=1"));
+
+        Assert.False(draft.IsDirty);
+
+        draft.SetMethod("PUT");
+        Assert.True(draft.IsDirty);
+
+        draft.SetMethod("GET");
+        Assert.False(draft.IsDirty);
+    }
+
+    [Fact]
+    public void Marking_a_draft_saved_makes_its_current_text_the_clean_one()
+    {
+        var draft = RequestDraft.FromDefinition(Get("https://api.example.test/items"));
+        draft.SetUrl("https://api.example.test/other");
+        Assert.True(draft.IsDirty);
+
+        draft.MarkSaved();
+
+        Assert.False(draft.IsDirty);
+    }
 }
