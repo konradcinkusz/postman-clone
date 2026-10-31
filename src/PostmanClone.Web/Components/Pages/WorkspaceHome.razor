@@ -7,10 +7,13 @@
 @using PostmanClone.Web.Builder
 @using PostmanClone.Web.Collections
 @using PostmanClone.Web.Components.Builder
+@using PostmanClone.Web.Components.Response
 @using PostmanClone.Web.Components.Shell
+@using PostmanClone.Web.Response
 @inject WorkspaceState State
 @inject WorkspaceShell Shell
 @inject RequestWorkbench Workbench
+@inject SendCoordinator Sender
 @inject AuthenticationStateProvider AuthenticationState
 @implements IDisposable
 
@@ -100,7 +103,11 @@ else
                                         OnReload="@ReloadAsync"
                                         OnOverwrite="@OverwriteAsync"
                                         OnSaveAs="@SaveAsNewAsync"
-                                        OnCollectionChosen="@ChooseCollectionAsync" />
+                                        OnCollectionChosen="@ChooseCollectionAsync"
+                                        Sending="@Sender.IsSending"
+                                        OnSend="@SendActiveAsync"
+                                        OnCancel="@CancelSend" />
+                        <ResponsePanel View="@Sender.ViewFor(active.RequestId)" />
                     }
                     else if (_loadFailures.Contains(active.RequestId))
                     {
@@ -310,6 +317,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Sender.Changed += OnSendChanged;
         await State.CaptureAsync(AuthenticationState);
         _hasWorkspace = Shell.HasWorkspace;
         if (!_hasWorkspace)
@@ -328,6 +336,10 @@ else
 
     public void Dispose()
     {
+        // The sender re-renders this page through the event; it is unsubscribed before the send is cancelled, so a late
+        // answer never reaches a page that has gone (ADR-0022).
+        Sender.Changed -= OnSendChanged;
+        Sender.Cancel();
         _cancellation.Cancel();
         _cancellation.Dispose();
     }
@@ -899,6 +911,26 @@ else
     }
 
     private Task SaveAsync() => SaveWithAsync(requestId => Workbench.SaveAsync(requestId, Token));
+
+    /// <summary>A send changed state on this circuit: the page re-renders on its own thread (BLAZOR-WEB-APP §4).</summary>
+    private void OnSendChanged() => _ = InvokeAsync(StateHasChanged);
+
+    /// <summary>Sends the active request as the builder holds it. The sender reads the environment selection (none until WP21).</summary>
+    private Task SendActiveAsync()
+    {
+        if (_tabs.ActiveRequestId is not { } requestId || !Workbench.TryGet(requestId, out var editor))
+        {
+            return Task.CompletedTask;
+        }
+
+        return Sender.SendAsync(requestId, editor.Draft.ToDefinition(), requestId, Token);
+    }
+
+    private Task CancelSend()
+    {
+        Sender.Cancel();
+        return Task.CompletedTask;
+    }
 
     private Task OverwriteAsync() => SaveWithAsync(requestId => Workbench.OverwriteAsync(requestId, Token));
 

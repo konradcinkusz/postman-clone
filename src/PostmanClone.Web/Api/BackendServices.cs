@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Http.Resilience;
+using PostmanClone.ServiceDefaults.Resilience;
 
 namespace PostmanClone.Web.Api;
 
@@ -33,7 +33,7 @@ public static class BackendServices
     /// One named HttpClient per backend. The kernel's resilience handler and service discovery apply to each of them
     /// (P2a). The bearer handler adds no token of its own: it forwards the one a request carries.
     /// </summary>
-    public static IServiceCollection AddBackendClients(this IServiceCollection services)
+    public static IServiceCollection AddBackendClients(this IServiceCollection services, TimeSpan? executionTimeout = null)
     {
         services.AddTransient<BearerTokenHandler>();
         foreach (var backend in All)
@@ -42,7 +42,7 @@ public static class BackendServices
                 .AddHttpMessageHandler<BearerTokenHandler>();
         }
 
-        ConfigureExecution(services);
+        ConfigureExecution(services, executionTimeout ?? ExecutionTimeout);
 
         services.AddScoped<IBackendStatusReader, BackendStatusReader>();
         services.AddSingleton<AuthServiceClient>();
@@ -52,18 +52,11 @@ public static class BackendServices
     }
 
     /// <summary>
-    /// The kernel's one resilience handler, with the execute client's own limits (ADR-0022). The handler is the kernel's; only
-    /// its options are named for this client, so the timeouts of the other backends do not change. A send is a POST, which the
-    /// handler never retries: a retry would send a third party's request twice.
+    /// The execute client's total timeout (ADR-0022). The kernel's one resilience handler reads it for this client by name; the
+    /// handler is not added here, so no second one exists (architecture rule R9).
     /// </summary>
-    private static void ConfigureExecution(IServiceCollection services) => services.Configure<HttpStandardResilienceOptions>(ExecutionName, options =>
-    {
-        options.AttemptTimeout.Timeout = ExecutionTimeout;
-        options.TotalRequestTimeout.Timeout = ExecutionTimeout;
-        // The circuit breaker must sample for at least twice the attempt timeout, or the handler refuses to start.
-        options.CircuitBreaker.SamplingDuration = ExecutionTimeout + ExecutionTimeout;
-        options.Retry.DisableForUnsafeHttpMethods();
-    });
+    private static void ConfigureExecution(IServiceCollection services, TimeSpan timeout) =>
+        services.Configure<HttpClientTimeouts>(timeouts => timeouts.Totals[ExecutionName] = timeout);
 }
 
 /// <summary>A backend's display name, which is also its HttpClient name, and its logical address.</summary>

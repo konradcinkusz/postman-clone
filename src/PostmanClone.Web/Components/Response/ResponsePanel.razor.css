@@ -1,0 +1,57 @@
+/* The response viewer (ADR-0022). Colours are tokens from wwwroot/app.css, in both themes; StyleContractTests reads this file. */
+
+.response-meta {
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.response-detail {
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.response-url {
+    overflow-wrap: anywhere;
+}
+
+/* The body scrolls inside its own box, never the page. Each line is one block; a token is a span inside it. */
+.response-body {
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    max-height: 32rem;
+    overflow: auto;
+    padding: var(--space-3);
+    white-space: pre;
+}
+
+.response-line {
+    min-height: 1.2em;
+}
+
+.json-key {
+    color: var(--code-key);
+}
+
+.json-string {
+    color: var(--code-string);
+}
+
+.json-number {
+    color: var(--code-number);
+}
+
+.json-keyword {
+    color: var(--code-keyword);
+}
+
+.json-punct {
+    color: var(--code-muted);
+}
+
+.response-panel .btn[disabled] {
+    color: var(--text-muted);
+}

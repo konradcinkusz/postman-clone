@@ -32,9 +32,10 @@ public sealed class ExecutionClient(IHttpClientFactory clients) : IExecutionClie
         {
             throw;
         }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or TimeoutException)
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
-            // No answer: a refused connection, or the resilience handler's own timeout. Neither has a status or a code.
+            // No answer: a refused connection, or the resilience handler's own timeout (which is not an HttpRequestException).
+            // Neither has a status or a code, so the page says the sender could not be reached.
             return new CollectionAnswer<ExecutionResultDto>(CollectionOutcome.Unavailable, null, null);
         }
 
