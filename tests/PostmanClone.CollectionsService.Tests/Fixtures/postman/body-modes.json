@@ -1,0 +1,78 @@
+{
+  "info": {
+    "_postman_id": "33333333-3333-4333-8333-333333333333",
+    "name": "Body modes",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Raw JSON",
+      "request": {
+        "method": "POST",
+        "url": "https://example.invalid/items",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"name\": \"{{itemName}}\"}", "options": { "raw": { "language": "json" } } }
+      }
+    },
+    {
+      "name": "Raw XML",
+      "request": {
+        "method": "PUT",
+        "url": "https://example.invalid/items/1",
+        "body": { "mode": "raw", "raw": "<item><name>x</name></item>", "options": { "raw": { "language": "xml" } } }
+      }
+    },
+    {
+      "name": "Raw without language",
+      "request": {
+        "method": "POST",
+        "url": "https://example.invalid/notes",
+        "body": { "mode": "raw", "raw": "plain words" }
+      }
+    },
+    {
+      "name": "Form urlencoded",
+      "request": {
+        "method": "POST",
+        "url": "https://example.invalid/login",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant", "value": "code" },
+            { "key": "scope", "value": "read", "disabled": true }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Form data",
+      "request": {
+        "method": "POST",
+        "url": "https://example.invalid/upload",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "title", "value": "{{title}}", "type": "text" },
+            { "key": "attachment", "type": "file", "src": "report.pdf" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "GraphQL",
+      "request": {
+        "method": "POST",
+        "url": "https://example.invalid/graphql",
+        "body": { "mode": "graphql", "graphql": { "query": "{ viewer { id } }", "variables": "" } }
+      }
+    },
+    {
+      "name": "File body",
+      "request": {
+        "method": "PUT",
+        "url": "https://example.invalid/blob",
+        "body": { "mode": "file", "file": { "src": "payload.bin" } }
+      }
+    }
+  ]
+}

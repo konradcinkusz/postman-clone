@@ -73,7 +73,7 @@ public static class CurlCases
             Codes: ["secret_not_imported"],
             Auth: "basic|alice|{{password}}"),
         ["basic-reference-password"] = new(
-            $"curl -u 'alice:{{{{password}}}}' {Api}/me",
+            $"curl -u 'alice:{{{{password}}}}' {Api}/me", // gitleaks:allow
             "GET",
             $"{Api}/me",
             Auth: "basic|alice|{{password}}"),

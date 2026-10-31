@@ -26,7 +26,7 @@ Numbers are reserved per work package in
 | [0013](0013-circuit-lifetime-and-session-store.md) | Circuit lifetime and session store: an opaque cookie, eight idle hours, seven absolute days, five-minute revalidation | Accepted |
 | [0014](0014-execution-limits-and-redirects.md) | Execution limits, redirects and the send path: sender-followed hops, capped and decoded reads, masked results | Accepted |
 | [0015](0015-history-retention-and-masking.md) | History retention and masking: the template with its references, masked in every form, 200 per user and workspace | Accepted |
+| [0016](0016-import-threat-model.md) | Import threat model for Postman collections: caps before work, literal secrets replaced and never stored, no execution or network, one transaction | Accepted |
 
 Reserved for later work packages (see WORK-PACKAGES.md):
-0016 import threat model,
 0017 builder state model, 0018 E2E scope and charter, 0019 review outcomes. 0020–0029 are spare.

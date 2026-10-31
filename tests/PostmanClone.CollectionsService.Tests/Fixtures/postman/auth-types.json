@@ -1,0 +1,77 @@
+{
+  "info": {
+    "_postman_id": "44444444-4444-4444-8444-444444444444",
+    "name": "Auth types",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Bearer",
+      "request": {
+        "method": "GET",
+        "url": "https://example.invalid/me",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{apiToken}}", "type": "string" }] }
+      }
+    },
+    {
+      "name": "Basic",
+      "request": {
+        "method": "GET",
+        "url": "https://example.invalid/basic",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            { "key": "username", "value": "service-user", "type": "string" },
+            { "key": "password", "value": "{{basicPassword}}", "type": "string" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "API key in header",
+      "request": {
+        "method": "GET",
+        "url": "https://example.invalid/key-header",
+        "auth": {
+          "type": "apikey",
+          "apikey": [
+            { "key": "key", "value": "X-Api-Key", "type": "string" },
+            { "key": "value", "value": "{{apiKey}}", "type": "string" },
+            { "key": "in", "value": "header", "type": "string" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "API key in query",
+      "request": {
+        "method": "GET",
+        "url": "https://example.invalid/key-query",
+        "auth": {
+          "type": "apikey",
+          "apikey": [
+            { "key": "key", "value": "api_key", "type": "string" },
+            { "key": "value", "value": "{{apiKey}}", "type": "string" },
+            { "key": "in", "value": "query", "type": "string" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "OAuth 2",
+      "request": {
+        "method": "GET",
+        "url": "https://example.invalid/oauth",
+        "auth": { "type": "oauth2", "oauth2": [{ "key": "accessToken", "value": "{{oauthToken}}", "type": "string" }] }
+      }
+    },
+    {
+      "name": "No auth",
+      "request": {
+        "method": "GET",
+        "url": "https://example.invalid/open",
+        "auth": { "type": "noauth" }
+      }
+    }
+  ]
+}
