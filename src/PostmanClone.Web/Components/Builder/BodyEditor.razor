@@ -1,0 +1,132 @@
+@using PostmanClone.Web.Builder
+
+@* The body editor (WP19): the body type, a raw body with its language and the JSON "Beautify", or the form fields as text. The
+   draft holds the values; the form fields reuse the key/value list. *@
+
+<div class="stack body-editor" data-testid="builder-body">
+    <div class="cluster">
+        <div class="field">
+            <label for="builder-body-type">Body type</label>
+            <select id="builder-body-type" data-testid="builder-body-type" @onchange="ChangeTypeAsync">
+                @foreach (var (value, label) in BuilderChoices.BodyTypes)
+                {
+                    <option value="@value" selected="@(value == Draft.BodyType)">@label</option>
+                }
+            </select>
+        </div>
+
+        @if (Draft.BodyType == "raw")
+        {
+            <div class="field">
+                <label for="builder-body-language">Language</label>
+                <select id="builder-body-language" data-testid="builder-body-language" @onchange="ChangeLanguageAsync">
+                    @foreach (var language in BuilderChoices.RawLanguages)
+                    {
+                        <option value="@language" selected="@(language == Draft.RawLanguage)">@language</option>
+                    }
+                </select>
+            </div>
+        }
+    </div>
+
+    @if (Draft.BodyType == "none")
+    {
+        <p class="empty-state" data-testid="builder-body-none">This request sends no body.</p>
+    }
+    else if (Draft.BodyType == "raw")
+    {
+        <div class="field">
+            <label for="builder-body-raw">Body</label>
+            <textarea id="builder-body-raw"
+                      rows="12"
+                      spellcheck="false"
+                      data-testid="builder-body-raw"
+                      aria-invalid="@(RawIssue is null ? null : "true")"
+                      aria-describedby="builder-body-raw-note"
+                      @bind="RawText"
+                      @bind:event="oninput"
+                      @bind:after="NotifyAsync"></textarea>
+            <p class="hint" id="builder-body-raw-note">
+                @Draft.Raw.Length / @DraftValidator.MaximumRawLength characters.
+            </p>
+            @if (RawIssue is not null)
+            {
+                <p class="field-error" data-testid="builder-body-raw-error">@RawIssue.Message</p>
+            }
+        </div>
+
+        @if (Draft.RawLanguage == "json")
+        {
+            <div class="cluster">
+                <button type="button" class="btn" data-testid="builder-body-beautify" @onclick="BeautifyAsync">Beautify JSON</button>
+            </div>
+            @if (_beautifyMessage is not null)
+            {
+                <p class="callout callout-danger" role="alert" data-testid="builder-body-beautify-error">@_beautifyMessage</p>
+            }
+        }
+    }
+    else
+    {
+        @if (Draft.BodyType == "formData")
+        {
+            <p class="hint">Each field is text. A file upload is not supported.</p>
+        }
+
+        <KeyValueEditor Draft="Draft"
+                        List="RowList.FormFields"
+                        Prefix="request.body.fields"
+                        Label="Form fields"
+                        Issues="Issues"
+                        OnChanged="OnChanged" />
+    }
+</div>
+
+@code {
+    private string? _beautifyMessage;
+
+    [Parameter, EditorRequired]
+    public RequestDraft Draft { get; set; } = new();
+
+    [Parameter]
+    public IReadOnlyList<DraftIssue> Issues { get; set; } = [];
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private DraftIssue? RawIssue => Issues.FirstOrDefault(issue => issue.Field == "request.body.raw");
+
+    /// <summary>The raw text, bound to the draft through its setter, so the draft holds what the user typed.</summary>
+    private string RawText
+    {
+        get => Draft.Raw;
+        set => Draft.SetRaw(value);
+    }
+
+    private Task NotifyAsync() => OnChanged.InvokeAsync();
+
+    private async Task ChangeTypeAsync(ChangeEventArgs args)
+    {
+        _beautifyMessage = null;
+        Draft.SetBodyType(args.Value?.ToString() ?? "none");
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task ChangeLanguageAsync(ChangeEventArgs args)
+    {
+        Draft.SetRawLanguage(args.Value?.ToString() ?? "json");
+        await OnChanged.InvokeAsync();
+    }
+
+    /// <summary>Writes the JSON indented when it parses; otherwise the text is kept and the reason is shown (never the text).</summary>
+    private async Task BeautifyAsync()
+    {
+        var result = JsonBeautifier.Beautify(Draft.Raw);
+        _beautifyMessage = result.Message;
+        if (result.Succeeded)
+        {
+            Draft.SetRaw(result.Text);
+            await OnChanged.InvokeAsync();
+        }
+    }
+}

@@ -46,6 +46,9 @@ public sealed class FakeCollectionsService
     /// <summary>Collections whose tree read answers 503, so a single tree can fail while the list works.</summary>
     public HashSet<Guid> FailingTrees { get; } = [];
 
+    /// <summary>Requests whose read answers 503, so a request can fail to open while the tree works.</summary>
+    public HashSet<Guid> FailingRequests { get; } = [];
+
     /// <summary>When set, deleting a collection answers <c>403 forbidden</c>, as for a Member who did not create it.</summary>
     public bool ForbidCollectionDelete { get; set; }
 
@@ -94,12 +97,23 @@ public sealed class FakeCollectionsService
         return id;
     }
 
-    public Guid AddRequest(Guid collectionId, string name, Guid? folder = null, string method = "GET", int sortOrder = 0)
+    public Guid AddRequest(Guid collectionId, string name, Guid? folder = null, string method = "GET", int sortOrder = 0, RequestDefinition? definition = null)
     {
         var id = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
-        _requests[id] = new Saved(id, collectionId, folder, name, sortOrder, method, Version: 1, now);
+        var stored = definition ?? new RequestDefinition(method, "https://api.example.test/items", [], [], new RequestBody("none", null, null, []), new RequestAuth("none", null, null, null, null, null, null));
+        _requests[id] = new Saved(id, collectionId, folder, name, sortOrder, stored.Method, Version: 1, now, stored);
         return id;
+    }
+
+    /// <summary>The definition the service holds for a request, or null when it is gone.</summary>
+    public RequestDefinition? DefinitionOf(Guid id) => _requests.TryGetValue(id, out var saved) ? saved.Definition : null;
+
+    /// <summary>Another user saved the request meanwhile: the version moves on, so an <c>If-Match</c> on the old version is refused.</summary>
+    public void ChangedElsewhere(Guid id, RequestDefinition definition)
+    {
+        var saved = _requests[id];
+        _requests[id] = saved with { Definition = definition, Method = definition.Method, Version = saved.Version + 1, UpdatedAt = DateTimeOffset.UtcNow };
     }
 
     public bool HasCollection(Guid id) => _collections.ContainsKey(id);
@@ -153,6 +167,11 @@ public sealed class FakeCollectionsService
         if (method == "GET" && route == "/api/v1/collections")
         {
             return ListCollections(query);
+        }
+
+        if (Match(route, @"^/api/v1/collections/(?<id>[0-9a-f-]{36})/requests$", out var newRequestCollection) && method == "POST")
+        {
+            return CreateRequest(newRequestCollection, request);
         }
 
         if (method == "POST" && route == "/api/v1/collections")
@@ -338,6 +357,23 @@ public sealed class FakeCollectionsService
         }
     }
 
+    private HttpResponseMessage CreateRequest(Guid collectionId, HttpRequestMessage request)
+    {
+        if (!_collections.ContainsKey(collectionId))
+        {
+            return NotFound();
+        }
+
+        var body = Read<CreateSavedRequestBody>(request);
+        if (body.FolderId is { } folder && (!_folders.TryGetValue(folder, out var target) || target.CollectionId != collectionId))
+        {
+            return NotFound();
+        }
+
+        var id = AddRequest(collectionId, body.Name, body.FolderId, body.Request.Method, definition: body.Request);
+        return SavedJson(HttpStatusCode.Created, _requests[id]);
+    }
+
     private HttpResponseMessage CreateFolder(Guid collectionId, HttpRequestMessage request)
     {
         if (!_collections.ContainsKey(collectionId))
@@ -388,6 +424,11 @@ public sealed class FakeCollectionsService
         switch (method)
         {
             case "GET":
+                if (FailingRequests.Contains(id))
+                {
+                    return Problem(HttpStatusCode.ServiceUnavailable, "upstream_unavailable", "The service is down.");
+                }
+
                 return SavedJson(HttpStatusCode.OK, saved);
             case "PUT":
                 if (request.Headers.TryGetValues("If-Match", out var values) && values.Single() != $"\"{saved.Version}\"")
@@ -396,7 +437,7 @@ public sealed class FakeCollectionsService
                 }
 
                 var body = Read<UpdateSavedRequestBody>(request);
-                _requests[id] = saved with { Name = body.Name, Version = saved.Version + 1, UpdatedAt = DateTimeOffset.UtcNow };
+                _requests[id] = saved with { Name = body.Name, Definition = body.Request, Method = body.Request.Method, Version = saved.Version + 1, UpdatedAt = DateTimeOffset.UtcNow };
                 return SavedJson(HttpStatusCode.OK, _requests[id]);
             case "DELETE":
                 _requests.Remove(id);
@@ -466,7 +507,7 @@ public sealed class FakeCollectionsService
             saved.Folder,
             saved.Name,
             Description: null,
-            new RequestDefinition(saved.Method, "https://api.example.test/items", [], [], Body: null, Auth: null),
+            saved.Definition,
             saved.SortOrder,
             saved.Version,
             CurrentUser,
@@ -513,7 +554,7 @@ public sealed class FakeCollectionsService
 
     private static HttpResponseMessage Json201<T>(T body) => Json(HttpStatusCode.Created, body!);
 
-    /// <summary>A saved request as the fake stores it: the fields the tree and the actions read.</summary>
+    /// <summary>A saved request as the fake stores it: the fields the tree and the actions read, and the definition the builder edits.</summary>
     private sealed record Saved(
         Guid Id,
         Guid Collection,
@@ -522,5 +563,6 @@ public sealed class FakeCollectionsService
         int SortOrder,
         string Method,
         int Version,
-        DateTimeOffset UpdatedAt);
+        DateTimeOffset UpdatedAt,
+        RequestDefinition Definition);
 }

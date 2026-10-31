@@ -1,0 +1,79 @@
+@using PostmanClone.Web.Builder
+
+@* The URL bar (WP19). The text is the one the user typed, so it is never rewritten while typing. Variables are shown as spans below it. *@
+
+<div class="url-bar">
+    <div class="field">
+        <label for="builder-url">URL</label>
+        <input id="builder-url"
+               type="text"
+               data-testid="builder-url"
+               value="@Value"
+               autocomplete="off"
+               spellcheck="false"
+               maxlength="@DraftValidator.MaximumUrlLength"
+               aria-invalid="@(Invalid ? "true" : null)"
+               aria-describedby="builder-url-note"
+               @oninput="OnInput" />
+    </div>
+
+    <p class="url-note" id="builder-url-note">
+        <span class="num" data-testid="builder-url-count">@Value.Length / @DraftValidator.MaximumUrlLength</span>
+        <span>characters. The query is written in the table below; a <code>{{variable}}</code> is sent from the environment.</span>
+    </p>
+
+    @if (_segments.Any(segment => segment.Variable is not null))
+    {
+        <p class="url-preview" data-testid="builder-url-preview">
+            <span class="url-preview-label">Variables:</span>
+            @foreach (var segment in _segments)
+            {
+                if (segment.Variable is null)
+                {
+                    @segment.Text
+                }
+                else
+                {
+                    <span class="@TokenClass(segment.Variable)" data-testid="builder-var-@segment.Variable" data-variable="@segment.Variable">@segment.Text</span>
+                }
+            }
+        </p>
+
+        @if (Known is not null && _unresolved.Count > 0)
+        {
+            <p class="hint" data-testid="builder-unresolved">@BuilderMessages.UnresolvedNote (@string.Join(", ", _unresolved))</p>
+        }
+    }
+</div>
+
+@code {
+    private IReadOnlyList<TextSegment> _segments = [];
+    private IReadOnlyList<string> _unresolved = [];
+
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>The variable names the selected environment defines. Null until an environment is selected (WP21): then nothing is marked unresolved.</summary>
+    [Parameter]
+    public IReadOnlySet<string>? Known { get; set; }
+
+    [Parameter]
+    public bool Invalid { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        _segments = VariableTokens.Segment(Value);
+        _unresolved = Known is null
+            ? []
+            : VariableTokens.NamesIn(Value).Where(name => !Known.Contains(name)).ToList();
+    }
+
+    private string TokenClass(string name) => Known is null
+        ? "var-token"
+        : Known.Contains(name) ? "var-token var-known" : "var-token var-unresolved";
+
+    private Task OnInput(ChangeEventArgs args) => ValueChanged.InvokeAsync(args.Value?.ToString() ?? string.Empty);
+}

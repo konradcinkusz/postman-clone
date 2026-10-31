@@ -50,6 +50,7 @@ public static class WebAuthExtensions
         builder.Services.AddScoped<CircuitSession>();
         builder.Services.AddScoped<MembershipService>();
         builder.Services.AddScoped<WorkspaceShell>();
+        builder.Services.AddScoped<RequestWorkbench>();
         builder.Services.AddScoped<CircuitHandler, WorkspaceCircuitHandler>();
         return builder;
     }
