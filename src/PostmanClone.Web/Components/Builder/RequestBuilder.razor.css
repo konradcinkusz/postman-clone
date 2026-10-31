@@ -32,3 +32,8 @@
 .badge {
     align-self: center;
 }
+
+.builder-send-actions {
+    align-items: center;
+    flex: 0 0 auto;
+}

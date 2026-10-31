@@ -15,6 +15,18 @@
                 <p class="field-error" data-testid="builder-url-error">@_urlIssue.Message</p>
             }
         </div>
+        <div class="cluster builder-send-actions">
+            <button type="button" class="btn btn-primary" data-testid="builder-send"
+                    disabled="@(Busy || Sending || _issues.Count > 0)" @onclick="() => OnSend.InvokeAsync()">Send</button>
+            @if (Sending)
+            {
+                <button type="button" class="btn btn-danger" data-testid="builder-cancel" @onclick="() => OnCancel.InvokeAsync()">Cancel</button>
+            }
+            @if (_issues.Count > 0)
+            {
+                <p class="field-error" data-testid="builder-send-blocked">Fix the marked fields before sending.</p>
+            }
+        </div>
     </div>
 
     @if (_tooLarge)
@@ -166,6 +178,16 @@
 
     [Parameter]
     public EventCallback OnChanged { get; set; }
+
+    /// <summary>True while a send of this request is in flight. Send is then disabled and Cancel is offered.</summary>
+    [Parameter]
+    public bool Sending { get; set; }
+
+    [Parameter]
+    public EventCallback OnSend { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
 
     [Parameter]
     public EventCallback OnSave { get; set; }

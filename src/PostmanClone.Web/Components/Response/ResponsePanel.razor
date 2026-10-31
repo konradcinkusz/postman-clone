@@ -1,0 +1,251 @@
+@using PostmanClone.Web.Response
+
+@* The response viewer (WP20, ADR-0023). It draws a SendView. Every string from the response is written as encoded text:
+   there is no MarkupString, no iframe and no script on this page, and a body is never rendered as HTML. *@
+
+@if (View.Phase == SendPhase.Sending)
+{
+    <section class="card stack response-panel" aria-labelledby="response-heading" data-testid="response">
+        <h2 id="response-heading">Response</h2>
+        <p role="status" data-testid="response-sending">Sending…</p>
+    </section>
+}
+else if (View.Phase == SendPhase.Cancelled)
+{
+    <section class="card stack response-panel" aria-labelledby="response-heading" data-testid="response">
+        <h2 id="response-heading">Response</h2>
+        <p role="status" data-testid="response-cancelled">@View.Failure</p>
+    </section>
+}
+else if (View.Phase == SendPhase.Failed)
+{
+    <section class="card stack response-panel" aria-labelledby="response-heading" data-testid="response">
+        <h2 id="response-heading">Response</h2>
+        <div class="callout callout-danger" role="alert" data-testid="response-error">@View.Failure</div>
+    </section>
+}
+else if (View.Phase == SendPhase.Shown && View.Response is { } response)
+{
+    <section class="card stack response-panel" aria-labelledby="response-heading" data-testid="response">
+        <div class="split">
+            <h2 id="response-heading">Response</h2>
+            <div class="cluster response-meta">
+                @if (response.HasResponse)
+                {
+                    <span class="@response.BadgeClass" data-testid="response-status">@response.StatusText</span>
+                }
+                <span class="num" data-testid="response-time">@response.TimeText</span>
+                <span class="num" data-testid="response-size">@response.SizeText</span>
+            </div>
+        </div>
+
+        @if (response.Outcome != OutcomeKind.Completed)
+        {
+            <div class="callout callout-danger" role="alert" data-testid="response-outcome">
+                <p><strong>@response.Heading</strong></p>
+                <p>@response.Explanation</p>
+                @if (response.ServiceMessage is { Length: > 0 } serviceMessage)
+                {
+                    <p class="response-detail">@serviceMessage</p>
+                }
+                @if (response.ErrorCode is { Length: > 0 } errorCode)
+                {
+                    <p class="response-detail">Code: <code>@errorCode</code></p>
+                }
+            </div>
+        }
+
+        @if (response.UnresolvedVariables.Count > 0)
+        {
+            <div class="callout callout-warning" role="status" data-testid="response-unresolved">
+                <p>These variables were not set, so they were sent as written:</p>
+                <ul class="stack">
+                    @foreach (var name in response.UnresolvedVariables)
+                    {
+                        <li><code>@ResponsePresentation.VariableText(name)</code></li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <div class="tabs" role="tablist" aria-label="Response sections">
+            @foreach (var tab in Tabs)
+            {
+                <button type="button"
+                        role="tab"
+                        class="tab"
+                        id="response-tab-@tab.Key"
+                        aria-selected="@(tab.Key == _tab ? "true" : "false")"
+                        aria-controls="response-panel-view"
+                        data-testid="response-tab-@tab.Key"
+                        @onclick="() => SelectTab(tab.Key)">@tab.Label</button>
+            }
+        </div>
+
+        <div role="tabpanel" id="response-panel-view" class="stack" aria-labelledby="response-tab-@_tab">
+            @switch (_tab)
+            {
+                case "headers":
+                    @if (response.Headers.Count == 0)
+                    {
+                        <p class="empty-state" data-testid="response-no-headers">No headers.</p>
+                    }
+                    else
+                    {
+                        <div class="table-wrap">
+                            <table class="kv-table" data-testid="response-headers">
+                                <tbody>
+                                    @foreach (var header in response.Headers)
+                                    {
+                                        <tr>
+                                            <th scope="row">@header.Name</th>
+                                            <td>@header.Value</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    break;
+
+                case "timing":
+                    <div class="table-wrap">
+                        <table class="kv-table" data-testid="response-timing">
+                            <tbody>
+                                <tr><th scope="row">Total</th><td class="num">@response.TimeText</td></tr>
+                                <tr><th scope="row">DNS</th><td class="num">@ResponsePresentation.Phase(response.Timing.DnsMs)</td></tr>
+                                <tr><th scope="row">Connect</th><td class="num">@ResponsePresentation.Phase(response.Timing.ConnectMs)</td></tr>
+                                <tr><th scope="row">Time to first byte</th><td class="num">@ResponsePresentation.Phase(response.Timing.TtfbMs)</td></tr>
+                                <tr><th scope="row">Download</th><td class="num">@ResponsePresentation.Phase(response.Timing.DownloadMs)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    break;
+
+                case "redirects":
+                    <p>Final URL: <code class="response-url" data-testid="response-final-url">@response.FinalUrl</code></p>
+                    @if (response.Redirects.Count == 0)
+                    {
+                        <p class="empty-state" data-testid="response-no-redirects">No redirects were followed.</p>
+                    }
+                    else
+                    {
+                        <ol class="stack" data-testid="response-redirects">
+                            @foreach (var hop in response.Redirects)
+                            {
+                                <li><span class="num">@hop.StatusCode</span> → <code>@hop.Location</code></li>
+                            }
+                        </ol>
+                    }
+                    break;
+
+                default:
+                    @if (response.Body is null)
+                    {
+                        <p class="empty-state" data-testid="response-no-body">No response body was received.</p>
+                    }
+                    else if (response.Body.IsBinary)
+                    {
+                        <p role="status" data-testid="response-binary">@ResponseMessages.BinaryNote (@response.Body.SizeBytes bytes, base64 hidden.)</p>
+                        <button type="button" class="btn" disabled aria-disabled="true" data-testid="response-download"
+                                title="Download is not offered for binary data here.">Download</button>
+                    }
+                    else
+                    {
+                        @if (response.Body.Truncated)
+                        {
+                            <div class="callout callout-warning" role="status" data-testid="response-truncated">@ResponseMessages.Truncated</div>
+                        }
+
+                        <div class="cluster" role="group" aria-label="Body view">
+                            @foreach (var mode in Modes)
+                            {
+                                <button type="button"
+                                        class="btn"
+                                        aria-pressed="@(mode == _mode ? "true" : "false")"
+                                        disabled="@(mode == BodyMode.Preview)"
+                                        data-testid="response-mode-@mode.ToString().ToLowerInvariant()"
+                                        @onclick="() => SelectMode(mode)">@ResponsePresentation.ModeLabel(mode)</button>
+                            }
+                        </div>
+                        <p class="response-detail" data-testid="response-preview-note">@ResponseMessages.Preview</p>
+
+                        @if (_mode == BodyMode.Pretty && !response.PrettyIsJson)
+                        {
+                            <p class="response-detail" data-testid="response-not-json">@ResponseMessages.NotJson</p>
+                        }
+
+                        var lines = response.Lines(_mode);
+                        var shown = ResponsePresentation.LinesShown(_chunks, lines.Count);
+                        <div class="response-body" tabindex="0" role="region" aria-label="Response body" data-testid="response-body">
+                            @foreach (var line in lines.Take(shown))
+                            {
+                                <div class="response-line">@foreach (var token in line)
+                                {
+                                    <span class="@ResponsePresentation.TokenClass(token.Kind)">@token.Text</span>
+                                }</div>
+                            }
+                        </div>
+
+                        @if (shown < lines.Count)
+                        {
+                            <button type="button" class="btn" data-testid="response-body-more" @onclick="ShowMore">
+                                Show more lines (@shown of @lines.Count)
+                            </button>
+                        }
+                    }
+                    break;
+            }
+        </div>
+    </section>
+}
+
+@code {
+    private static readonly (string Key, string Label)[] TabDefinitions =
+    [
+        ("body", "Body"),
+        ("headers", "Headers"),
+        ("timing", "Timing"),
+        ("redirects", "Redirects"),
+    ];
+
+    private static readonly BodyMode[] Modes = [BodyMode.Pretty, BodyMode.Raw, BodyMode.Preview];
+
+    /// <summary>The send being drawn. The panel changes nothing; it only draws what the coordinator holds.</summary>
+    [Parameter, EditorRequired]
+    public SendView View { get; set; } = SendView.Idle;
+
+    private SendView? _shownView;
+    private string _tab = "body";
+    private BodyMode _mode = BodyMode.Pretty;
+    private int _chunks = 1;
+
+    private IEnumerable<(string Key, string Label)> Tabs => TabDefinitions;
+
+    protected override void OnParametersSet()
+    {
+        // A new send starts on the body, from its first chunk, in the pretty view.
+        if (!ReferenceEquals(_shownView, View))
+        {
+            _shownView = View;
+            _tab = "body";
+            _mode = BodyMode.Pretty;
+            _chunks = 1;
+        }
+    }
+
+    private void SelectTab(string tab) => _tab = tab;
+
+    private void SelectMode(BodyMode mode)
+    {
+        if (mode == BodyMode.Preview)
+        {
+            return;
+        }
+
+        _mode = mode;
+        _chunks = 1;
+    }
+
+    private void ShowMore() => _chunks++;
+}
