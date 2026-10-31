@@ -8,10 +8,13 @@ public static class BackendServices
     /// <summary>The logical name of authservice. The metadata address and the auth client both use it (docs/AUTH.md).</summary>
     public const string AuthServiceName = "authservice";
 
+    /// <summary>The logical name of CollectionsService. The collections client resolves its HttpClient by this name.</summary>
+    public const string CollectionsName = "collections";
+
     public static readonly IReadOnlyList<BackendService> All =
     [
         new(AuthServiceName, "http://authservice"),
-        new("collections", "http://collections-service"),
+        new(CollectionsName, "http://collections-service"),
         new("environments", "http://environments-service"),
         new("execution", "http://execution-service"),
     ];
@@ -31,6 +34,7 @@ public static class BackendServices
 
         services.AddScoped<IBackendStatusReader, BackendStatusReader>();
         services.AddSingleton<AuthServiceClient>();
+        services.AddSingleton<CollectionsClient>();
         return services;
     }
 }

@@ -1,0 +1,119 @@
+@using PostmanClone.Web.Collections
+
+@* The workspace tree (WP18). It renders the rows it is given and raises callbacks; it reads no service and holds no state of its own
+   beyond the filter text the page passes in. The rows are a flat list, so the tree needs no recursion here. *@
+
+<div class="tree-panel" data-testid="tree-panel">
+    <div class="split tree-toolbar">
+        <h2 class="tree-heading">Collections</h2>
+        <button type="button" class="btn btn-primary" data-testid="tree-new-collection" disabled="@Busy" @onclick="() => NewCollection.InvokeAsync()">New collection</button>
+    </div>
+
+    <div class="field">
+        <label for="tree-filter">Filter the tree</label>
+        <input id="tree-filter" type="search" autocomplete="off" value="@Filter" data-testid="tree-filter" @oninput="OnFilterInput" />
+    </div>
+
+    @if (Rows.Count == 0)
+    {
+        if (!string.IsNullOrEmpty(EmptyMessage))
+        {
+            <p class="empty-state" data-testid="@(Filtering ? "tree-filter-empty" : "tree-empty")">@(Filtering ? $"Nothing in the workspace matches \"{Filter.Trim()}\"." : EmptyMessage)</p>
+        }
+    }
+    else
+    {
+        <div class="table-wrap">
+            <ul class="tree" role="tree" aria-label="Collections, folders and requests" data-testid="tree">
+                @foreach (var row in Rows)
+                {
+                    <li role="treeitem"
+                        class="tree-row indent-@IndentClass(row.Depth)"
+                        aria-level="@(row.Depth + 1)"
+                        aria-expanded="@(row.HasChildren ? (row.Expanded ? "true" : "false") : null)"
+                        aria-selected="@(row.Id == SelectedId ? "true" : "false")"
+                        data-kind="@row.Kind.ToString().ToLowerInvariant()">
+                        @if (row.HasChildren)
+                        {
+                            <button type="button"
+                                    class="tree-toggle"
+                                    data-testid="tree-toggle-@row.Id"
+                                    aria-label="@(row.Expanded ? "Collapse" : "Expand") @row.Name"
+                                    aria-expanded="@(row.Expanded ? "true" : "false")"
+                                    disabled="@(Filtering || Busy)"
+                                    @onclick="() => ToggleRow.InvokeAsync(row)">@(row.Expanded ? "▾" : "▸")</button>
+                        }
+                        else
+                        {
+                            <span class="tree-toggle-spacer" aria-hidden="true"></span>
+                        }
+
+                        <button type="button" class="tree-label" data-testid="@TestId(row)" @onclick="() => SelectRow.InvokeAsync(row)">
+                            @if (row.Kind == ShellRowKind.Request && row.Method is not null)
+                            {
+                                <span class="method method-@row.Method.ToLowerInvariant()">@row.Method</span>
+                            }
+                            <span class="tree-name">@row.Name</span>
+                        </button>
+                        @if (row.Kind == ShellRowKind.Collection && FailedCollections.Contains(row.Id))
+                        {
+                            <p class="callout callout-danger tree-alert" role="alert" data-testid="tree-error-@row.Id">@CollectionMessages.TreeNotLoaded</p>
+                        }
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The rows to show, in order (see <see cref="ShellTree.Build"/>).</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ShellRow> Rows { get; set; } = Array.Empty<ShellRow>();
+
+    [Parameter]
+    public string Filter { get; set; } = string.Empty;
+
+    /// <summary>True while the filter has text. The toggles are then off: the filter opens what matches.</summary>
+    [Parameter]
+    public bool Filtering { get; set; }
+
+    /// <summary>What an empty tree says. Null while the list failed to load, because the page's alert says that instead.</summary>
+    [Parameter]
+    public string? EmptyMessage { get; set; }
+
+    [Parameter]
+    public Guid? SelectedId { get; set; }
+
+    [Parameter]
+    public IReadOnlySet<Guid> FailedCollections { get; set; } = new HashSet<Guid>();
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    [Parameter]
+    public EventCallback<string> FilterChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<ShellRow> ToggleRow { get; set; }
+
+    [Parameter]
+    public EventCallback<ShellRow> SelectRow { get; set; }
+
+    [Parameter]
+    public EventCallback NewCollection { get; set; }
+
+    /// <summary>The deepest indent class the stylesheet defines. Deeper rows, which the service does not produce, use the last one.</summary>
+    private const int MaximumIndent = 8;
+
+    private static int IndentClass(int depth) => Math.Clamp(depth, 0, MaximumIndent);
+
+    private static string TestId(ShellRow row) => row.Kind switch
+    {
+        ShellRowKind.Collection => $"tree-collection-{row.Id}",
+        ShellRowKind.Folder => $"tree-folder-{row.Id}",
+        _ => $"tree-request-{row.Id}",
+    };
+
+    private Task OnFilterInput(ChangeEventArgs args) => FilterChanged.InvokeAsync(args.Value?.ToString() ?? string.Empty);
+}

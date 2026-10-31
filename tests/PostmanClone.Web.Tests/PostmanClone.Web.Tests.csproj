@@ -11,6 +11,9 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\PostmanClone.Web\PostmanClone.Web.csproj" />
     <ProjectReference Include="..\PostmanClone.TestKit\PostmanClone.TestKit.csproj" />
+    <!-- CollectionsService's types, for the round-trip test only (CONTRACTS §5). The alias keeps its global Program out of
+         this project: the Web host's Program is what WebApplicationFactory<Program> names. -->
+    <ProjectReference Include="..\..\src\PostmanClone.CollectionsService\PostmanClone.CollectionsService.csproj" Aliases="collections" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
