@@ -21,7 +21,7 @@ flowchart LR
 
   W -- "login, refresh, me, organizations<br/>(bearer held on the server)" --> A
   W -- "bearer" --> C[CollectionsService<br/>dev port 5301]
-  W -. "planned, WP20-22" .-> X[ExecutionService<br/>dev port 5303]
+  W -- "send on behalf of the user (WP20)" --> X[ExecutionService<br/>dev port 5303]
 
   C -- "JWKS / discovery" --> A
   E[EnvironmentsService<br/>dev port 5302] -- "JWKS / discovery" --> A
@@ -41,7 +41,7 @@ server holds four service databases, and authservice has its own (`authdb`). The
 (`scripts/run-local-stack.sh`) runs the same services as processes on fixed ports; see
 [OPERATIONS.md](OPERATIONS.md#4-running-locally).
 
-The dashed edge is not built: the Web does not call ExecutionService yet (WP20 adds the send path).
+The Web's builder sends through ExecutionService (WP19 and WP20). The Web's list of services and their discovery names are in `Api/BackendServices.cs`.
 
 ## 2. Bounded contexts and data ownership
 
@@ -88,7 +88,7 @@ sequenceDiagram
   B->>W: GET /sign-in
   W-->>B: 200 form with antiforgery token
   B->>W: POST /sign-in (form, antiforgery token)
-  Note over W: Origin guard runs first. A POST whose Origin is "null"<br/>is refused here (403); see OPEN-ITEMS OI-01.
+  Note over W: Origin guard runs first. The browser sends a real Origin because<br/>Referrer-Policy is same-origin (ADR-0022); OI-01 is fixed.
   W->>A: POST /api/v1/auth/login {email, password}
   A-->>W: 200 TokenResponse (access + refresh)
   W->>W: verify the access token signature against authservice JWKS
@@ -102,7 +102,7 @@ the current one, see [AUTH.md](AUTH.md#differences-from-contracts-6)), then clea
 
 Other browser-side rules, all implemented: an origin guard before antiforgery, a Content-Security-Policy that
 allows only `'self'`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`
-(the last one causes OI-01), no JavaScript interop, no `localStorage` or `sessionStorage` (verified by search).
+(same-origin since ADR-0022; `no-referrer` caused OI-01), no JavaScript interop, no `localStorage` or `sessionStorage` (verified by search).
 
 ## 5. Send flow: `POST /api/v1/execute`
 
@@ -112,7 +112,7 @@ one most worth reading.
 ```mermaid
 sequenceDiagram
   autonumber
-  participant C as Caller (bearer)
+  participant C as Caller (an API client, or the Web for the signed-in user)
   participant X as ExecutionService
   participant E as EnvironmentsService
   participant G as GuardedConnector (SSRF guard)
@@ -162,6 +162,11 @@ The loopback and private-range relaxations exist for the test suite and the loca
 `enforced`, and `/health` reports it (`ssrfProtection`).
 
 ## 6. Import flow
+
+The Web's `/import` page (WP23) posts the file or the cURL command to CollectionsService with the signed-in
+user's token, held on the server. `/requests/{id}/curl` shows the cURL of one request, and
+`GET /download/collections/{id}` is the Web's authorized download of a collection's Postman file (ADR-0021).
+The service's own rules apply to every upload, whichever client sends it.
 
 ```mermaid
 flowchart TD
@@ -226,4 +231,4 @@ Each rule is shown to fail on a broken sample held in memory.
 ## 9. Repository layout
 
 The directory tree is in [README.md](../README.md#repository-layout). The kernel is
-`src/PostmanClone.ServiceDefaults` (726 of 800 allowed lines, checked by `scripts/check-kernel-size.sh`).
+`src/PostmanClone.ServiceDefaults` (756 of 800 allowed lines, checked by `scripts/check-kernel-size.sh`).

@@ -1,7 +1,7 @@
 # Testing
 
 What each layer proves, what runs where, what was run for this page, and what has never run. Counts and
-results are from the session that wrote WP27 (2026-10-31, .NET SDK 10.0.114, PostgreSQL 16 on localhost).
+results are from the WP27 session on the merged tree (2026-10-31, .NET SDK 10.0.114, PostgreSQL 16 on localhost).
 
 ## 1. Layers
 
@@ -27,12 +27,15 @@ Discovered with `dotnet test --project <p> --list-tests`, and the full run total
 
 | Project | Tests |
 |---|---|
-| `PostmanClone.ServiceDefaults.Tests` (includes the architecture rules) | 104 |
+| `PostmanClone.ServiceDefaults.Tests` (includes the architecture rules) | 110 |
 | `PostmanClone.CollectionsService.Tests` | 457 |
 | `PostmanClone.EnvironmentsService.Tests` | 86 |
 | `PostmanClone.ExecutionService.Tests` | 699 |
-| `PostmanClone.Web.Tests` | 253 |
-| **Total** | **1599** |
+| `PostmanClone.Web.Tests` | 567 |
+| Sum of the list | 1919 |
+| **Run total** (`dotnet test --solution`) | **1927** |
+
+The run total is eight more than the list. The eight are not attributed to a project here (OI-17).
 
 `PostmanClone.TestKit` (shared fixtures, `TestTokens`, `PostgresFixture`, `FakeHttpMessageHandler`) and `tests/Shared/validation-cases.json`
 (the case list the server validator reads) contain no tests of their own.
@@ -40,7 +43,7 @@ Discovered with `dotnet test --project <p> --list-tests`, and the full run total
 Eleven test files take the PostgreSQL path, which runs only when `TEST_POSTGRES` is set. Without it those tests are
 skipped, not failing: CI sets it, and so does any run that should prove the PostgreSQL paths.
 
-**Skipped:** one test, `CollectionSearchTests.Search_treats_backslash_as_a_literal_character` on the InMemory provider. It
+**Skipped:** one test (run total 1927: 1926 passed, 1 skipped), `CollectionSearchTests.Search_treats_backslash_as_a_literal_character` on the InMemory provider. It
 calls `Assert.Skip` with the reason *the InMemory provider's LIKE does not implement the backslash escape; the PostgreSQL run
 covers it*. The PostgreSQL run of the same assertion passes.
 
@@ -49,18 +52,18 @@ covers it*. The PostgreSQL run of the same assertion passes.
 | Command | Result |
 |---|---|
 | `dotnet build PostmanClone.sln` (Debug) | 0 warnings, 0 errors |
-| `TEST_POSTGRES=... dotnet test --solution PostmanClone.sln` (Debug) | 1599 total, 1598 passed, 1 skipped (above), 0 failed |
-| `dotnet build PostmanClone.sln -c Release` and `dotnet test --solution PostmanClone.sln -c Release --no-build` | 1599 total, 1598 passed, 1 skipped, 0 failed |
+| `TEST_POSTGRES=... dotnet test --solution PostmanClone.sln` (Debug) | 1927 total, 1926 passed, 1 skipped (above), 0 failed |
+| `dotnet build PostmanClone.sln -c Release` and `dotnet test --solution PostmanClone.sln -c Release --no-build` | 1927 total, 1926 passed, 1 skipped, 0 failed |
 | `dotnet test --project tests/PostmanClone.ServiceDefaults.Tests -c Release --no-build --filter FullyQualifiedName~TelemetryTests` | **1 failed** (see §5, OI-06) |
-| `dotnet list PostmanClone.sln package --vulnerable --include-transitive` | no vulnerable packages |
-| `scripts/check-kernel-size.sh` | 726 of 800 lines |
-| `scripts/check-doc-links.sh` | 73 relative links resolve |
+| `dotnet list PostmanClone.sln package --vulnerable --include-transitive` | no vulnerable packages in any of the 12 projects |
+| `scripts/check-kernel-size.sh` | 756 of 800 lines |
+| `scripts/check-doc-links.sh` | 101 relative links resolve |
 | `scripts/gen-dev-secrets.sh`, `scripts/run-local-stack.sh up` | authservice v0.3.4, CollectionsService and ExecutionService healthy; the databases created |
 | `scripts/smoke-auth.sh` | PASS against the running authservice |
 | `scripts/run-local-stack.sh status` | all three report running and healthy |
 | `scripts/hooks/pre-commit` (staged dummy secret) | refused, exit 1; with nothing staged, clean |
 | Ad hoc sender and collections checks (curl, not committed) | collection create 201; loopback target `blocked` `ssrf_blocked_address`; `environmentId` `502 upstream_unavailable`; history list 200 |
-| Ad hoc Web checks (curl and headless Chromium, not committed) | curl sign-in works with the settings in OPERATIONS §4.3; **a browser sign-in POST returns 403** (OI-01) |
+| Ad hoc Web checks (curl and headless Chromium, not committed) | curl sign-in works with the settings in OPERATIONS §4.3; **a browser sign-in completes** and lands on `/no-workspace` (OI-01, fixed by WP18b; before it returned 403) |
 
 The ad hoc scripts lived in the session's scratch directory and are not part of the repository. The repository's own
 check for the sign-in journey is the E2E layer, which does not exist yet.
@@ -103,7 +106,7 @@ check for the sign-in journey is the E2E layer, which does not exist yet.
 | The AppHost (`dotnet run --project src/PostmanClone.AppHost`) | no Docker daemon in sessions | a machine with Docker, once per release |
 | `docker build` of any of the four Dockerfiles, here | no Docker daemon | CI's `docker-build` job (not yet seen green for this head at the time of writing) |
 | The E2E journeys | not built (WP26) | WP26 |
-| A browser sign-in that completes | the origin guard refuses the browser's `Origin: null` (OI-01); this was seen, not fixed | fixing OI-01, then an E2E journey |
+| The Web's send path in a browser | the builder and viewer were tested with fakes (WP20); not run live here (OI-24) | an E2E journey (WP26) |
 | The OTLP exporter against a collector | no collector; no test covers the branch | an integration test with a stub collector (OI-18) |
 | Layout at 390 px and both themes, in a real browser | WP07 and WP18 checked widths headlessly; no browser suite | WP26 journey 11 |
 | Real internet egress from the sender | the SSRF tests use loopback targets and scripted resolvers; no public host was contacted | a manual check against one public host with the default settings |
@@ -122,8 +125,8 @@ TESTING-STRATEGY names four situations where a human must test, because automati
 
 So none of the four situations requires a scheduled human pass. The manual checks that do apply are:
 
-1. **Sign-in in a real browser**, both correct and wrong passwords, then sign-out. Expected today: the form POST is refused
-   with 403 (OI-01). Re-run after the fix.
+1. **Sign-in in a real browser**, both correct and wrong passwords, then sign-out. Headless Chromium completes a correct sign-in
+   (checked 2026-10-31). A human pass is still wanted for the wrong-password message and sign-out.
 2. **Invitation round trip** with two accounts, using the token from the authservice log (AUTH.md, Members and invitations).
    Done once live in WP24; repeat after any change to the flow.
 3. **Layout at 390 px and in dark mode**, on the home page and the members page.

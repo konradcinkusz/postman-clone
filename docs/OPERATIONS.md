@@ -149,18 +149,24 @@ the Web with the addresses of the local stack:
 ```bash
 env services__authservice__http__0=http://localhost:5300 \
     services__collections-service__http__0=http://localhost:5301 \
+    services__execution-service__http__0=http://localhost:5303 \
+    services__environments-service__http__0=http://localhost:5302 \
     Auth__MetadataAddress=http://localhost:5300/.well-known/openid-configuration \
+    ASPNETCORE_ENVIRONMENT=Development \
     dotnet run --project src/PostmanClone.Web
 ```
 
-Without these settings the Web answers the sign-in form with `error=unavailable`: the sign-in POST reaches
-authservice, but the token check fails because the metadata address does not resolve. The Web then listens on
+The last two discovery settings are needed only for sending from the builder (WP19, WP20). EnvironmentsService is not in the
+no-Docker stack (§4.2), so a send that names an environment answers 502 there.
+
+Without these settings the Web answers the sign-in form with `error=unavailable`. In the test on 2026-10-31, the discovery
+names alone still gave `error=unavailable` for a correct password (the token check failed); the metadata address and the Development
+environment were needed as well. Each setting was not tested alone. The Web then listens on
 `http://localhost:5310` (`launchSettings.json`).
 
-Checked on 2026-10-31: with these settings, a sign-in POST sent with curl (no `Origin` header) and the right password
-redirects to `/` and sets `pc.session`. **A POST sent by Chromium is refused with 403**: the browser sends
-`Origin: null` under `Referrer-Policy: no-referrer`, and the origin guard refuses it. Browser sign-in does not work on `main`
-(OI-01).
+Checked on 2026-10-31 on the merged tree: with these settings, a sign-in POST sent with curl (no `Origin` header) and the
+right password redirects to `/` and sets `pc.session`. A sign-in in headless Chromium also completes: the new account lands on
+`/no-workspace` with a 200. Before WP18b the browser's POST was refused with 403 (OI-01, now FIXED).
 
 ### 4.4 The AppHost (`src/PostmanClone.AppHost`, needs Docker)
 

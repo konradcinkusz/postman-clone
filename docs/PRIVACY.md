@@ -67,9 +67,16 @@ The sender does not store the response in full; only the first 64 KB of the body
 
 ### 2.5 The Web (PostmanClone.Web)
 
-Stores **nothing on disk and nothing in the browser**. Verified: the Web uses no `localStorage`, `sessionStorage`,
-or JavaScript interop. Its in-memory session store (ADR-0005, ADR-0013) holds the access and refresh tokens and the
-claims for each signed-in session; a restart empties it. The browser holds an HttpOnly cookie with a random id.
+Stores **nothing on disk and nothing in the browser**, and has no database. Verified on 2026-10-31: no file writes, no EF
+or Npgsql reference, no `localStorage`, `sessionStorage` or JavaScript interop in `src/PostmanClone.Web`. Its in-memory state:
+
+- the session store (ADR-0005, ADR-0013): the access and refresh tokens and the claims of each signed-in session;
+- the open request tabs and the builder's draft (WP18, WP19), and the last response of a send (WP20), held per circuit.
+  They are lost on a reload or a restart.
+
+A Postman file uploaded on `/import` is streamed to CollectionsService and is not kept by the Web. The Web logs the
+export outcome (the collection id and the status code) and not file contents (`CollectionDownloadEndpoints.cs:63,84`).
+The browser holds an HttpOnly cookie with a random id.
 
 ### 2.6 Logs and telemetry
 
@@ -105,6 +112,7 @@ The caller is a workspace member who already holds that secret (OI-12).
 | Environments and variables | until deleted | creator or Admin/Owner, through the API (`DELETE /api/v1/environments/{id}`) |
 | History | **200 entries per user and workspace**, trimmed on insert, oldest first (`HistoryRetentionPerUserWorkspace`). No time-based expiry. | the user, through the API: delete one or clear all (`DELETE /api/v1/history`, `DELETE /api/v1/history/{id}`). No UI until WP22. |
 | Web sessions | 8 hours idle, 7 days absolute, or until a restart | sign-out; restart |
+| Builder drafts, open tabs and the last response | until the circuit ends (reload, restart) | the user, by closing the tab or reloading |
 | Invitations | 7 days (authservice) | authservice |
 
 ## 5. Erasure and export: what actually happens
