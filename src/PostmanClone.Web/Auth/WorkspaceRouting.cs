@@ -27,6 +27,8 @@ public static class WorkspaceRouting
         "/register",
         "/legal/terms",
         "/legal/privacy",
+        // Someone with no workspace yet accepts an invitation here: that acceptance is how they get one (WP24).
+        "/accept-invitation",
     ];
 
     public static WorkspaceDecision Decide(string path, bool authenticated, WorkspaceResolution resolution)
