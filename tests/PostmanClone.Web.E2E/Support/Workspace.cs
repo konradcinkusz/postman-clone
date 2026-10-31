@@ -65,12 +65,13 @@ public static class Workspace
         await Expect(page.GetByTestId("response")).ToBeVisibleAsync();
     }
 
-    /// <summary>A new collection with one untitled request in it, opened in the builder. Returns the request's name.</summary>
-    public static async Task<string> NewRequestInNewCollectionAsync(IPage page)
+    /// <summary>A new collection with one untitled request in it, opened in the builder. Returns both names.</summary>
+    public static async Task<(string Collection, string Request)> NewRequestInNewCollectionAsync(IPage page)
     {
         var collection = $"Send {Guid.NewGuid():N}";
         await CreateCollectionAsync(page, collection);
         await SelectAsync(page, collection);
-        return await NewRequestAsync(page);
+        var request = await NewRequestAsync(page);
+        return (collection, request);
     }
 }
