@@ -20,10 +20,9 @@ public static class ServiceCollectionExtensions
     /// <summary>The connection name of this service's database, from the AppHost (<c>ConnectionStrings:collectionsdb</c>).</summary>
     public const string DatabaseConnectionName = "collectionsdb";
 
+    /// <summary>The service's own registrations. The kernel (<c>AddServiceDefaults</c>) is called by the manifest, Program.cs.</summary>
     public static WebApplicationBuilder AddCollectionsService(this WebApplicationBuilder builder)
     {
-        builder.AddServiceDefaults();
-
         builder.Services.AddJwtAuthentication(builder.Configuration);
         builder.Services.AddRateLimitingDefaults(builder.Configuration);
         builder.Services.TryAddSingleton(TimeProvider.System);

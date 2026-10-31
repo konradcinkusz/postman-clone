@@ -10,8 +10,15 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\PostmanClone.ServiceDefaults\PostmanClone.ServiceDefaults.csproj" />
     <ProjectReference Include="..\PostmanClone.TestKit\PostmanClone.TestKit.csproj" />
+    <!-- The architecture tests (WP25) host each composition root in memory to read its endpoint table. Every root
+         is a global-namespace class named Program, so each assembly gets an alias (extern alias in Architecture/Hosts.cs). -->
+    <ProjectReference Include="..\..\src\PostmanClone.CollectionsService\PostmanClone.CollectionsService.csproj" Aliases="collections" />
+    <ProjectReference Include="..\..\src\PostmanClone.EnvironmentsService\PostmanClone.EnvironmentsService.csproj" Aliases="environments" />
+    <ProjectReference Include="..\..\src\PostmanClone.ExecutionService\PostmanClone.ExecutionService.csproj" Aliases="execution" />
+    <ProjectReference Include="..\..\src\PostmanClone.Web\PostmanClone.Web.csproj" Aliases="web" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />

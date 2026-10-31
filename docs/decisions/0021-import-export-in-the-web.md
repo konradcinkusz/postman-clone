@@ -1,4 +1,4 @@
-# ADR-0020: Import and export in the Web: a streamed download and an in-circuit upload
+# ADR-0021: Import and export in the Web: a streamed download and an in-circuit upload
 
 - **Status:** Accepted
 - **Date:** 2026-10-31
