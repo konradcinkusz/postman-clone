@@ -96,8 +96,8 @@ bash scripts/check-doc-links.sh
 bash scripts/check-kernel-size.sh
 ```
 
-On 2026-10-31 (WP28, the final branch): {{TOTAL}} tests in the solution run, {{PASSED}} passed, {{SKIPPED}} skipped,
-0 failed, with `TEST_POSTGRES` set. What each layer proves, what CI runs, and what has never run are in
+On 2026-10-31 (WP28, the final branch): 2067 tests in the solution run, 2066 passed, 1 skipped (the InMemory LIKE escape case), 0 failed,
+with `TEST_POSTGRES` set. Browser journeys on the local stack: 15 strict and 20 loopback, all passed. What each layer proves, what CI runs, and what has never run are in
 [`docs/TESTING.md`](docs/TESTING.md).
 
 ## Layout

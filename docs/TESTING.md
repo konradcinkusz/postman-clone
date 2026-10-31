@@ -33,9 +33,9 @@ Discovered with `dotnet test --project <p> --list-tests`, and the full run total
 | `PostmanClone.ExecutionService.Tests` | 699 |
 | `PostmanClone.Web.Tests` | 567 |
 | Sum of the list | 1919 |
-| **Run total** (`dotnet test --solution`) | **1927** |
+| **Run total** (`dotnet test --solution`, WP28 final) | **2067** (2066 passed, 1 skipped) |
 
-The run total is eight more than the list. The eight are not attributed to a project here (OI-17).
+The per-project table is the WP27 breakdown and is not re-counted here; the WP28 run total is 2067 (§3).
 
 `PostmanClone.TestKit` (shared fixtures, `TestTokens`, `PostgresFixture`, `FakeHttpMessageHandler`) and `tests/Shared/validation-cases.json`
 (the case list the server validator reads) contain no tests of their own.
@@ -43,7 +43,7 @@ The run total is eight more than the list. The eight are not attributed to a pro
 Eleven test files take the PostgreSQL path, which runs only when `TEST_POSTGRES` is set. Without it those tests are
 skipped, not failing: CI sets it, and so does any run that should prove the PostgreSQL paths.
 
-**Skipped:** one test (run total 1927: 1926 passed, 1 skipped), `CollectionSearchTests.Search_treats_backslash_as_a_literal_character` on the InMemory provider. It
+**Skipped:** one test (WP28 run total 2067: 2066 passed, 1 skipped), `CollectionSearchTests.Search_treats_backslash_as_a_literal_character` on the InMemory provider. It
 calls `Assert.Skip` with the reason *the InMemory provider's LIKE does not implement the backslash escape; the PostgreSQL run
 covers it*. The PostgreSQL run of the same assertion passes.
 
@@ -52,12 +52,15 @@ covers it*. The PostgreSQL run of the same assertion passes.
 | Command | Result |
 |---|---|
 | `dotnet build PostmanClone.sln` (Debug) | 0 warnings, 0 errors |
-| `TEST_POSTGRES=... dotnet test --solution PostmanClone.sln` (Debug) | 1927 total, 1926 passed, 1 skipped (above), 0 failed |
-| `dotnet build PostmanClone.sln -c Release` and `dotnet test --solution PostmanClone.sln -c Release --no-build` | 1927 total, 1926 passed, 1 skipped, 0 failed |
-| `dotnet test --project tests/PostmanClone.ServiceDefaults.Tests -c Release --no-build --filter FullyQualifiedName~TelemetryTests` | **1 failed** (see §5, OI-06) |
+| `TEST_POSTGRES=... dotnet test --solution PostmanClone.sln` (Debug), WP28 final | 2067 total, 2066 passed, 1 skipped (above), 0 failed |
+| `dotnet build PostmanClone.sln` (Debug), WP28 final | 0 warnings, 0 errors |
+| `scripts/run-local-stack.sh up` (no Docker), then `scripts/smoke-auth.sh` | authservice contract PASS |
+| E2E strict set (`Mode!=loopback`), stack with `WEB_AUTH_PERMITS_PER_MINUTE=18` | 15 total, 15 passed, 0 failed |
+| E2E loopback set (`E2E_SENDER_LOOPBACK=1`, `Mode!=strict`) | 20 total, 20 passed, 0 failed |
+| `dotnet test --project tests/PostmanClone.ServiceDefaults.Tests -c Release --filter FullyQualifiedName~Requests_are_traced` (three runs) | 3 of 3 passed (OI-06 fixed in WP28) |
 | `dotnet list PostmanClone.sln package --vulnerable --include-transitive` | no vulnerable packages in any of the 12 projects |
-| `scripts/check-kernel-size.sh` | 756 of 800 lines |
-| `scripts/check-doc-links.sh` | 101 relative links resolve |
+| `scripts/check-kernel-size.sh` | 766 of 800 lines |
+| `scripts/check-doc-links.sh` | 163 relative links resolve |
 | `scripts/gen-dev-secrets.sh`, `scripts/run-local-stack.sh up` | authservice v0.3.4, CollectionsService and ExecutionService healthy; the databases created |
 | `scripts/smoke-auth.sh` | PASS against the running authservice |
 | `scripts/run-local-stack.sh status` | all three report running and healthy |
