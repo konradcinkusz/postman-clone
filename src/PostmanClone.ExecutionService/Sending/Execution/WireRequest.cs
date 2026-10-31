@@ -1,4 +1,5 @@
 using PostmanClone.ExecutionService.Sending.Assembly;
+using PostmanClone.ServiceDefaults.Telemetry;
 
 namespace PostmanClone.ExecutionService.Sending.Execution;
 
@@ -18,6 +19,8 @@ internal static class WireRequest
     public static HttpRequestMessage Build(string method, string uri, IReadOnlyList<HeaderLine> headers, byte[]? body)
     {
         var request = new HttpRequestMessage(new HttpMethod(method), uri);
+        // The target is the user's own choice: it is not traced (ServiceDefaults OutboundTelemetry).
+        request.Options.Set(OutboundTelemetry.UserTarget, true);
         var content = body is null ? null : new ByteArrayContent(body);
         foreach (var header in headers)
         {

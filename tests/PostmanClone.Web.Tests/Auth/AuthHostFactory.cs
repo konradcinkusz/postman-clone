@@ -15,7 +15,7 @@ namespace PostmanClone.Web.Tests.Auth;
 /// trusts for token signatures. The environment is Development over plain http, so the session cookie is the
 /// unprefixed one; the Secure rules have their own unit tests.
 /// </summary>
-public sealed class AuthHostFactory : WebApplicationFactory<Program>
+public class AuthHostFactory : WebApplicationFactory<Program>
 {
     private readonly TestTokens _tokens = new();
 

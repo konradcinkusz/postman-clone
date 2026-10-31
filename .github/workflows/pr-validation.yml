@@ -247,6 +247,7 @@ jobs:
       - name: Start the estate with the test-only loopback flag
         env:
           E2E_SENDER_LOOPBACK: '1'
+          WEB_AUTH_PERMITS_PER_MINUTE: '18'
         run: scripts/run-local-stack.sh up
 
       - name: Journeys that send to the local target (loopback)
@@ -257,6 +258,8 @@ jobs:
         run: scripts/run-local-stack.sh down
 
       - name: Start the estate without the loopback flag (the default configuration)
+        env:
+          WEB_AUTH_PERMITS_PER_MINUTE: '18'
         run: scripts/run-local-stack.sh up
 
       - name: Journeys that expect the sender to refuse loopback (strict)

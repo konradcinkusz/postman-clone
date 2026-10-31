@@ -306,6 +306,9 @@ up_web() {
     export ASPNETCORE_URLS="http://localhost:${WEB_PORT}"
     export ASPNETCORE_ENVIRONMENT=Development
     export Auth__MetadataAddress="http://localhost:${AUTH_PORT}/.well-known/openid-configuration"
+    # The sign-in forms' window per client address (OI-02). 10 is the product default. The browser journeys sign in from one
+    # address many times, so their run sets WEB_AUTH_PERMITS_PER_MINUTE=18 (just under the suite's own authservice budget).
+    export RateLimiting__AuthPermitsPerMinute="${WEB_AUTH_PERMITS_PER_MINUTE:-10}"
     # Service-discovery names contain hyphens, which bash cannot export, so they go through env(1).
     # The content root is the working directory. Started from anywhere else, the Web finds no wwwroot and every static
     # asset (CSS, the Blazor bundle) answers 200 with an empty body, so the page never starts its circuit.

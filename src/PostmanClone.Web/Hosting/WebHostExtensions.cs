@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.SignalR;
+using PostmanClone.ServiceDefaults.RateLimiting;
 using PostmanClone.ServiceDefaults.Security;
 using PostmanClone.Web.Api;
 using PostmanClone.Web.Auth;
@@ -44,6 +45,7 @@ public static class WebHostExtensions
 
         builder.Services.AddAntiforgery();
         builder.AddWebAuthentication();
+        builder.Services.AddRateLimitingDefaults(builder.Configuration);
         builder.Services.AddBackendClients();
         return builder;
     }
@@ -59,6 +61,8 @@ public static class WebHostExtensions
         app.UseMiddleware<OriginGuardMiddleware>();
         app.UseMiddleware<ContentSecurityPolicyMiddleware>();
         app.UseAuthentication();
+        // Before the endpoints, so a refused form post is answered 429 with the kernel's body (OI-02).
+        app.UseRateLimiter();
         app.UseAuthorization();
         app.UseAntiforgery();
         return app;
