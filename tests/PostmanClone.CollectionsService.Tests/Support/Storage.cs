@@ -123,7 +123,34 @@ public static class Storage
         return ids;
     }
 
-    /// <summary>Adds one saved request to a collection (and optionally a folder), the way WP13 will store it.</summary>
+    /// <summary>Adds saved requests to a collection without the API, to reach the per-collection request limit.</summary>
+    public static async Task AddRequestsAsync(CollectionsFactory factory, Guid workspace, Guid collection, int count, CancellationToken cancellationToken)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<CollectionsDbContext>();
+        var now = DateTimeOffset.UtcNow;
+        for (var index = 0; index < count; index++)
+        {
+            db.SavedRequests.Add(new SavedRequest
+            {
+                Id = Guid.NewGuid(),
+                WorkspaceId = workspace,
+                CollectionId = collection,
+                Name = $"Seeded {index:D4}",
+                Method = "GET",
+                Definition = System.Text.Json.JsonDocument.Parse("{\"method\":\"GET\",\"url\":\"https://example.invalid/items\"}"),
+                SortOrder = index,
+                CreatedBy = Guid.NewGuid(),
+                CreatedAt = now,
+                UpdatedAt = now,
+                Version = 1,
+            });
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>Adds one saved request to a collection (and optionally a folder), in the document shape the endpoints store.</summary>
     public static async Task AddRequestAsync(CollectionsFactory factory, Guid workspace, Guid collection, Guid? folder, string method, CancellationToken cancellationToken)
     {
         using var scope = factory.Services.CreateScope();

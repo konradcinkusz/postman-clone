@@ -55,7 +55,7 @@ public sealed record CollectionDto(
 
 public sealed record FolderDto(Guid Id, Guid CollectionId, Guid? ParentFolderId, string Name, int SortOrder);
 
-/// <summary>A saved request in a tree listing. The request endpoints that write requests arrive with WP13.</summary>
+/// <summary>A saved request in a tree listing. The full document is <see cref="SavedRequestDto"/>.</summary>
 public sealed record RequestSummary(
     Guid Id,
     Guid CollectionId,
@@ -64,6 +64,39 @@ public sealed record RequestSummary(
     string Method,
     int SortOrder,
     DateTimeOffset UpdatedAt);
+
+/// <summary>A saved request with its whole definition (CONTRACTS §2). <see cref="Version"/> is the value <c>If-Match</c> compares.</summary>
+public sealed record SavedRequestDto(
+    Guid Id,
+    Guid CollectionId,
+    Guid? FolderId,
+    string Name,
+    string? Description,
+    RequestDefinition Request,
+    int SortOrder,
+    int Version,
+    Guid CreatedBy,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+
+/// <summary>Creates a saved request in a collection, optionally inside a folder of it (CONTRACTS §2).</summary>
+public sealed record CreateRequestBody(
+    [property: Required, StringLength(200, MinimumLength = 1), RegularExpression(NameRules.NonBlank, ErrorMessage = NameRules.NonBlankMessage)] string Name,
+    Guid? FolderId,
+    [property: StringLength(500)] string? Description,
+    [property: Required] RequestDefinition Request);
+
+/// <summary>A full replacement of a saved request's name, description and definition (CONTRACTS §2: PUT).</summary>
+public sealed record UpdateRequestBody(
+    [property: Required, StringLength(200, MinimumLength = 1), RegularExpression(NameRules.NonBlank, ErrorMessage = NameRules.NonBlankMessage)] string Name,
+    [property: StringLength(500)] string? Description,
+    [property: Required] RequestDefinition Request);
+
+/// <summary>
+/// Moves a saved request into <see cref="CollectionId"/> (null: its current collection) and <see cref="FolderId"/>
+/// (null: the top of that collection), at <see cref="SortOrder"/> (null: last, or its place when it stays in its folder).
+/// </summary>
+public sealed record MoveRequestBody(Guid? CollectionId, Guid? FolderId, [property: Range(0, int.MaxValue)] int? SortOrder);
 
 /// <summary>The whole collection as a flat list; the client builds the tree from <see cref="FolderDto.ParentFolderId"/>.</summary>
 public sealed record CollectionTree(CollectionDto Collection, IReadOnlyList<FolderDto> Folders, IReadOnlyList<RequestSummary> Requests);

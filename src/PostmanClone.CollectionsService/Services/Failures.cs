@@ -30,4 +30,27 @@ public static class Failures
         "validation_failed",
         "One or more values are invalid.",
         new Dictionary<string, string[]> { [field] = [message] });
+
+    /// <summary>A request definition over <see cref="RequestDefinitionLimits.MaxJsonBytes"/> (CONTRACTS §2: 413).</summary>
+    public static Failure PayloadTooLarge() => new(
+        StatusCodes.Status413PayloadTooLarge,
+        "payload_too_large",
+        $"The request definition is larger than {RequestDefinitionLimits.MaxJsonBytes} bytes of JSON.");
+
+    /// <summary>
+    /// The refusal for a definition that broke a rule. A secret literal answers <c>secret_literal_not_allowed</c>
+    /// (CONTRACTS §1); every other rule answers <c>validation_failed</c>. Either way the messages are named by field.
+    /// </summary>
+    public static Failure FromIssues(RequestValidation validation)
+    {
+        var errors = validation.Issues
+            .GroupBy(issue => issue.Field)
+            .ToDictionary(group => group.Key, group => group.Select(issue => issue.Message).ToArray());
+
+        return validation.HasSecretLiteral
+            ? new Failure(StatusCodes.Status400BadRequest, RequestDefinitionValidator.SecretLiteralCode,
+                "A secret field must hold a {{variable}} reference, not a literal value.", errors)
+            : new Failure(StatusCodes.Status400BadRequest, RequestDefinitionValidator.InvalidCode,
+                "One or more values are invalid.", errors);
+    }
 }

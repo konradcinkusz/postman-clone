@@ -28,6 +28,7 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddScoped<ICollectionService, CollectionService>();
         builder.Services.AddScoped<IFolderService, FolderService>();
+        builder.Services.AddScoped<IRequestService, RequestService>();
 
         if (builder.Environment.IsDevelopment())
         {
