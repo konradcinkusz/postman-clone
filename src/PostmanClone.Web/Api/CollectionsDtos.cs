@@ -92,3 +92,17 @@ public sealed record CreateSavedRequestBody(string Name, Guid? FolderId, string?
 
 /// <summary>Moves a saved request. Null <see cref="CollectionId"/> keeps it in its collection; null <see cref="FolderId"/> puts it at the top.</summary>
 public sealed record MoveRequestBody(Guid? CollectionId, Guid? FolderId, int? SortOrder);
+
+// Import results and their bodies (CONTRACTS §2, src/PostmanClone.CollectionsService/Contracts/ImportContracts.cs).
+
+/// <summary>
+/// One thing an import did not carry over. The <see cref="Message"/> never repeats a value from the file, and the <see cref="Path"/>
+/// names the item in the source (for example <c>$.item[3]</c> or <c>command[2]</c>).
+/// </summary>
+public sealed record ImportWarning(string Code, string Message, string Path);
+
+/// <summary>The outcome of an import. A cURL import creates one request and no folders.</summary>
+public sealed record ImportResult(Guid CollectionId, string CollectionName, int FoldersCreated, int RequestsCreated, List<ImportWarning> Warnings);
+
+/// <summary>Imports one cURL command into a collection, optionally inside a folder (CONTRACTS §2).</summary>
+public sealed record CurlImportBody(string Command, Guid CollectionId, Guid? FolderId);

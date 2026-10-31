@@ -146,6 +146,14 @@ else
                             <button type="button" class="btn" data-testid="action-duplicate" disabled="@_busy" @onclick="DuplicateAsync">Duplicate</button>
                             <button type="button" class="btn" data-testid="action-move" disabled="@_busy" @onclick="BeginMove">Move to…</button>
                         }
+                        @if (_selected.Kind == ShellRowKind.Collection)
+                        {
+                            <a class="btn" href="/download/collections/@_selected.Id" download data-enhance-nav="false" data-testid="action-export-postman">Export as Postman</a>
+                        }
+                        @if (_selected.Kind == ShellRowKind.Request)
+                        {
+                            <a class="btn" href="/requests/@_selected.Id/curl" data-enhance-nav="false" data-testid="action-copy-curl">Copy as cURL</a>
+                        }
                         @if (CanDeleteSelected)
                         {
                             <button type="button" class="btn btn-danger" data-testid="action-delete" disabled="@_busy" @onclick="BeginDelete">Delete…</button>

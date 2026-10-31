@@ -1,0 +1,81 @@
+@page "/requests/{RequestId:guid}/curl"
+@using Microsoft.AspNetCore.Components.Authorization
+@using PostmanClone.Web.Api
+@using PostmanClone.Web.Auth
+@using PostmanClone.Web.Collections
+@inject WorkspaceState State
+@inject WorkspaceShell Shell
+@inject AuthenticationStateProvider AuthenticationState
+@implements IDisposable
+
+<PageTitle>Copy as cURL · PostmanClone</PageTitle>
+
+<h1 data-testid="page-title">Copy as cURL</h1>
+
+<p><a class="btn" href="/" data-testid="curl-back">Back to the workspace</a></p>
+
+@if (_error is { } error)
+{
+    <div class="callout callout-danger" role="alert" data-testid="curl-error">@error</div>
+}
+
+@if (_command is { } command)
+{
+    <section class="card stack" aria-labelledby="curl-heading" data-testid="curl-section">
+        <h2 id="curl-heading">The command</h2>
+        <p class="hint">
+            The command is shown as text, and nothing runs it here. Select it to copy it. A value such as
+            <code>{{token}}</code> is a variable reference, filled from the environment when the request is sent.
+        </p>
+        <pre class="curl-command" tabindex="0" data-testid="curl-command">@command</pre>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public Guid RequestId { get; set; }
+
+    private readonly CancellationTokenSource _cancellation = new();
+    private string? _command;
+    private string? _error;
+
+    /// <summary>
+    /// Runs during prerender too: the command is read-only, so the double call is accepted (BLAZOR-WEB-APP §3). A request that
+    /// is absent or belongs to another workspace is the same "no longer exists" answer (CONTRACTS §0).
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        await State.CaptureAsync(AuthenticationState);
+        if (!Shell.HasWorkspace)
+        {
+            _error = CollectionMessages.For(CollectionOutcome.NoWorkspace, null);
+            return;
+        }
+
+        try
+        {
+            var answer = await Shell.RequestCurlAsync(RequestId, _cancellation.Token);
+            if (answer.Value is { } command)
+            {
+                _command = command;
+                return;
+            }
+
+            _error = CollectionMessages.For(answer.Outcome, answer.Code);
+        }
+        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+        {
+            // The circuit closed. Nothing is shown to nobody.
+        }
+        catch (Exception)
+        {
+            _error = CollectionMessages.For(CollectionOutcome.Unavailable, null);
+        }
+    }
+
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+}

@@ -192,4 +192,8 @@ records differences in `docs/AUTH.md`; a difference is an Amendment, not a silen
 
 ## Amendments
 
-_(none yet — append `### A<n> (WP<nn>): <what, why, optional-only>` here)_
+### A1 (WP23): Web route `/requests/{id}/curl` (Copy as cURL)
+
+A new **Web page**, not an API route, so the API contract is unchanged. It shows the text of `GET /api/v1/requests/{id}/export/curl`
+(§2) in a read-only block. A request that is absent or belongs to another workspace is the same "no longer exists" answer (§0).
+Optional only: no existing route, field, limit or status changes. Recorded in [ADR-0021](../decisions/0021-import-export-in-the-web.md).

@@ -52,6 +52,36 @@ public sealed class FakeCollectionsService
     /// <summary>When set, deleting a collection answers <c>403 forbidden</c>, as for a Member who did not create it.</summary>
     public bool ForbidCollectionDelete { get; set; }
 
+    /// <summary>The Postman file the export route answers with. Tests set it to a value they can recognise in the output.</summary>
+    public string ExportBody { get; set; } = "{\"info\":{\"name\":\"Billing\"},\"item\":[]}";
+
+    /// <summary>The file name the export route names the download.</summary>
+    public string ExportFileName { get; set; } = "Billing.postman_collection.json";
+
+    /// <summary>The command the cURL export route answers with.</summary>
+    public string CurlText { get; set; } = "curl 'https://api.example.test/items' --request GET";
+
+    /// <summary>When set, the import routes answer this status and problem code, and store nothing.</summary>
+    public (HttpStatusCode Status, string Code)? ImportRefusal { get; set; }
+
+    /// <summary>The warnings a successful import reports.</summary>
+    public List<ImportWarning> NextWarnings { get; } = [];
+
+    /// <summary>The collection name a Postman import creates.</summary>
+    public string NextImportName { get; set; } = "Imported";
+
+    /// <summary>The multipart body of the last Postman import, as text.</summary>
+    public string? LastImportContent { get; private set; }
+
+    /// <summary>The media type of the last Postman import's body, which must be <c>multipart/form-data</c>.</summary>
+    public string? LastImportMediaType { get; private set; }
+
+    /// <summary>The command of the last cURL import.</summary>
+    public string? LastCurlCommand { get; private set; }
+
+    /// <summary>The folder a cURL import named, or null for the top of the collection.</summary>
+    public Guid? LastCurlFolder { get; private set; }
+
     public Guid AddCollection(string name, Guid? createdBy = null, string? description = null)
     {
         var id = Guid.NewGuid();
@@ -99,6 +129,25 @@ public sealed class FakeCollectionsService
     public Guid? RequestFolder(Guid id) => _requests.TryGetValue(id, out var saved) ? saved.Folder : null;
 
     public int RequestVersion(Guid id) => _requests[id].Version;
+
+    /// <summary>Forgets every collection, folder, request and call, and every switch. A class of tests shares one host, so each test starts here.</summary>
+    public void Reset()
+    {
+        _collections.Clear();
+        _folders.Clear();
+        _requests.Clear();
+        _calls.Clear();
+        FailingTrees.Clear();
+        ImportRefusal = null;
+        NextWarnings.Clear();
+        Unavailable = false;
+        ForbidCollectionDelete = false;
+        LastImportContent = null;
+        LastImportMediaType = null;
+        LastCurlCommand = null;
+        LastCurlFolder = null;
+        LastBearer = null;
+    }
 
     private HttpResponseMessage Respond(HttpRequestMessage request)
     {
@@ -162,7 +211,87 @@ public sealed class FakeCollectionsService
             return Move(moveId, request);
         }
 
+        if (method == "GET" && Match(route, @"^/api/v1/collections/(?<id>[0-9a-f-]{36})/export/postman$", out var exportId))
+        {
+            return Export(exportId);
+        }
+
+        if (method == "GET" && Match(route, @"^/api/v1/requests/(?<id>[0-9a-f-]{36})/export/curl$", out var curlId))
+        {
+            return ExportCurl(curlId);
+        }
+
+        if (method == "POST" && route == "/api/v1/import/postman")
+        {
+            return ImportPostman(request);
+        }
+
+        if (method == "POST" && route == "/api/v1/import/curl")
+        {
+            return ImportCurl(request);
+        }
+
         return Problem(HttpStatusCode.NotFound, "not_found", "No such route.");
+    }
+
+    private HttpResponseMessage Export(Guid collectionId)
+    {
+        if (!_collections.ContainsKey(collectionId))
+        {
+            return NotFound();
+        }
+
+        var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(ExportBody, System.Text.Encoding.UTF8, "application/json") };
+        response.Content.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment") { FileName = ExportFileName };
+        return response;
+    }
+
+    private HttpResponseMessage ExportCurl(Guid requestId)
+    {
+        if (!_requests.ContainsKey(requestId))
+        {
+            return NotFound();
+        }
+
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(CurlText, System.Text.Encoding.UTF8, "text/plain") };
+    }
+
+    private HttpResponseMessage ImportPostman(HttpRequestMessage request)
+    {
+        LastImportContent = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+        LastImportMediaType = request.Content.Headers.ContentType?.MediaType;
+        if (ImportRefusal is { } refusal)
+        {
+            return Problem(refusal.Status, refusal.Code, "The import was refused.");
+        }
+
+        var id = AddCollection(NextImportName);
+        return Json201(new ImportResult(id, NextImportName, FoldersCreated: 0, RequestsCreated: 0, NextWarnings.ToList()));
+    }
+
+    private HttpResponseMessage ImportCurl(HttpRequestMessage request)
+    {
+        var body = Read<CurlImportBody>(request);
+        LastCurlCommand = body.Command;
+        LastCurlFolder = body.FolderId;
+        if (ImportRefusal is { } refusal)
+        {
+            return Problem(refusal.Status, refusal.Code, "The import was refused.");
+        }
+
+        if (!_collections.TryGetValue(body.CollectionId, out var collection))
+        {
+            return NotFound();
+        }
+
+        // Like the service: a command that does not start with curl is refused, and nothing is written.
+        if (!body.Command.TrimStart().StartsWith("curl", StringComparison.OrdinalIgnoreCase))
+        {
+            return Problem(HttpStatusCode.BadRequest, "import_invalid", "The command is not a cURL command.");
+        }
+
+        AddRequest(body.CollectionId, "Imported request", body.FolderId);
+        return Json201(new ImportResult(body.CollectionId, collection.Name, FoldersCreated: 0, RequestsCreated: 1, NextWarnings.ToList()));
     }
 
     private HttpResponseMessage ListCollections(string query)
