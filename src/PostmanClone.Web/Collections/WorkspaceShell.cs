@@ -111,6 +111,21 @@ public sealed class WorkspaceShell(WorkspaceState workspace, CircuitSession sess
             cancellationToken);
     }
 
+    /// <summary>Reads one saved request with its definition and version (the builder opens a tab with it).</summary>
+    public Task<CollectionAnswer<SavedRequestDto>> LoadRequestAsync(Guid requestId, CancellationToken cancellationToken) =>
+        WithTokenAsync((token, ct) => collections.GetRequestAsync(token, requestId, ct), cancellationToken);
+
+    /// <summary>
+    /// Writes a saved request's name and definition. With <paramref name="expectedVersion"/> the service refuses a write over a newer
+    /// version: the answer is then <see cref="CollectionOutcome.Conflict"/>, and nothing was written (CONTRACTS §2).
+    /// </summary>
+    public Task<CollectionAnswer<SavedRequestDto>> SaveRequestAsync(Guid requestId, string name, string? description, RequestDefinition definition, int? expectedVersion, CancellationToken cancellationToken) =>
+        WithTokenAsync((token, ct) => collections.UpdateRequestAsync(token, requestId, new UpdateSavedRequestBody(name, description, definition), expectedVersion, ct), cancellationToken);
+
+    /// <summary>Creates a saved request in a collection (and folder, when given) and returns it with its id and version.</summary>
+    public Task<CollectionAnswer<SavedRequestDto>> CreateRequestAsync(Guid collectionId, Guid? folderId, string name, string? description, RequestDefinition definition, CancellationToken cancellationToken) =>
+        WithTokenAsync((token, ct) => collections.CreateRequestAsync(token, collectionId, new CreateSavedRequestBody(name, folderId, description, definition), ct), cancellationToken);
+
     public Task<CollectionAnswer<SavedRequestDto>> DuplicateRequestAsync(Guid requestId, CancellationToken cancellationToken) =>
         WithTokenAsync((token, ct) => collections.DuplicateRequestAsync(token, requestId, ct), cancellationToken);
 
@@ -120,6 +135,18 @@ public sealed class WorkspaceShell(WorkspaceState workspace, CircuitSession sess
 
     public Task<CollectionAnswer> DeleteRequestAsync(Guid requestId, CancellationToken cancellationToken) =>
         WithTokenAsync((token, ct) => collections.DeleteRequestAsync(token, requestId, ct), cancellationToken);
+
+    /// <summary>Imports a Postman file into a new collection. The stream is the browser's upload, read as it is sent (CONTRACTS §2).</summary>
+    public Task<CollectionAnswer<ImportResult>> ImportPostmanAsync(Stream file, string fileName, CancellationToken cancellationToken) =>
+        WithTokenAsync((token, ct) => collections.ImportPostmanAsync(token, file, fileName, ct), cancellationToken);
+
+    /// <summary>Imports one cURL command as a request, into a collection or a folder of it.</summary>
+    public Task<CollectionAnswer<ImportResult>> ImportCurlAsync(string command, Guid collectionId, Guid? folderId, CancellationToken cancellationToken) =>
+        WithTokenAsync((token, ct) => collections.ImportCurlAsync(token, new CurlImportBody(command, collectionId, folderId), ct), cancellationToken);
+
+    /// <summary>The request as a cURL command. The service renders it; the Web shows it and does not run it.</summary>
+    public Task<CollectionAnswer<string>> RequestCurlAsync(Guid requestId, CancellationToken cancellationToken) =>
+        WithTokenAsync((token, ct) => collections.GetRequestCurlAsync(token, requestId, ct), cancellationToken);
 
     private async Task<(string? Token, CollectionOutcome? Failure)> CurrentTokenAsync(CancellationToken cancellationToken)
     {

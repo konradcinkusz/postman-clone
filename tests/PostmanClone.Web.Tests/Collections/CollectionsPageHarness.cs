@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PostmanClone.Web.Api;
 using PostmanClone.Web.Auth;
 using PostmanClone.Web.Collections;
+using PostmanClone.Web.Response;
 using PostmanClone.Web.Tests.Auth;
 
 namespace PostmanClone.Web.Tests.Collections;
@@ -16,7 +17,7 @@ namespace PostmanClone.Web.Tests.Collections;
 /// </summary>
 internal static class CollectionsPageHarness
 {
-    public static BunitContext Create(AuthHarness harness, ClaimsPrincipal principal, FakeCollectionsService collections)
+    public static BunitContext Create(AuthHarness harness, ClaimsPrincipal principal, FakeCollectionsService collections, IExecutionGateway? gateway = null)
     {
         var context = new BunitContext();
         var state = new WorkspaceState();
@@ -32,12 +33,25 @@ internal static class CollectionsPageHarness
         context.Services.AddSingleton(state);
         context.Services.AddSingleton<AuthenticationStateProvider>(new FixedAuthentication(principal));
         context.Services.AddSingleton(session);
-        context.Services.AddSingleton(new WorkspaceShell(state, session, client, harness.Client));
+        var shell = new WorkspaceShell(state, session, client, harness.Client);
+        context.Services.AddSingleton(shell);
+        context.Services.AddSingleton(new RequestWorkbench(shell));
+        // The sender (WP20) is registered as the host registers it; these page tests do not send, so the gateway answers nothing.
+        var sender = gateway ?? new UnusedExecutionGateway();
+        context.Services.AddSingleton(sender);
+        context.Services.AddSingleton(new SendCoordinator(sender, new EnvironmentSelection()));
         return context;
     }
 
     private sealed class FixedAuthentication(ClaimsPrincipal principal) : AuthenticationStateProvider
     {
         public override Task<AuthenticationState> GetAuthenticationStateAsync() => Task.FromResult(new AuthenticationState(principal));
+    }
+
+    /// <summary>A gateway for pages that never send: any call answers that the sender is unavailable.</summary>
+    private sealed class UnusedExecutionGateway : PostmanClone.Web.Response.IExecutionGateway
+    {
+        public Task<PostmanClone.Web.Api.CollectionAnswer<PostmanClone.Web.Api.ExecutionResultDto>> ExecuteAsync(PostmanClone.Web.Api.ExecuteBody body, CancellationToken cancellationToken) =>
+            Task.FromResult(new PostmanClone.Web.Api.CollectionAnswer<PostmanClone.Web.Api.ExecutionResultDto>(PostmanClone.Web.Api.CollectionOutcome.Unavailable, null, null));
     }
 }

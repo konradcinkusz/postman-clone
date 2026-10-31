@@ -1,0 +1,292 @@
+@using PostmanClone.Web.Api
+@using PostmanClone.Web.Builder
+@using PostmanClone.Web.Collections
+
+@* The request editor (WP19, ADR-0017). It shows the open request's method, URL, sections and save bar, and raises what the page
+   must do: save, reload, overwrite, save as, and choose a collection (so its folders can be listed). The page makes the calls. *@
+
+<section class="request-builder stack" data-testid="builder" aria-label="Request editor">
+    <div class="cluster builder-toolbar">
+        <MethodSelect Value="@Editor.Draft.Method" ValueChanged="SetMethodAsync" Disabled="@Busy" />
+        <div class="url-slot">
+            <UrlBar Value="@Editor.Draft.Url" ValueChanged="SetUrlAsync" Known="Known" Invalid="@(_urlIssue is not null)" />
+            @if (_urlIssue is not null)
+            {
+                <p class="field-error" data-testid="builder-url-error">@_urlIssue.Message</p>
+            }
+        </div>
+        <div class="cluster builder-send-actions">
+            <button type="button" class="btn btn-primary" data-testid="builder-send"
+                    disabled="@(Busy || Sending || _issues.Count > 0)" @onclick="() => OnSend.InvokeAsync()">Send</button>
+            @if (Sending)
+            {
+                <button type="button" class="btn btn-danger" data-testid="builder-cancel" @onclick="() => OnCancel.InvokeAsync()">Cancel</button>
+            }
+            @if (_issues.Count > 0)
+            {
+                <p class="field-error" data-testid="builder-send-blocked">Fix the marked fields before sending.</p>
+            }
+        </div>
+    </div>
+
+    @if (_tooLarge)
+    {
+        <p class="callout callout-warning" role="status" data-testid="builder-size-note">@BuilderMessages.SizeNote</p>
+    }
+
+    <div class="tabs" role="tablist" aria-label="Request sections" data-testid="builder-tabs">
+        @foreach (var section in Sections)
+        {
+            var key = section.ToString().ToLowerInvariant();
+            <button type="button"
+                    role="tab"
+                    class="tab"
+                    id="builder-tab-@key"
+                    aria-selected="@(section == _section ? "true" : "false")"
+                    aria-controls="builder-panel"
+                    data-testid="builder-tab-@key"
+                    @onclick="() => SelectSection(section)">@SectionLabel(section)</button>
+        }
+    </div>
+
+    <div class="card stack" role="tabpanel" id="builder-panel" aria-labelledby="builder-tab-@(_section.ToString().ToLowerInvariant())" data-testid="builder-panel">
+        @switch (_section)
+        {
+            case Section.Params:
+                <KeyValueEditor Draft="Editor.Draft" List="RowList.Params" Prefix="request.params" Label="Query parameters"
+                                Issues="_issues" OnChanged="ChangedAsync" />
+                break;
+            case Section.Headers:
+                <KeyValueEditor Draft="Editor.Draft" List="RowList.Headers" Prefix="request.headers" Label="Headers"
+                                Issues="_issues" OnChanged="ChangedAsync" WarnReserved="true" />
+                break;
+            case Section.Body:
+                <BodyEditor Draft="Editor.Draft" Issues="_issues" OnChanged="ChangedAsync" />
+                break;
+            default:
+                <AuthEditor Draft="Editor.Draft" Issues="_issues" OnChanged="ChangedAsync" />
+                break;
+        }
+    </div>
+
+    @if (_issues.Count > 0)
+    {
+        <p class="callout callout-warning" role="status" data-testid="builder-issues">
+            @_issues.Count @(_issues.Count == 1 ? "field needs" : "fields need") attention before this request can be saved.
+        </p>
+    }
+
+    <div class="card stack save-bar" data-testid="builder-save-bar">
+        <div class="cluster">
+            <button type="button" class="btn btn-primary" data-testid="builder-save" disabled="@Busy" @onclick="SaveAsync">Save</button>
+            <button type="button" class="btn" data-testid="builder-save-as" disabled="@Busy" aria-expanded="@(_saveAsOpen ? "true" : "false")" @onclick="ToggleSaveAs">Save as…</button>
+            @if (Editor.IsDirty)
+            {
+                <span class="badge badge-warning" role="status" data-testid="builder-dirty">@BuilderMessages.Unsaved</span>
+            }
+            else
+            {
+                <span class="badge badge-success" data-testid="builder-clean">Saved</span>
+            }
+        </div>
+
+        @if (Editor.Conflicted)
+        {
+            <div class="callout callout-warning" role="alert" data-testid="builder-conflict">
+                <p>@BuilderMessages.SaveConflict</p>
+                <div class="cluster">
+                    <button type="button" class="btn" data-testid="builder-conflict-reload" disabled="@Busy" @onclick="ReloadClickedAsync">Reload their version</button>
+                    <button type="button" class="btn btn-danger" data-testid="builder-conflict-overwrite" disabled="@Busy" @onclick="OverwriteClickedAsync">Overwrite with mine</button>
+                </div>
+            </div>
+        }
+
+        @if (_saveAsOpen)
+        {
+            <form class="stack" data-testid="builder-saveas" @onsubmit="SubmitSaveAsAsync" @onsubmit:preventDefault>
+                <h3>Save as a new request</h3>
+                <div class="field">
+                    <label for="builder-saveas-name">Name</label>
+                    <input id="builder-saveas-name" type="text" maxlength="@RequestEditor.MaximumNameLength" required autocomplete="off"
+                           data-testid="builder-saveas-name" @bind="_saveAsName" @bind:event="oninput" />
+                </div>
+                <div class="field">
+                    <label for="builder-saveas-collection">Collection</label>
+                    <select id="builder-saveas-collection" data-testid="builder-saveas-collection" @onchange="ChooseCollectionAsync">
+                        @foreach (var collection in Collections)
+                        {
+                            <option value="@collection.Id" selected="@(collection.Id.ToString() == _saveAsCollection)">@collection.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="builder-saveas-folder">Folder</label>
+                    <select id="builder-saveas-folder" data-testid="builder-saveas-folder" @bind="_saveAsFolder">
+                        <option value="">Top of the collection</option>
+                        @foreach (var choice in FolderChoices(Guid.TryParse(_saveAsCollection, out var chosen) ? chosen : Guid.Empty))
+                        {
+                            <option value="@choice.Id">@choice.Path</option>
+                        }
+                    </select>
+                </div>
+                <div class="cluster">
+                    <button type="submit" class="btn btn-primary" data-testid="builder-saveas-submit" disabled="@Busy">Save as new</button>
+                    <button type="button" class="btn" data-testid="builder-saveas-cancel" @onclick="CloseSaveAs">Cancel</button>
+                </div>
+            </form>
+        }
+    </div>
+</section>
+
+@code {
+    private enum Section
+    {
+        Params,
+        Headers,
+        Body,
+        Auth,
+    }
+
+    private static readonly Section[] Sections = [Section.Params, Section.Headers, Section.Body, Section.Auth];
+
+    private Section _section = Section.Params;
+    private IReadOnlyList<DraftIssue> _issues = [];
+    private DraftIssue? _urlIssue;
+    private bool _tooLarge;
+    private bool _saveAsOpen;
+    private string _saveAsName = string.Empty;
+    private string _saveAsCollection = string.Empty;
+    private string _saveAsFolder = string.Empty;
+
+    /// <summary>The request being edited. Its draft is changed in place by the editors below.</summary>
+    [Parameter, EditorRequired]
+    public RequestEditor Editor { get; set; } = null!;
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    /// <summary>The variable names of the selected environment (WP21). Null until one is selected.</summary>
+    [Parameter]
+    public IReadOnlySet<string>? Known { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<CollectionSummary> Collections { get; set; } = [];
+
+    /// <summary>The folders of a collection, as paths, for the save-as choice. The page loads a collection's tree when it is chosen.</summary>
+    [Parameter, EditorRequired]
+    public Func<Guid, IReadOnlyList<FolderChoice>> FolderChoices { get; set; } = _ => [];
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    /// <summary>True while a send of this request is in flight. Send is then disabled and Cancel is offered.</summary>
+    [Parameter]
+    public bool Sending { get; set; }
+
+    [Parameter]
+    public EventCallback OnSend { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    [Parameter]
+    public EventCallback OnSave { get; set; }
+
+    [Parameter]
+    public EventCallback OnReload { get; set; }
+
+    [Parameter]
+    public EventCallback OnOverwrite { get; set; }
+
+    /// <summary>Saves the draft as a new request. True when it was saved, so the panel can close.</summary>
+    [Parameter, EditorRequired]
+    public Func<string, Guid, Guid?, Task<bool>> OnSaveAs { get; set; } = (_, _, _) => Task.FromResult(false);
+
+    [Parameter]
+    public EventCallback<Guid> OnCollectionChosen { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        Refresh();
+        if (!_saveAsOpen)
+        {
+            _saveAsName = Editor.Name;
+            _saveAsCollection = Editor.CollectionId.ToString();
+            _saveAsFolder = Editor.FolderId?.ToString() ?? string.Empty;
+        }
+    }
+
+    private void Refresh()
+    {
+        _issues = Editor.Draft.Validate();
+        _urlIssue = _issues.FirstOrDefault(issue => issue.Field == "request.url");
+        _tooLarge = DraftValidator.JsonBytes(Editor.Definition) > DraftValidator.MaximumJsonBytes;
+    }
+
+    private static string SectionLabel(Section section) => section switch
+    {
+        Section.Params => "Params",
+        Section.Headers => "Headers",
+        Section.Body => "Body",
+        _ => "Auth",
+    };
+
+    private void SelectSection(Section section) => _section = section;
+
+    /// <summary>A change to the draft: the issues are recomputed, and the page marks the tab dirty.</summary>
+    private async Task ChangedAsync()
+    {
+        Refresh();
+        await OnChanged.InvokeAsync();
+    }
+
+    private Task SetMethodAsync(string method)
+    {
+        Editor.Draft.SetMethod(method);
+        return ChangedAsync();
+    }
+
+    private Task SetUrlAsync(string url)
+    {
+        Editor.Draft.SetUrl(url);
+        return ChangedAsync();
+    }
+
+    private Task SaveAsync() => OnSave.InvokeAsync();
+
+    private Task ReloadClickedAsync() => OnReload.InvokeAsync();
+
+    private Task OverwriteClickedAsync() => OnOverwrite.InvokeAsync();
+
+    private void ToggleSaveAs()
+    {
+        _saveAsOpen = !_saveAsOpen;
+    }
+
+    private void CloseSaveAs() => _saveAsOpen = false;
+
+    private async Task ChooseCollectionAsync(ChangeEventArgs args)
+    {
+        _saveAsCollection = args.Value?.ToString() ?? string.Empty;
+        _saveAsFolder = string.Empty;
+        if (Guid.TryParse(_saveAsCollection, out var collectionId))
+        {
+            await OnCollectionChosen.InvokeAsync(collectionId);
+        }
+    }
+
+    private async Task SubmitSaveAsAsync()
+    {
+        if (!Guid.TryParse(_saveAsCollection, out var collectionId))
+        {
+            return;
+        }
+
+        Guid? folderId = Guid.TryParse(_saveAsFolder, out var folder) ? folder : null;
+        var saved = await OnSaveAs(_saveAsName.Trim(), collectionId, folderId);
+        if (saved)
+        {
+            _saveAsOpen = false;
+        }
+    }
+}

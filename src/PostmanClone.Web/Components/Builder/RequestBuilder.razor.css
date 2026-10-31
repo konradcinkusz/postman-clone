@@ -1,0 +1,39 @@
+/* The request editor's layout (WP19). It stacks at 390 px; wide content scrolls in its own box. Colours come from the tokens only. */
+.builder-toolbar {
+    align-items: flex-start;
+}
+
+.builder-toolbar .method-field {
+    flex: 0 0 auto;
+}
+
+.url-slot {
+    flex: 1 1 18rem;
+    min-width: 0;
+}
+
+.save-bar {
+    gap: var(--space-3);
+}
+
+.field-error {
+    margin: 0;
+    color: var(--danger);
+    font-size: var(--text-sm);
+    font-weight: 600;
+}
+
+.hint {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+
+.badge {
+    align-self: center;
+}
+
+.builder-send-actions {
+    align-items: center;
+    flex: 0 0 auto;
+}

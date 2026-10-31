@@ -11,6 +11,7 @@ using PostmanClone.Web.Api;
 using PostmanClone.Web.Auth;
 using PostmanClone.Web.Collections;
 using PostmanClone.Web.Membership;
+using PostmanClone.Web.Response;
 
 namespace PostmanClone.Web.Hosting;
 
@@ -50,6 +51,11 @@ public static class WebAuthExtensions
         builder.Services.AddScoped<CircuitSession>();
         builder.Services.AddScoped<MembershipService>();
         builder.Services.AddScoped<WorkspaceShell>();
+        builder.Services.AddScoped<RequestWorkbench>();
+        // The sender (WP20, ADR-0023): one send per circuit, the environment chosen for it (none until WP21).
+        builder.Services.AddScoped<EnvironmentSelection>();
+        builder.Services.AddScoped<IExecutionGateway, SessionExecutionGateway>();
+        builder.Services.AddScoped<SendCoordinator>();
         builder.Services.AddScoped<CircuitHandler, WorkspaceCircuitHandler>();
         return builder;
     }
