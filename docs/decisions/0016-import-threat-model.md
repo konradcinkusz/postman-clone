@@ -85,6 +85,10 @@ collection.
 (`CollectionsTransactions.RunAsync`). The workspace's collection count is read under the workspace lock. A failure leaves nothing;
 the PostgreSQL test in `PostmanIoEndpointTests` checks it with an interceptor that fails the insert of the last table.
 
+**Warning codes.** The codes an import can return (CONTRACTS §2 names some as examples): `secret_not_imported`, `scripts_ignored`,
+`variables_ignored`, `unsupported_body`, `unsupported_auth`, `name_adjusted`, `text_truncated`, `depth_flattened`, `row_skipped`,
+`item_skipped`, and `warnings_omitted` (the count of warnings past 500). The cURL import (WP17) uses the same codes for the same things.
+
 **Export.** A deterministic Postman v2.1 file: `info._postman_id` is the collection id, folders and requests follow their sort
 orders and then their ids, and the schema URL is fixed. A request's query parameters are written after its URL in `raw`, and the
 `query` list carries the same rows. The importer takes the query text off `raw` when the enabled rows account for it, so an
