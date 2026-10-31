@@ -584,13 +584,13 @@ public static class CurlParser
             }
 
             var authority = url[start..end];
-            var at2 = authority.LastIndexOf('@');
-            if (at2 < 0)
+            var atSign = authority.LastIndexOf('@');
+            if (atSign < 0)
             {
                 return url;
             }
 
-            var userinfo = authority[..at2];
+            var userinfo = authority[..atSign];
             var colon = userinfo.IndexOf(':');
             if (colon < 0)
             {
@@ -604,7 +604,7 @@ public static class CurlParser
             }
 
             Warn(SecretNotImported, "The password in the URL was not stored. It was replaced by the variable {{password}}; define it in an environment.", at);
-            return url[..start] + userinfo[..colon] + ":" + PasswordVariable + authority[at2..] + url[end..];
+            return url[..start] + userinfo[..colon] + ":" + PasswordVariable + authority[atSign..] + url[end..];
         }
 
         private void WarnSensitiveQuery(string url, int at)
