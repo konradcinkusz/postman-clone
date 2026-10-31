@@ -32,6 +32,7 @@ Numbers are reserved per work package in
 | [0021](0021-import-export-in-the-web.md) | Import and export in the Web: a streamed download with the bearer kept on the server, an upload through the page circuit, warnings shown as text and grouped by code | Accepted |
 | [0022](0022-referrer-policy-same-origin.md) | Referrer-Policy `same-origin` so the browser sends the real Origin on a form POST; the origin guard refuses `Origin: null` and a foreign Referer on unsafe requests | Accepted |
 | [0023](0023-response-viewer-rendering.md) | Response viewer: every response value is encoded text, one send per circuit with the newest answer winning, and per-client limits on the kernel's one handler, with no retry of unsafe methods | Accepted |
+| [0024](0024-environments-ui-write-only-secrets.md) | Environments in the Web: a secret's value is write-only in the page, the chosen environment is held in the circuit, and the page checks what the service checks | Accepted |
 
 Reserved for later work packages (see WORK-PACKAGES.md):
-0018 E2E scope and charter, 0019 review outcomes. 0020 is WP25's architecture rules. 0021 is WP23's import and export UI. 0022 is WP18b's referrer policy. 0023 is WP20's response viewer. 0024–0029 are spare.
+0018 E2E scope and charter, 0019 review outcomes. 0020 is WP25's architecture rules. 0021 is WP23's import and export UI. 0022 is WP18b's referrer policy. 0023 is WP20's response viewer. 0024 is WP21's environments UI. 0025–0029 are spare.
