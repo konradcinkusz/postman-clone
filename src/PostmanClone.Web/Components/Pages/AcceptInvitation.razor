@@ -1,0 +1,62 @@
+@page "/accept-invitation"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using PostmanClone.Web.Membership
+@inject WorkspaceState State
+@inject AuthenticationStateProvider AuthenticationState
+@inject AntiforgeryStateProvider Antiforgery
+
+<PageTitle>Accept invitation · PostmanClone</PageTitle>
+
+<h1 data-testid="page-title">Accept invitation</h1>
+
+@if (_message is { } message)
+{
+    <div class="callout callout-danger" role="alert" data-testid="accept-message">@message.Text</div>
+}
+
+@if (_token is not null)
+{
+    <p>Accepting joins the workspace the invitation names, with the role it gives you.</p>
+
+    @if (_alreadyInWorkspace)
+    {
+        <div class="callout callout-warning" data-testid="accept-multiple-warning">
+            You already belong to a workspace. Accepting this one makes two, and PostmanClone does not work with two
+            workspaces until one of the memberships is removed in authservice.
+        </div>
+    }
+
+    <form method="post" action="/accept-invitation" class="stack" data-testid="accept-form">
+        <input type="hidden" name="@_antiforgery?.FormFieldName" value="@_antiforgery?.Value" />
+        <input type="hidden" name="token" value="@_token" />
+        <button type="submit" class="btn btn-primary" data-testid="accept-submit">Accept invitation</button>
+    </form>
+}
+else if (_message is null)
+{
+    <p data-testid="accept-no-token">This link does not carry an invitation. Open the link from your invitation again.</p>
+}
+
+@code {
+    /// <summary>The invitation token from the link. It is read once and sent back only as the form's hidden field.</summary>
+    [SupplyParameterFromQuery(Name = "token")]
+    public string? Token { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    private AntiforgeryRequestToken? _antiforgery;
+    private string? _token;
+    private bool _alreadyInWorkspace;
+    private (string Text, bool IsError)? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _antiforgery = Antiforgery.GetAntiforgeryToken();
+        _message = MembershipMessages.For(Error, null);
+        _token = string.IsNullOrWhiteSpace(Token) ? null : Token.Trim();
+        await State.CaptureAsync(AuthenticationState);
+        _alreadyInWorkspace = State.Resolution.IsActive;
+    }
+}

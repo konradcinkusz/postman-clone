@@ -7,6 +7,7 @@ using PostmanClone.ServiceDefaults.Security;
 using PostmanClone.Web.Api;
 using PostmanClone.Web.Auth;
 using PostmanClone.Web.Components;
+using PostmanClone.Web.Membership;
 
 namespace PostmanClone.Web.Hosting;
 
@@ -62,11 +63,12 @@ public static class WebHostExtensions
         return app;
     }
 
-    /// <summary>The static assets, the sign-in form endpoints, and the root components, both in interactive server render mode.</summary>
+    /// <summary>The static assets, the sign-in and membership form endpoints, and the root components, both in interactive server render mode.</summary>
     public static WebApplication MapWebComponents(this WebApplication app)
     {
         app.MapStaticAssets();
         app.MapAuthEndpoints();
+        app.MapMembershipEndpoints();
         app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
         return app;
     }
