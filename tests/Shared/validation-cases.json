@@ -1,0 +1,50 @@
+[
+  {
+    "input": { "method": "GET", "url": "https://example.invalid/items", "params": [{ "key": "page", "value": "1" }], "headers": [], "body": { "type": "none" }, "auth": { "type": "none" } },
+    "expectedCode": null
+  },
+  {
+    "input": { "method": "get", "url": "https://example.invalid/items", "params": [], "headers": [], "body": { "type": "none" }, "auth": { "type": "none" } },
+    "expectedCode": "validation_failed"
+  },
+  {
+    "input": { "method": "GET", "url": "", "params": [], "headers": [], "body": { "type": "none" }, "auth": { "type": "none" } },
+    "expectedCode": "validation_failed"
+  },
+  {
+    "input": { "method": "POST", "url": "https://example.invalid/items", "params": [], "headers": [{ "key": "X-A\r\nX-Evil", "value": "1" }], "body": { "type": "none" }, "auth": { "type": "none" } },
+    "expectedCode": "validation_failed"
+  },
+  {
+    "input": { "method": "POST", "url": "https://example.invalid/items", "params": [], "headers": [], "body": { "type": "raw", "rawLanguage": null, "raw": "{}" }, "auth": { "type": "none" } },
+    "expectedCode": "validation_failed"
+  },
+  {
+    "input": { "method": "POST", "url": "https://example.invalid/items", "params": [], "headers": [], "body": { "type": "none", "fields": [{ "key": "a", "value": "1" }] }, "auth": { "type": "none" } },
+    "expectedCode": "validation_failed"
+  },
+  {
+    "input": { "method": "GET", "url": "https://example.invalid/items", "params": [], "headers": [], "body": { "type": "none" }, "auth": { "type": "oauth" } },
+    "expectedCode": "validation_failed"
+  },
+  {
+    "input": { "method": "GET", "url": "https://example.invalid/items", "params": [], "headers": [], "body": { "type": "none" }, "auth": { "type": "bearer", "bearerToken": "Bearer abc" } },
+    "expectedCode": "secret_literal_not_allowed"
+  },
+  {
+    "input": { "method": "GET", "url": "https://example.invalid/items", "params": [], "headers": [], "body": { "type": "none" }, "auth": { "type": "bearer", "bearerToken": "{{a}} x" } },
+    "expectedCode": "secret_literal_not_allowed"
+  },
+  {
+    "input": { "method": "GET", "url": "https://example.invalid/items", "params": [], "headers": [], "body": { "type": "none" }, "auth": { "type": "bearer", "bearerToken": "{{a}}{{b}}" } },
+    "expectedCode": "secret_literal_not_allowed"
+  },
+  {
+    "input": { "method": "GET", "url": "https://example.invalid/items", "params": [], "headers": [], "body": { "type": "none" }, "auth": { "type": "bearer", "bearerToken": "" } },
+    "expectedCode": null
+  },
+  {
+    "input": { "method": "GET", "url": "https://example.invalid/items", "params": [], "headers": [], "body": { "type": "none" }, "auth": { "type": "bearer", "bearerToken": "{{ok.var-1}}" } },
+    "expectedCode": null
+  }
+]

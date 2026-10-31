@@ -32,8 +32,12 @@ public sealed class OpenApiTests
             "/api/v1/collections",
             "/api/v1/collections/{id}",
             "/api/v1/collections/{id}/folders",
+            "/api/v1/collections/{id}/requests",
             "/api/v1/folders/{id}",
             "/api/v1/folders/{id}/move",
+            "/api/v1/requests/{id}",
+            "/api/v1/requests/{id}/duplicate",
+            "/api/v1/requests/{id}/move",
         });
     }
 
