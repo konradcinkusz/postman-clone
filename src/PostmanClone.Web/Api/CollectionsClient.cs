@@ -264,32 +264,8 @@ public sealed class CollectionsClient(IHttpClientFactory clients)
     }
 
     /// <summary>The problem's <c>code</c> extension (CONTRACTS §0), or null when the body is not a problem with one.</summary>
-    private static async Task<string?> ProblemCodeAsync(HttpResponseMessage response, CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-            return body.RootElement.ValueKind == JsonValueKind.Object
-                && body.RootElement.TryGetProperty("code", out var code)
-                && code.ValueKind == JsonValueKind.String
-                    ? code.GetString()
-                    : null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
+    private static Task<string?> ProblemCodeAsync(HttpResponseMessage response, CancellationToken cancellationToken) =>
+        ProblemResponses.ProblemCodeAsync(response, cancellationToken);
 
-    private static CollectionOutcome FromStatus(HttpStatusCode status) => (int)status switch
-    {
-        404 => CollectionOutcome.NotFound,
-        403 => CollectionOutcome.Forbidden,
-        409 => CollectionOutcome.Conflict,
-        400 => CollectionOutcome.Invalid,
-        413 => CollectionOutcome.TooLarge,
-        429 => CollectionOutcome.RateLimited,
-        >= 400 and < 500 => CollectionOutcome.Refused,
-        _ => CollectionOutcome.Unavailable,
-    };
+    private static CollectionOutcome FromStatus(HttpStatusCode status) => ProblemResponses.FromStatus(status);
 }

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
 
 namespace PostmanClone.Web.Api;
 
@@ -11,12 +12,21 @@ public static class BackendServices
     /// <summary>The logical name of CollectionsService. The collections client resolves its HttpClient by this name.</summary>
     public const string CollectionsName = "collections";
 
+    /// <summary>The logical name of ExecutionService. Its resilience options are longer than the others (see <see cref="ConfigureExecution"/>).</summary>
+    public const string ExecutionName = "execution";
+
+    /// <summary>
+    /// How long one send may take end to end. The sender's own deadline is 60 s (CONTRACTS §4), plus the environment lookup
+    /// and the history write, so the Web waits 120 s before it gives up on the answer.
+    /// </summary>
+    public static readonly TimeSpan ExecutionTimeout = TimeSpan.FromSeconds(120);
+
     public static readonly IReadOnlyList<BackendService> All =
     [
         new(AuthServiceName, "http://authservice"),
         new(CollectionsName, "http://collections-service"),
         new("environments", "http://environments-service"),
-        new("execution", "http://execution-service"),
+        new(ExecutionName, "http://execution-service"),
     ];
 
     /// <summary>
@@ -32,11 +42,28 @@ public static class BackendServices
                 .AddHttpMessageHandler<BearerTokenHandler>();
         }
 
+        ConfigureExecution(services);
+
         services.AddScoped<IBackendStatusReader, BackendStatusReader>();
         services.AddSingleton<AuthServiceClient>();
         services.AddSingleton<CollectionsClient>();
+        services.AddSingleton<IExecutionClient, ExecutionClient>();
         return services;
     }
+
+    /// <summary>
+    /// The kernel's one resilience handler, with the execute client's own limits (ADR-0022). The handler is the kernel's; only
+    /// its options are named for this client, so the timeouts of the other backends do not change. A send is a POST, which the
+    /// handler never retries: a retry would send a third party's request twice.
+    /// </summary>
+    private static void ConfigureExecution(IServiceCollection services) => services.Configure<HttpStandardResilienceOptions>(ExecutionName, options =>
+    {
+        options.AttemptTimeout.Timeout = ExecutionTimeout;
+        options.TotalRequestTimeout.Timeout = ExecutionTimeout;
+        // The circuit breaker must sample for at least twice the attempt timeout, or the handler refuses to start.
+        options.CircuitBreaker.SamplingDuration = ExecutionTimeout + ExecutionTimeout;
+        options.Retry.DisableForUnsafeHttpMethods();
+    });
 }
 
 /// <summary>A backend's display name, which is also its HttpClient name, and its logical address.</summary>
