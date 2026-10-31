@@ -190,15 +190,15 @@
 
 @code {
     /// <summary>The list's page, from the query (<c>?page=</c>). Defaults to the first.</summary>
-    [SupplyParameterFromQuery]
+    [Parameter, SupplyParameterFromQuery]
     public int? Page { get; set; }
 
     /// <summary>The filter, from the query (<c>?q=</c>), matched against the masked URL.</summary>
-    [SupplyParameterFromQuery(Name = "q")]
+    [Parameter, SupplyParameterFromQuery(Name = "q")]
     public string? Filter { get; set; }
 
     /// <summary>The selected entry, from the query (<c>?entry=</c>).</summary>
-    [SupplyParameterFromQuery(Name = "entry")]
+    [Parameter, SupplyParameterFromQuery(Name = "entry")]
     public Guid? Entry { get; set; }
 
     /// <summary>How much of a request body the detail shows. The rest is kept by the service, and the page says so.</summary>

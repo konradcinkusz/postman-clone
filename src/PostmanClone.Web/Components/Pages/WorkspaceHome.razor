@@ -323,7 +323,7 @@ else
     private CancellationToken Token => _cancellation.Token;
 
     /// <summary>"Open in builder" from the history page (WP22): <c>/?reopen=&lt;entry id&gt;</c>. The entry opens once per page instance.</summary>
-    [SupplyParameterFromQuery(Name = "reopen")]
+    [Parameter, SupplyParameterFromQuery(Name = "reopen")]
     public Guid? Reopen { get; set; }
 
     private bool _reopenHandled;

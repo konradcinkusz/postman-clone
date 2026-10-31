@@ -17,11 +17,18 @@ namespace PostmanClone.Web.Tests.Collections;
 /// </summary>
 internal static class CollectionsPageHarness
 {
-    public static BunitContext Create(AuthHarness harness, ClaimsPrincipal principal, FakeCollectionsService collections, IExecutionGateway? gateway = null)
+    public static BunitContext Create(
+        AuthHarness harness,
+        ClaimsPrincipal principal,
+        FakeCollectionsService collections,
+        IExecutionGateway? gateway = null,
+        WorkspaceState? workspace = null,
+        CircuitSession? circuit = null)
     {
         var context = new BunitContext();
-        var state = new WorkspaceState();
-        var session = new CircuitSession(state, harness.Refresher);
+        // A caller that adds more services to the same circuit (the history, WP22) passes its own state and session.
+        var state = workspace ?? new WorkspaceState();
+        var session = circuit ?? new CircuitSession(state, harness.Refresher);
 
         var services = new ServiceCollection();
         services.AddTransient<BearerTokenHandler>();
