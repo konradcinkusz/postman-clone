@@ -27,18 +27,25 @@ public sealed class OpenApiTests
         var paths = document.RootElement.GetProperty("paths").EnumerateObject().Select(path => path.Name).ToHashSet();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Superset(paths, new HashSet<string>
+        // Every route named here must be in the document. The document may list more (WP16 adds the Postman routes).
+        var expected = new[]
         {
             "/api/v1/collections",
             "/api/v1/collections/{id}",
+            "/api/v1/collections/{id}/export/postman",
             "/api/v1/collections/{id}/folders",
             "/api/v1/collections/{id}/requests",
             "/api/v1/folders/{id}",
             "/api/v1/folders/{id}/move",
+            "/api/v1/import/postman",
             "/api/v1/requests/{id}",
             "/api/v1/requests/{id}/duplicate",
             "/api/v1/requests/{id}/move",
-        });
+        };
+        foreach (var route in expected)
+        {
+            Assert.Contains(route, paths);
+        }
     }
 
     [Fact]

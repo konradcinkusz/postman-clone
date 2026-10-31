@@ -1,0 +1,58 @@
+{
+  "info": {
+    "_postman_id": "22222222-2222-4222-8222-222222222222",
+    "name": "  Nested folders  ",
+    "description": "Folders inside folders, with requests at every level.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Admin",
+          "item": [
+            {
+              "name": "List admins",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "https://example.invalid/users/admins?page=1",
+                  "protocol": "https",
+                  "host": ["example", "invalid"],
+                  "path": ["users", "admins"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "size", "value": "20", "disabled": true }
+                  ]
+                },
+                "header": [
+                  { "key": "Accept", "value": "application/json" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get user",
+          "request": {
+            "method": "GET",
+            "url": "https://example.invalid/users/{{userId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": "https://example.invalid/health",
+        "description": "Liveness probe."
+      }
+    },
+    {
+      "name": "Empty folder",
+      "item": []
+    }
+  ]
+}
