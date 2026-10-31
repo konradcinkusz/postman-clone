@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using PostmanClone.TestKit;
 
 namespace PostmanClone.ExecutionService.Tests.Support;
@@ -7,7 +9,8 @@ namespace PostmanClone.ExecutionService.Tests.Support;
 /// <summary>
 /// Starts the real service on an in-memory test server. The settings are the minimum the service needs to start
 /// (CONTRACTS §0: issuer and audience <c>PostmanClone</c>; the authority is never fetched by these tests). A test
-/// passes the environment and any setting it changes, so each test owns its configuration.
+/// passes the environment and any setting it changes, so each test owns its configuration. Tokens are trusted through
+/// <see cref="Tokens"/>; <see cref="ConfigureServices"/> lets one test swap a seam (a resolver or a dialer).
 /// </summary>
 public sealed class ExecutionServiceFactory(
     string environment = "Development",
@@ -16,6 +19,12 @@ public sealed class ExecutionServiceFactory(
     public const string UnusedMetadataAddress = "http://localhost/.well-known/openid-configuration";
 
     private readonly IReadOnlyDictionary<string, string> _settings = Defaults(overrides);
+
+    /// <summary>Issues the tokens this service trusts.</summary>
+    public TestTokens Tokens { get; } = new();
+
+    /// <summary>An optional extra registration applied after the defaults, so it replaces them.</summary>
+    public Action<IServiceCollection>? ConfigureServices { get; init; }
 
     private static Dictionary<string, string> Defaults(IReadOnlyDictionary<string, string>? overrides)
     {
@@ -43,5 +52,21 @@ public sealed class ExecutionServiceFactory(
         {
             builder.UseSetting(key, value);
         }
+
+        builder.ConfigureTestServices(services =>
+        {
+            Tokens.TrustIn(services);
+            ConfigureServices?.Invoke(services);
+        });
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            Tokens.Dispose();
+        }
+
+        base.Dispose(disposing);
     }
 }

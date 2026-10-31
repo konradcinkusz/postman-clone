@@ -1,4 +1,5 @@
 using PostmanClone.EnvironmentsService;
+using PostmanClone.EnvironmentsService.Endpoints;
 using PostmanClone.ServiceDefaults;
 using PostmanClone.ServiceDefaults.Problems;
 using PostmanClone.ServiceDefaults.Security;
@@ -13,6 +14,7 @@ var app = builder.Build();
 
 app.UseProblemDetailsDefaults();
 app.UseSecurityDefaults();
+app.MapEnvironmentEndpoints();
 app.MapDefaultEndpoints();
 
 app.Run();

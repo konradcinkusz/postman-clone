@@ -115,6 +115,45 @@ gives the real one.
 | 6 | `logout` takes a bearer token | `[Authorize]`, and it revokes **all** of the user's refresh tokens | A logout signs out every session of that user, not only the current one |
 | 7 | `GET /api/v1/organizations/{id}` (members) | `OrganizationDetailDto` (members in the body) | Consistent |
 
+## Members and invitations (WP24)
+
+The members page (`/workspace`) and the invitation flow use these authservice endpoints. Each was read from v0.3.4
+(`OrganizationsController.cs`) and exercised against a local v0.3.4 on 2026-10-31 (see [Observed](#observed)).
+
+| Method and path | Who may call it | What the Web does with the answer |
+|---|---|---|
+| `GET /api/v1/organizations/{id}` | any member | the workspace name and members (`OrganizationDetailDto`) |
+| `GET /api/v1/organizations/{id}/invitations` | Owner, Admin (`403` otherwise) | the pending invitations, shown without their token |
+| `POST /api/v1/organizations/{id}/invite` `{email, role}` | Owner, Admin (`403` otherwise) | `200` invitation; `400` with `error` for "already a member" or "already been sent", or a validation problem; `403` |
+| `POST /api/v1/organizations/invitations/accept` `{token}` | the signed-in address the invitation names | `200 {message, organizationId}`; `404 "Invitation not found"` for an unknown token or another address; `400 "Invitation has already been accepted"`; `400 "Invitation has expired"`; `403` with `emailVerificationRequired` while the address is unconfirmed |
+
+Facts the flow relies on:
+
+- **Roles.** authservice accepts `Owner`, `Admin` or `Member` in the invite body, and an Admin may not invite at Owner
+  (`403`). The Web offers `Admin` and `Member` only (the plan's choice), and an Owner's invite is authservice's path.
+- **The invitation carries a token, not a link.** The invite response has no token, and the email (SendGrid) carries
+  the token as text: `Your invitation token: <token>` (`SendGridEmailService.cs`). The Web has no link in it. The invitee
+  opens `<Web origin>/accept-invitation?token=<token>`, which is how the Web's own page reads it.
+- **Without an email provider**, `NoOpEmailService` logs a warning that names the address and the organization. It
+  writes the token only when `ASPNETCORE_ENVIRONMENT` is `Development`; otherwise it writes `[withheld]`
+  (`NoOpEmailService.cs`, `Redact`). The local stack runs authservice in Production unless told otherwise, so a developer
+  starts it with `AUTHSERVICE_ENVIRONMENT=Development scripts/run-local-stack.sh up` and reads the token from
+  `.local-stack/authservice.log`:
+
+  ```text
+  Email sending is not configured. Invitation email to <address> for organization <name> was not sent. Invitation token: <token>. ...
+  ```
+
+- **Email is not verified for the invitee.** `RequireConfirmedEmail` defaults to "a sender is configured", so a local
+  account accepts at once. With a sender, an unconfirmed address gets `403` on accept.
+- **Joining twice.** An invitation to an organization the account already belongs to is marked accepted and answers `200`,
+  with no new membership. The Web reads the `organizationId` against the organizations the session held before the
+  request, and says "already a member" instead of "joined".
+- **The session must refresh** after an accept, or the new `organization` claim is not in the token. The Web refreshes
+  at once and then redirects. An account with two organizations then reaches the Multiple page (ADR-0004).
+
+Local dev token retrieval is the path above; a token is single-use and expires after 7 days (`ExpiresAt` = created + 7 days).
+
 ## Limits (ADR-0004)
 
 - **No workspace switch.** authservice issues no organization-scoped token and has no switch endpoint. A user
@@ -131,10 +170,11 @@ gives the real one.
 
 Runtime values are recorded here only from a real run. Nothing below is copied from the source.
 
-- **Runtime status:** not run in the authoring session. The authservice build was refused by the session's
-  permission check, and there is no Docker daemon, so neither the container nor the local build ran there. The
-  CI job `auth-smoke` runs `scripts/run-local-stack.sh up` and `scripts/smoke-auth.sh` on a fresh runner with a
-  PostgreSQL service container. Its log holds the claim names and status codes for this table.
+- **Runtime status:** the CI job `auth-smoke` runs `scripts/run-local-stack.sh up` and `scripts/smoke-auth.sh` on a fresh
+  runner with a PostgreSQL service container; its log holds the claim names and status codes for this table. In the WP12
+  session (2026-10-30) authservice v0.3.4 was built from its tag and run locally on port 5300, and both the smoke test and
+  the Web's sign-in flow were run against it (see below). There is no Docker daemon in sessions, so the container image was
+  not run.
 - **Observed in CI run 40353922349 (head 348fc89):** `GET /health/ready` 200, `GET /.well-known/jwks.json` 200 with 1 key,
   `GET /api/v1/auth/consents/versions` 200, `POST /api/v1/auth/register` 200 (tokens at once: no sender is configured),
   `POST /api/v1/auth/login` 200, `GET /api/v1/auth/me` 200, `POST /api/v1/organizations` 201.
@@ -143,7 +183,37 @@ Runtime values are recorded here only from a real run. Nothing below is copied f
   and the two ASP.NET URIs `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name` and
   `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier`. No `organization` claim, as the source predicts.
   `aud` and `iss` are present, which the source sets from `Jwt:Audience` and `Jwt:Issuer`; the table above does not list them.
-- **Still to observe:** the claim names after refresh (the `organization` and `organization:{id}:role` claims), `/api/v1/auth/logout`, and the refused refresh. The next CI run prints them.
+- **Observed in the WP12 session (2026-10-30, live, authservice v0.3.4 on localhost):**
+  - Claim names after a refresh that follows an organization creation: `aud`, `email`, `exp`, `iss`, `jti`, `name`,
+    `nameidentifier`, `organization`, `organization:{id}:role`, `sub`. The `organization` claim and its role claim are present,
+    as the table above says. There is no `role` claim, because the user holds no system role.
+  - `POST /api/v1/auth/refresh` with a refresh token already spent: `401`. Rotation is single use.
+  - `POST /api/v1/auth/logout` with a bearer: `200`. A refresh with the newest refresh token issued before the logout: `401`.
+    Logout revokes every refresh token of the user (row 6 of the table above), not only the one presented.
+  - The Web, against this authservice: sign-in with the right password sets the session cookie and redirects; a wrong
+    password redirects with `error=invalid` and no cookie; the access token from a live login verifies against the
+    published JWKS (RS256, issuer `PostmanClone`, audience `PostmanClone`); sign-out redirects to `/sign-in` and the old
+    cookie no longer opens a session. Creating the first organization from the Web refreshes the session and the next
+    page shows the workspace as Owner.
+
+- **Observed in the WP24 session (2026-10-31, live, authservice v0.3.4 on localhost, `AUTHSERVICE_ENVIRONMENT=Development`):**
+  - Owner: `POST /api/v1/organizations` 201; `GET /api/v1/organizations/{id}` 200 with one member; `POST …/invite` 200. The
+    invite body has `email`, `role`, `emailStatus`, `isAccepted`, `organizationId`, `organizationName`, `role`, and no token.
+    A second invite to the same address `400 "An invitation has already been sent to this email"`. A malformed address
+    `400` as a validation problem with `errors` and no `error` text. `GET …/invitations` 200 with `emailStatus` `Sent`.
+  - The invitation token appears in `.local-stack/authservice.log` in Development (see above).
+  - Invitee: `GET /api/v1/organizations/{id}` `404` for a non-member. `GET /api/v1/organizations/invitations` lists the
+    pending invitation with its organization name. `POST …/invitations/accept` with another address's session: `404`;
+    with the right one `200` `organizationId`; again: `400 "Invitation has already been accepted"`; an unknown token: `404`.
+  - After a refresh, the claims carry `organization` and `organization:{id}:role` = `Member`.
+  - A Member's `POST …/invite` and `GET …/invitations`: `403`, and the organization read is `200`.
+  - Through the Web (the same authservice): the invite form posts and redirects `notice=invited`; the accept page with a
+    token offers the form to an account with no workspace; the accept redirects `notice=joined` and the page then shows
+    the Member view with no invite form; a replay redirects `error=used`; an anonymous visit to the accept page keeps the
+    token through sign-in; an account with two organizations gets the Multiple explanation.
+  - Not observed live: the "already a member" accept answer (`200` for an invitation to an organization the account holds).
+    It needs a second pending invitation, which authservice does not allow while the first is open. The Web's branch for it
+    is covered by the fake and the `organizationId` comparison.
 
 ## Not in scope here
 

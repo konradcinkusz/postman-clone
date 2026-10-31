@@ -10,5 +10,5 @@ date it was recorded.
 | Date | Principle or guide | Deviation | Reason |
 |---|---|---|---|
 | 2026-10-26 | P2 example call `AddDatabaseContext<TContext>(configuration, "mydb", "MyDbInMemory")` | `AddDatabaseContext<TContext>(builder, connectionName)`. The InMemory path names its in-memory database after the connection name; there is no second name argument | The builder carries the configuration, and the second name gave the InMemory path nothing the tests needed. WP01 |
+| 2026-10-30 | BLAZOR-WEB-APP §7 "cookie authentication on the host" | A custom authentication handler (`SessionAuthenticationHandler`) reads a cookie that holds only a random session id. The ticket and the token pair stay in `ServerSessionStore` on the server, not in a Data Protection cookie ticket | The cookie must carry nothing but a random id (ADR-0005). The cookie middleware's ticket is an encrypted envelope around the principal, not an id. ADR-0013. WP12 |
 
-None yet.

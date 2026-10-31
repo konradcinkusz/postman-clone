@@ -1,0 +1,100 @@
+@implements IDisposable
+@inject IBackendStatusReader Reader
+
+<section class="status-strip" aria-label="Backend status" data-testid="status-strip">
+    @if (_failed)
+    {
+        <div class="callout callout-danger" role="alert" data-testid="status-error">
+            The backend status could not be read. It is retried shortly.
+        </div>
+    }
+    else if (_statuses is null)
+    {
+        <p class="status-note">Reading backend status…</p>
+    }
+    else
+    {
+        <ul class="cluster status-list">
+            @foreach (var status in _statuses)
+            {
+                <li data-testid="status-@status.Name">
+                    <span class="badge @BackendStates.BadgeFor(status.State)">@status.Name: @status.State</span>
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+@code {
+    /// <summary>How often the strip re-reads the backends. One named interval, not a magic number in the loop.</summary>
+    public static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
+
+    private readonly CancellationTokenSource _cancellation = new();
+    private IReadOnlyList<BackendStatus>? _statuses;
+    private bool _failed;
+
+    /// <summary>
+    /// Starts after the first render on the circuit, not during prerender: a prerendered page must not wait for the
+    /// backends' timeouts before it can be sent (BLAZOR-WEB-APP §3, the double first load).
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await RefreshAsync(_cancellation.Token);
+        _ = PollAsync(_cancellation.Token);
+    }
+
+    /// <summary>Polls on the circuit's own timer and stops when the component is disposed.</summary>
+    private async Task PollAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(PollInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await RefreshAsync(cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The component was disposed: the loop ends.
+        }
+    }
+
+    private async Task RefreshAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var statuses = await Reader.ReadAsync(cancellationToken);
+            await InvokeAsync(() =>
+            {
+                _statuses = statuses;
+                _failed = false;
+                StateHasChanged();
+            });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Disposed while reading.
+        }
+        catch (Exception)
+        {
+            // Caught into state and shown as an alert; the next poll tries again. The message carries no detail.
+            await InvokeAsync(() =>
+            {
+                _failed = true;
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+}

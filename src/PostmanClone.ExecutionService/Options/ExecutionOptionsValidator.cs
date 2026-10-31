@@ -55,6 +55,11 @@ public sealed class ExecutionOptionsValidator(IHostEnvironment environment) : IV
             failures.Add($"{ExecutionOptions.SectionName}:MaxRedirects must be between 0 and {ContractMaxRedirects}.");
         }
 
+        if (options.Ssrf.BlockedPorts.Any(port => port is < 1 or > 65535))
+        {
+            failures.Add($"{ExecutionOptions.SectionName}:Ssrf:BlockedPorts must contain only ports between 1 and 65535.");
+        }
+
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 

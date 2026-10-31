@@ -20,18 +20,22 @@ The build plan is the source of truth for scope and contracts:
 | `scripts/install-hooks.sh`, `scripts/hooks/pre-commit` | The local secret scan |
 | `scripts/check-doc-links.sh` | Every relative Markdown link resolves (run in CI) |
 | `scripts/check-kernel-size.sh` | The shared kernel stays within 800 non-blank, non-comment lines (run in CI) |
-| `scripts/run-local-stack.sh`, `scripts/gen-dev-secrets.sh` | authservice at its pinned tag, CollectionsService (port 5301) and ExecutionService (port 5303) without Docker, against a local PostgreSQL; the gitignored `.local-stack/` secrets (WP03, WP04, WP06) |
+| `scripts/run-local-stack.sh`, `scripts/gen-dev-secrets.sh` | authservice at its pinned tag, CollectionsService (port 5301) and ExecutionService (port 5303) without Docker, against a local PostgreSQL; the gitignored `.local-stack/` secrets (WP03, WP04, WP06). `AUTHSERVICE_ENVIRONMENT=Development` makes authservice log invitation tokens locally (WP24) |
 | `scripts/smoke-auth.sh` | The authservice contract the services rely on: register, login, organization, refresh, claims (run in CI as `auth-smoke`) |
 | `docs/AUTH.md` | How sign-in works through authservice v0.3.4: the flow, the claims, the endpoints read from source, the differences from CONTRACTS §6 |
 | `.github/workflows/` | `pr-validation.yml` (the required check), `secret-scan.yml` |
 | `Directory.Build.props`, `Directory.Packages.props`, `global.json` | Solution-wide settings, package versions, SDK pin, and the test runner (Microsoft.Testing.Platform) |
 | `PostmanClone.sln`, `src/PostmanClone.ServiceDefaults`, `tests/PostmanClone.TestKit`, `tests/PostmanClone.ServiceDefaults.Tests` | The solution and the shared kernel (WP01) |
-| `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, authservice (WP03), CollectionsService (WP04), EnvironmentsService (WP05) and ExecutionService (WP06) |
+| `src/PostmanClone.AppHost` | The Aspire composition root, dev only: PostgreSQL with four service databases, authservice (WP03), CollectionsService (WP04), EnvironmentsService (WP05), ExecutionService (WP06) and the Web (WP07) |
 | `src/PostmanClone.CollectionsService`, `tests/PostmanClone.CollectionsService.Tests` | CollectionsService (WP04, WP08): the manifest `Program.cs`, the entities, the EF model and its first migration, the Dockerfile (P6), the collections and folders routes of CONTRACTS §2 (`/api/v1/collections`, `/api/v1/folders`; requests, import and export come later), the OpenAPI route list (Development only), and the host tests |
-| `src/PostmanClone.ExecutionService`, `tests/PostmanClone.ExecutionService.Tests` | The sender and history service (WP06): sender limits and the SSRF flag with startup validation, the EnvironmentsService client skeleton, the `history_entries` migration, the Dockerfile. No request endpoints yet |
-| `src/PostmanClone.EnvironmentsService`, `tests/PostmanClone.EnvironmentsService.Tests` | EnvironmentsService (WP05): environments and variables on `environmentsdb`, AES-256-GCM secret protection (ADR-0006), `/health` reports `secrets`. Its Dockerfile is reviewed, not built here (no Docker daemon in sessions) |
+| `src/PostmanClone.EnvironmentsService`, `tests/PostmanClone.EnvironmentsService.Tests` | EnvironmentsService (WP05, WP09): environments and variables on `environmentsdb`, the `/api/v1/environments` endpoints of CONTRACTS §3 (`resolve` is the only response with plaintext secrets), AES-256-GCM secret protection (ADR-0006), `/health` reports `secrets`. Its Dockerfile is reviewed, not built here (no Docker daemon in sessions) |
+| `src/PostmanClone.ExecutionService`, `tests/PostmanClone.ExecutionService.Tests` | The sender and history service (WP06): sender limits and the SSRF flag with startup validation, the EnvironmentsService client skeleton, the `history_entries` migration, the Dockerfile. The SSRF guard library (WP10, `Sending/Ssrf/`, ADR-0011) is built and tested but not yet wired to a route. The request assembler (WP11, `Sending/Assembly/`): variable expansion, URL, headers, body, auth helper and secret masking, pure logic with no HTTP (ADR-0012). `POST /api/v1/execute` (WP14, ADR-0014) sends requests with redirects and the capped body. The history (WP15, ADR-0015) stores each send with the request template and the result masked, keeps 200 entries per user and workspace, and serves `/api/v1/history` (list, get, delete one, clear) for the caller's own entries only |
 
-Not yet present: the service project `Web` and its tests. They are in the plan's README, §3.
+| `src/PostmanClone.Web`, `tests/PostmanClone.Web.Tests` | The Blazor Web App shell (WP07): interactive server root, token stylesheet, navigation, status strip, origin guard and CSP on the host, `Dockerfile` (built by CI, never pushed). `docs/architecture/UI-STYLE.md` is its design contract |
+| `src/PostmanClone.Web/Membership`, `Components/Pages/Workspace.razor`, `Components/Pages/AcceptInvitation.razor` | The members page and the invitation flow (WP24): the workspace and its members, invite and accept as antiforgery form posts, the invitation rules and messages. `docs/AUTH.md` (Members and invitations) records what authservice does |
+| `src/PostmanClone.Web/Auth`, `Api/AuthServiceClient.cs`, `Hosting/WebAuthExtensions.cs` | The sign-in flow (WP12): the opaque session cookie and the server-side session store, token verification against authservice's JWKS, single-flight refresh, the five-minute circuit revalidation, the `ReturnUrl` policy, the form endpoints (`/sign-in`, `/register`, `/sign-out`, `/no-workspace/create`) and workspace routing. `docs/AUTH.md` records what authservice does; `docs/decisions/0013-circuit-lifetime-and-session-store.md` records the lifetimes |
+
+Not yet present: `tests/PostmanClone.E2E` (Playwright) and the Web's domain pages, which arrive with their work packages. The plan's README, §3 lists the target layout.
 
 ## Build and test
 
@@ -52,6 +56,7 @@ scripts/gen-dev-secrets.sh        # once per clone: .local-stack/secrets.env (ne
 scripts/run-local-stack.sh up     # authservice v0.3.4 on :5300 and CollectionsService on :5301, local PostgreSQL (no Docker)
 scripts/smoke-auth.sh             # against the running authservice: the sign-in contract
 scripts/run-local-stack.sh down
+dotnet run --project src/PostmanClone.Web   # the Web on http://localhost:5310; backends not running show as unreachable
 ```
 
 The SDK is pinned by `global.json` (.NET 10.0.100, `rollForward: latestFeature`). Package versions

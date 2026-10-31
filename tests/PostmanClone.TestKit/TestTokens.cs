@@ -75,6 +75,14 @@ public sealed class TestTokens : IDisposable
     /// <summary>An OpenID discovery document whose <c>jwks_uri</c> is <paramref name="jwksUri"/>.</summary>
     public string Discovery(string jwksUri) => JsonSerializer.Serialize(new { issuer = Issuer, jwks_uri = jwksUri });
 
+    /// <summary>A configuration manager that serves this instance's key, for a service that reads its issuer's keys through one (WP12).</summary>
+    public IConfigurationManager<OpenIdConnectConfiguration> ConfigurationManager()
+    {
+        var configuration = new OpenIdConnectConfiguration { Issuer = Issuer };
+        configuration.SigningKeys.Add(PublicKey());
+        return new StaticConfigurationManager<OpenIdConnectConfiguration>(configuration);
+    }
+
     /// <summary>Makes the service under test trust this instance's key, without a metadata endpoint.</summary>
     public void TrustIn(IServiceCollection services)
     {
@@ -91,8 +99,15 @@ public sealed class TestTokens : IDisposable
 
     private JwtPayload Payload(IEnumerable<Claim>? claims, TimeSpan? expiresIn, string issuer, string audience)
     {
-        var all = new List<Claim> { new(JwtRegisteredClaimNames.Sub, Guid.NewGuid().ToString()) };
-        all.AddRange(claims ?? []);
+        var given = claims?.ToList() ?? [];
+        // A test that names the user (a creator check, for example) gets exactly that subject; any other token gets a fresh one.
+        var all = new List<Claim>();
+        if (!given.Any(claim => claim.Type == JwtRegisteredClaimNames.Sub))
+        {
+            all.Add(new Claim(JwtRegisteredClaimNames.Sub, Guid.NewGuid().ToString()));
+        }
+
+        all.AddRange(given);
         var expires = _clock.GetUtcNow().UtcDateTime.Add(expiresIn ?? TimeSpan.FromHours(1));
         return new JwtPayload(issuer, audience, all, notBefore: null, expires: expires);
     }

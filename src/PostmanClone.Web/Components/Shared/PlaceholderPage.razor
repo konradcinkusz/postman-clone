@@ -1,0 +1,15 @@
+<PageTitle>@Title · PostmanClone</PageTitle>
+
+<h1 data-testid="page-title">@Title</h1>
+
+<section class="empty-state" data-testid="empty-state">
+    <p>@Text</p>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Text { get; set; } = "This page is not built yet.";
+}

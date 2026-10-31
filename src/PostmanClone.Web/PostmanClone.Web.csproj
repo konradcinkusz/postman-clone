@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    The Blazor Web App host (BLAZOR-WEB-APP §4). It references ServiceDefaults and nothing else: the backends are
+    reached over HTTP through their logical names, and their DTOs are copies (CONTRACTS §5). No package beyond the
+    ASP.NET Core shared framework (ADR-0009).
+  -->
+  <PropertyGroup>
+    <Description>PostmanClone Blazor Web App: interactive server UI and the backend-for-frontend (ADR-0005).</Description>
+    <RootNamespace>PostmanClone.Web</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PostmanClone.ServiceDefaults\PostmanClone.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>

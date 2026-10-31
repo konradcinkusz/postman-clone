@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using PostmanClone.EnvironmentsService.Data;
 using PostmanClone.EnvironmentsService.Secrets;
@@ -28,6 +29,8 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddJwtAuthentication(builder.Configuration);
         builder.Services.AddRateLimitingDefaults(builder.Configuration);
+        // Timestamps come from the injected clock (CONTRACTS §0); tests replace it with a fake.
+        builder.Services.TryAddSingleton(TimeProvider.System);
         return builder;
     }
 }

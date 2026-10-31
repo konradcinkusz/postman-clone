@@ -1,0 +1,150 @@
+@page "/workspace"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using PostmanClone.ServiceDefaults.Authentication
+@using PostmanClone.Web.Api
+@using PostmanClone.Web.Membership
+@inject WorkspaceState State
+@inject MembershipService Members
+@inject AuthenticationStateProvider AuthenticationState
+@inject AntiforgeryStateProvider Antiforgery
+
+<PageTitle>Workspace · PostmanClone</PageTitle>
+
+<h1 data-testid="page-title">Workspace</h1>
+
+@if (_message is { } message)
+{
+    <div class="callout @(message.IsError ? "callout-danger" : "callout-success")" role="alert" data-testid="workspace-message">@message.Text</div>
+}
+
+@if (_data is { } data)
+{
+    <section class="card" data-testid="workspace-section">
+        <h2 data-testid="workspace-name">@data.Name</h2>
+        <p>You are signed in as <strong data-testid="workspace-role">@data.Role</strong>. Everyone in the workspace sees the same collections and environments.</p>
+    </section>
+
+    <section data-testid="members-section">
+        <h2>Members</h2>
+        <div class="table-wrap">
+            <table data-testid="members-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Email</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Role</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var member in data.Members)
+                    {
+                        <tr data-testid="member-row">
+                            <td>@member.Email</td>
+                            <td>@member.UserName</td>
+                            <td>@member.Role</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    @if (data.CanInvite)
+    {
+        <section data-testid="invite-section">
+            <h2>Invite a member</h2>
+            <p>
+                authservice sends the invitation. Its email carries the token only, so the invitee opens
+                <code>/accept-invitation?token=</code> on this site with it.
+            </p>
+            <form method="post" action="/workspace/invitations" class="stack" data-testid="invite-form">
+                <input type="hidden" name="@_antiforgery?.FormFieldName" value="@_antiforgery?.Value" />
+                <div class="field">
+                    <label for="invite-email">Email</label>
+                    <input id="invite-email" name="email" type="email" maxlength="@InvitationRules.MaximumEmailLength" required data-testid="invite-email" />
+                </div>
+                <div class="field">
+                    <label for="invite-role">Role</label>
+                    <select id="invite-role" name="role" data-testid="invite-role">
+                        @foreach (var role in InvitationRules.InvitableRoles)
+                        {
+                            <option value="@role" selected="@(role == WorkspaceRoles.Member)">@role</option>
+                        }
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary" data-testid="invite-submit">Send invitation</button>
+            </form>
+        </section>
+
+        <section data-testid="invitations-section">
+            <h2>Pending invitations</h2>
+            @if (data.Invitations.Count == 0)
+            {
+                <p data-testid="invitations-empty">No invitations are waiting for an answer.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table data-testid="invitations-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Email</th>
+                                <th scope="col">Role</th>
+                                <th scope="col">Email status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var invitation in data.Invitations)
+                            {
+                                <tr data-testid="invitation-row">
+                                    <td>@invitation.Email</td>
+                                    <td>@invitation.Role</td>
+                                    <td>@invitation.EmailStatus</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+    else
+    {
+        <p data-testid="members-read-only">Only an Owner or an Admin can invite members. Everyone in the workspace can read this list.</p>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    [SupplyParameterFromQuery(Name = "notice")]
+    public string? Notice { get; set; }
+
+    private AntiforgeryRequestToken? _antiforgery;
+    private WorkspaceMembers? _data;
+    private (string Text, bool IsError)? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _antiforgery = Antiforgery.GetAntiforgeryToken();
+        _message = MembershipMessages.For(Error, Notice);
+        await State.CaptureAsync(AuthenticationState);
+
+        try
+        {
+            _data = await Members.LoadAsync(CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // Every load lands in state and an alert, never in an unhandled exception (BLAZOR-WEB-APP §15).
+            _data = null;
+        }
+
+        if (_data is null)
+        {
+            _message = MembershipMessages.For(MembershipCodes.Read, null);
+        }
+    }
+}

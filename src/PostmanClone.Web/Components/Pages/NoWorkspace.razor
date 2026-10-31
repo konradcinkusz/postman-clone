@@ -1,0 +1,93 @@
+@page "/no-workspace"
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Authorization
+@using PostmanClone.ServiceDefaults.Authentication
+@inject WorkspaceState Workspace
+@inject CircuitSession Session
+@inject AuthenticationStateProvider AuthenticationState
+@inject AuthServiceClient Authservice
+@inject AntiforgeryStateProvider Antiforgery
+@inject NavigationManager Navigation
+
+<PageTitle>Workspace · PostmanClone</PageTitle>
+
+<h1 data-testid="page-title">Workspace</h1>
+
+@if (_message is { } message)
+{
+    <div class="callout callout-danger" role="alert" data-testid="workspace-message">@message.Text</div>
+}
+
+@if (!_loaded)
+{
+    <p>Reading your workspaces…</p>
+}
+else if (Workspace.Resolution.Outcome == WorkspaceOutcomes.Multiple)
+{
+    <section data-testid="workspace-multiple">
+        <p>
+            Your sign-in names more than one workspace. PostmanClone works in one workspace at a time, and authservice does not
+            support switching between them yet, so this account cannot use PostmanClone until one of these memberships is removed.
+        </p>
+        <ul class="stack">
+            @foreach (var organization in _organizations)
+            {
+                <li data-testid="workspace-option">@organization.Name (@organization.Role)</li>
+            }
+        </ul>
+    </section>
+}
+else if (Workspace.Resolution.IsActive)
+{
+    <p data-testid="workspace-active">Your workspace is ready.</p>
+    <p><a href="/" data-testid="workspace-home-link">Go to the workspace</a></p>
+}
+else
+{
+    <section data-testid="workspace-none">
+        <p>
+            Your account is not a member of a workspace yet. A workspace is an organization in authservice: everyone in it sees
+            the same collections and environments. Create one and you become its Owner.
+        </p>
+        <form method="post" action="/no-workspace/create" class="stack" data-testid="create-workspace-form">
+            <input type="hidden" name="@_token?.FormFieldName" value="@_token?.Value" />
+            <div class="field">
+                <label for="workspace-name">Workspace name</label>
+                <input id="workspace-name" name="name" maxlength="100" required data-testid="create-workspace-name" />
+            </div>
+            <button type="submit" class="btn btn-primary" data-testid="create-workspace-submit">Create workspace</button>
+        </form>
+    </section>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    private AntiforgeryRequestToken? _token;
+    private bool _loaded;
+    private List<UserOrganization> _organizations = [];
+    private (string Text, bool IsError)? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _token = Antiforgery.GetAntiforgeryToken();
+        _message = AuthMessages.For(Error, null);
+        await Workspace.CaptureAsync(AuthenticationState);
+
+        if (!Workspace.IsAuthenticated)
+        {
+            _loaded = true;
+            return;
+        }
+
+        if (Workspace.Resolution.Outcome == WorkspaceOutcomes.Multiple)
+        {
+            var accessToken = await Session.AccessTokenAsync(CancellationToken.None);
+            var profile = accessToken is null ? null : await Authservice.MeAsync(accessToken, CancellationToken.None);
+            _organizations = profile?.Organizations ?? [];
+        }
+
+        _loaded = true;
+    }
+}
