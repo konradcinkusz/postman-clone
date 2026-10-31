@@ -111,6 +111,21 @@ public sealed class WorkspaceShell(WorkspaceState workspace, CircuitSession sess
             cancellationToken);
     }
 
+    /// <summary>Reads one saved request with its definition and version (the builder opens a tab with it).</summary>
+    public Task<CollectionAnswer<SavedRequestDto>> LoadRequestAsync(Guid requestId, CancellationToken cancellationToken) =>
+        WithTokenAsync((token, ct) => collections.GetRequestAsync(token, requestId, ct), cancellationToken);
+
+    /// <summary>
+    /// Writes a saved request's name and definition. With <paramref name="expectedVersion"/> the service refuses a write over a newer
+    /// version: the answer is then <see cref="CollectionOutcome.Conflict"/>, and nothing was written (CONTRACTS §2).
+    /// </summary>
+    public Task<CollectionAnswer<SavedRequestDto>> SaveRequestAsync(Guid requestId, string name, string? description, RequestDefinition definition, int? expectedVersion, CancellationToken cancellationToken) =>
+        WithTokenAsync((token, ct) => collections.UpdateRequestAsync(token, requestId, new UpdateSavedRequestBody(name, description, definition), expectedVersion, ct), cancellationToken);
+
+    /// <summary>Creates a saved request in a collection (and folder, when given) and returns it with its id and version.</summary>
+    public Task<CollectionAnswer<SavedRequestDto>> CreateRequestAsync(Guid collectionId, Guid? folderId, string name, string? description, RequestDefinition definition, CancellationToken cancellationToken) =>
+        WithTokenAsync((token, ct) => collections.CreateRequestAsync(token, collectionId, new CreateSavedRequestBody(name, folderId, description, definition), ct), cancellationToken);
+
     public Task<CollectionAnswer<SavedRequestDto>> DuplicateRequestAsync(Guid requestId, CancellationToken cancellationToken) =>
         WithTokenAsync((token, ct) => collections.DuplicateRequestAsync(token, requestId, ct), cancellationToken);
 

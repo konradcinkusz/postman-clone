@@ -87,5 +87,8 @@ public sealed record RenameFolderBody(string Name);
 
 public sealed record UpdateSavedRequestBody(string Name, string? Description, RequestDefinition Request);
 
+/// <summary>Creates a saved request in a collection (CONTRACTS §2). A null <see cref="FolderId"/> puts it at the top of the collection.</summary>
+public sealed record CreateSavedRequestBody(string Name, Guid? FolderId, string? Description, RequestDefinition Request);
+
 /// <summary>Moves a saved request. Null <see cref="CollectionId"/> keeps it in its collection; null <see cref="FolderId"/> puts it at the top.</summary>
 public sealed record MoveRequestBody(Guid? CollectionId, Guid? FolderId, int? SortOrder);

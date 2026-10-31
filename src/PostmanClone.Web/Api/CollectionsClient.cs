@@ -86,6 +86,9 @@ public sealed class CollectionsClient(IHttpClientFactory clients)
     public Task<CollectionAnswer> DeleteFolderAsync(string accessToken, Guid folderId, CancellationToken cancellationToken) =>
         SendEmptyAsync(AuthenticatedRequest.Create(HttpMethod.Delete, $"/api/v1/folders/{folderId}", accessToken), cancellationToken);
 
+    public Task<CollectionAnswer<SavedRequestDto>> CreateRequestAsync(string accessToken, Guid collectionId, CreateSavedRequestBody body, CancellationToken cancellationToken) =>
+        SendAsync<SavedRequestDto>(JsonRequest(HttpMethod.Post, $"/api/v1/collections/{collectionId}/requests", accessToken, body), cancellationToken);
+
     public Task<CollectionAnswer<SavedRequestDto>> GetRequestAsync(string accessToken, Guid requestId, CancellationToken cancellationToken) =>
         SendAsync<SavedRequestDto>(AuthenticatedRequest.Create(HttpMethod.Get, $"/api/v1/requests/{requestId}", accessToken), cancellationToken);
 
