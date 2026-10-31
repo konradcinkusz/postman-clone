@@ -54,10 +54,27 @@ public sealed class RequestExecutor(
 
         var result = await SendAsync(assembled, request.FollowRedirects ?? true, timeout, started, cancellationToken);
 
-        var historyId = await history.RecordAsync(
-            new HistoryDraft(caller.WorkspaceId, caller.UserId, request.SavedRequestId, request.EnvironmentId, definition, result),
+        var historyId = await RecordHistoryAsync(
+            new HistoryDraft(caller.WorkspaceId, caller.UserId, request.SavedRequestId, request.EnvironmentId, definition, assembled.Masker, result),
             cancellationToken);
         return result with { HistoryId = historyId };
+    }
+
+    /// <summary>
+    /// The history is a record of the send, not part of it (ADR-0015): a failure to store is logged by its type only, and the
+    /// caller gets the result with no history id.
+    /// </summary>
+    private async Task<Guid?> RecordHistoryAsync(HistoryDraft draft, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await history.RecordAsync(draft, cancellationToken);
+        }
+        catch (Exception failure)
+        {
+            logger.LogWarning("The history entry could not be recorded: {FailureType}.", failure.GetType().Name);
+            return null;
+        }
     }
 
     /// <summary>Checks the shape and fills the defaults the contract gives: an absent list is empty, an absent body or auth is none.</summary>

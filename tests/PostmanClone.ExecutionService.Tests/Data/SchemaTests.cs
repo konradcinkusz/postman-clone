@@ -19,10 +19,13 @@ public sealed class SchemaTests(PostgresFixture postgres) : IClassFixture<Postgr
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ExecutionDbContext>();
 
-        context.HistoryEntries.Add(Entry());
+        // The InMemory database is named after the connection, so it is shared by every factory in this process. The
+        // count is therefore of this test's own workspace, not of the whole table.
+        var row = Entry();
+        context.HistoryEntries.Add(row);
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, await context.HistoryEntries.CountAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(1, await context.HistoryEntries.CountAsync(entry => entry.WorkspaceId == row.WorkspaceId, TestContext.Current.CancellationToken));
     }
 
     [Fact]

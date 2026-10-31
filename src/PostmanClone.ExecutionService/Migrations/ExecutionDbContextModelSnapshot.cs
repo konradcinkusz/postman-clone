@@ -28,6 +28,9 @@ namespace PostmanClone.ExecutionService.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("EnvironmentId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset>("ExecutedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -48,6 +51,9 @@ namespace PostmanClone.ExecutionService.Migrations
                     b.Property<string>("ResultJson")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<Guid?>("SavedRequestId")
+                        .HasColumnType("uuid");
 
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");
