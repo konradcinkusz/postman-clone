@@ -154,6 +154,13 @@ Facts the flow relies on:
 
 Local dev token retrieval is the path above; a token is single-use and expires after 7 days (`ExpiresAt` = created + 7 days).
 
+- **Observed in the WP27 session (2026-10-31, merged tree, live, authservice v0.3.4 on localhost):**
+  - `scripts/smoke-auth.sh` passed against the running authservice (register, login, organization, refresh, logout, claims).
+  - A browser sign-in (headless Chromium) with a new account completes and lands on `/no-workspace` with a 200. Before WP18b
+    the browser's POST was refused by the origin guard (`Origin: null`); that is fixed (ADR-0022).
+  - Started by hand, the Web reaches authservice only with the service-discovery and metadata settings in
+    [OPERATIONS.md §4.3](OPERATIONS.md#43-the-web-dotnet-run). Without them the sign-in answers `error=unavailable`.
+
 ## Limits (ADR-0004)
 
 - **No workspace switch.** authservice issues no organization-scoped token and has no switch endpoint. A user
