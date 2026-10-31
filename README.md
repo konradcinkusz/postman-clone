@@ -26,7 +26,7 @@ This page describes `main` at WP27.
 | Environments page, history page | In progress (WP21, WP22). Placeholders on `main`. |
 | About page | Placeholder |
 | Legal pages (`/legal/privacy`, `/legal/terms`) | Placeholders (OI-04) |
-| Browser end-to-end tests | Built (WP26): `tests/PostmanClone.Web.E2E`, 17 journeys over the protected flows, run by the `e2e` CI job; ADR-0018 |
+| Browser end-to-end tests | Built (WP26): `tests/PostmanClone.Web.E2E`, 18 journeys over the protected flows, run by the `e2e` CI job; ADR-0018 |
 | Final review and the review document | Not started (WP28) |
 
 Known open items, with their evidence, are in [`docs/architecture/OPEN-ITEMS.md`](docs/architecture/OPEN-ITEMS.md).
