@@ -1,0 +1,99 @@
+@using PostmanClone.Web.Api
+@using PostmanClone.Web.History
+@implements IDisposable
+@inject HistoryShell Entries
+@inject IHistoryChanged Changes
+@inject TimeProvider Clock
+
+@* The collapsible history panel of the workspace shell (WP22). It lists the newest entries of the caller, with the masked URL as the
+   service returned it. It reloads when the circuit's history changes (a send was recorded). Plain <details>: no script. *@
+
+<details class="history-panel" data-testid="history-panel">
+    <summary data-testid="history-panel-summary">History</summary>
+    <div class="stack history-panel-body">
+        @if (_failure is { } failure)
+        {
+            <p class="callout callout-danger" role="alert" data-testid="history-panel-error">@failure</p>
+        }
+        else if (_items is null)
+        {
+            <p role="status" data-testid="history-panel-loading">Loading history…</p>
+        }
+        else if (_items.Count == 0)
+        {
+            <p class="empty-state" data-testid="history-panel-empty">@HistoryMessages.Empty</p>
+        }
+        else
+        {
+            <ul class="stack history-panel-list" data-testid="history-panel-list">
+                @foreach (var item in _items)
+                {
+                    <li class="history-panel-item" data-testid="history-panel-item-@item.Id">
+                        <button type="button" class="history-panel-open" data-testid="history-panel-open-@item.Id"
+                                @onclick="() => OnOpen.InvokeAsync(item.Id)">
+                            <span class="badge">@item.Method</span>
+                            <span class="history-url">@item.Url</span>
+                        </button>
+                        <span class="num history-panel-time">@RelativeTime.Describe(item.ExecutedAt, Clock.GetUtcNow())</span>
+                    </li>
+                }
+            </ul>
+        }
+        <a href="@HistoryLinks.List(null, 1)" data-testid="history-panel-all">See all history</a>
+    </div>
+</details>
+
+@code {
+    /// <summary>Opens an entry as a new unsaved draft in the builder. The page does it; the panel only asks.</summary>
+    [Parameter, EditorRequired]
+    public EventCallback<Guid> OnOpen { get; set; }
+
+    private readonly CancellationTokenSource _cancellation = new();
+    private IReadOnlyList<HistorySummaryDto>? _items;
+    private string? _failure;
+    private bool _disposed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Subscribed before the first read, so a send that finishes meanwhile is not missed.
+        Changes.Changed += OnHistoryChanged;
+        await LoadAsync();
+    }
+
+    /// <summary>A send was recorded on this circuit. The raise may come from another thread's continuation, so the reload runs through the renderer.</summary>
+    private void OnHistoryChanged()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadAsync()
+    {
+        var answer = await Entries.ListAsync(1, HistoryPaging.PanelSize, null, _cancellation.Token);
+        if (answer.Value is { } page)
+        {
+            _items = page.Items;
+            _failure = null;
+            return;
+        }
+
+        _failure = HistoryMessages.ForFailure(answer.Outcome);
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Changes.Changed -= OnHistoryChanged;
+
+        // Cancelled, not disposed: a reload queued before this point still reads the token, and a disposed source would throw.
+        _cancellation.Cancel();
+    }
+}

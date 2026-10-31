@@ -10,6 +10,7 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using PostmanClone.Web.Api;
 using PostmanClone.Web.Auth;
 using PostmanClone.Web.Collections;
+using PostmanClone.Web.History;
 using PostmanClone.Web.Membership;
 using PostmanClone.Web.Response;
 
@@ -56,6 +57,9 @@ public static class WebAuthExtensions
         builder.Services.AddScoped<EnvironmentSelection>();
         builder.Services.AddScoped<IExecutionGateway, SessionExecutionGateway>();
         builder.Services.AddScoped<SendCoordinator>();
+        builder.Services.AddScoped<HistoryShell>();
+        builder.Services.AddScoped<HistoryChangeSignal>();
+        builder.Services.AddScoped<IHistoryChanged>(services => services.GetRequiredService<HistoryChangeSignal>());
         builder.Services.AddScoped<CircuitHandler, WorkspaceCircuitHandler>();
         return builder;
     }

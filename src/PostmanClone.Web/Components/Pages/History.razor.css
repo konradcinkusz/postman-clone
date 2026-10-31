@@ -1,0 +1,73 @@
+/* The request history page (WP22). Colours come only from the tokens in wwwroot/app.css (UI-STYLE §1). Works at 390 px: long URLs wrap. */
+
+.history-page {
+    min-width: 0;
+}
+
+.history-filter {
+    align-items: center;
+}
+
+.history-filter input {
+    min-width: 0;
+    flex: 1 1 12rem;
+}
+
+.history-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.history-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    padding: var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: inherit;
+    text-decoration: none;
+}
+
+.history-row-selected {
+    background: var(--accent-soft);
+}
+
+.history-url {
+    font-family: var(--font-mono);
+    overflow-wrap: anywhere;
+    min-width: 0;
+}
+
+.history-time {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+}
+
+.history-pages {
+    justify-content: space-between;
+}
+
+.history-detail {
+    min-width: 0;
+}
+
+.history-detail h2 {
+    margin: 0;
+    font-size: var(--text-lg);
+    min-width: 0;
+}
+
+.history-body {
+    max-height: 24rem;
+    overflow: auto;
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    font-family: var(--font-mono);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}

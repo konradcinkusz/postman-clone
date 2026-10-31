@@ -18,10 +18,29 @@ public sealed class RequestEditor
     {
         _newId = newId;
         RequestId = saved.Id;
+        IsSaved = true;
         Load(saved);
     }
 
+    private RequestEditor(Guid localId, string name, RequestDefinition definition, Func<Guid>? newId)
+    {
+        _newId = newId;
+        RequestId = localId;
+        IsSaved = false;
+        Load(new SavedRequestDto(localId, Guid.Empty, null, name, null, definition, 0, 0, Guid.Empty, default, default));
+    }
+
+    /// <summary>
+    /// A draft that is not a saved request yet (WP22: "Open in builder" on a history entry). It has a local id that no service row
+    /// has, so it can only be saved as a new request (save as). It starts dirty, so closing its tab asks first.
+    /// </summary>
+    public static RequestEditor Unsaved(Guid localId, string name, RequestDefinition definition, Func<Guid>? newId = null) =>
+        new(localId, name, definition, newId);
+
     public Guid RequestId { get; }
+
+    /// <summary>False for a draft that has never been saved: it has no service row, no version and no collection.</summary>
+    public bool IsSaved { get; }
 
     public Guid CollectionId { get; private set; }
 
@@ -37,7 +56,7 @@ public sealed class RequestEditor
     public RequestDraft Draft { get; private set; } = new();
 
     /// <summary>True when the draft would send something other than what was saved.</summary>
-    public bool IsDirty => Draft.IsDirty;
+    public bool IsDirty => !IsSaved || Draft.IsDirty;
 
     /// <summary>True after a save was refused with a conflict, until the user reloads or overwrites.</summary>
     public bool Conflicted { get; private set; }

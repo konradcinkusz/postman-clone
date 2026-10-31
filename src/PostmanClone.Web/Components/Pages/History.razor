@@ -1,3 +1,328 @@
 @page "/history"
+@using PostmanClone.Web.Api
+@using PostmanClone.Web.Components.Response
+@using PostmanClone.Web.History
+@using PostmanClone.Web.Response
+@implements IDisposable
+@inject HistoryShell Entries
+@inject TimeProvider Clock
+@inject NavigationManager Navigation
 
-<PlaceholderPage Title="History" />
+@* The request history (WP22, ADR-0015). Every entry is the caller's own, as the service returns it: the request is the masked template
+   and the result was masked by the sender. The page shows the text it was given (encoded, never as markup) and never unmasks. *@
+
+<PageTitle>History · PostmanClone</PageTitle>
+
+<section class="stack history-page" aria-labelledby="history-heading" data-testid="history-page">
+    <header class="split">
+        <h1 id="history-heading">History</h1>
+        <a class="btn" href="/" data-testid="history-to-builder">Back to the builder</a>
+    </header>
+
+    <p class="callout callout-warning" role="note" data-testid="history-mask-note">@HistoryMessages.MaskNote</p>
+
+    @if (_listFailure is { } listFailure)
+    {
+        <div class="callout callout-danger" role="alert" data-testid="history-list-error">@listFailure</div>
+    }
+
+    @if (_notice is { } notice)
+    {
+        <div class="callout callout-success" role="status" data-testid="history-notice">@notice</div>
+    }
+
+    <form class="cluster history-filter" data-testid="history-filter" @onsubmit="ApplyFilter" @onsubmit:preventDefault>
+        <label for="history-filter-text">Filter by URL</label>
+        <input id="history-filter-text" type="search" maxlength="@HistoryPaging.MaximumFilterLength" autocomplete="off"
+               data-testid="history-filter-text" @bind="_filterText" />
+        <button type="submit" class="btn" data-testid="history-filter-apply">Filter</button>
+    </form>
+
+    @if (_plan is { } plan)
+    {
+        <div class="split">
+            <p class="num" role="status" data-testid="history-range">@HistoryPaging.Range(plan)</p>
+            <button type="button" class="btn btn-danger" data-testid="history-clear" disabled="@_busy"
+                    @onclick="() => _confirmClear = true">Clear all…</button>
+        </div>
+
+        @if (_confirmClear)
+        {
+            <div class="callout callout-danger" role="alert" data-testid="history-clear-confirm-box">
+                <p>@HistoryMessages.ConfirmClear</p>
+                <div class="cluster">
+                    <button type="button" class="btn btn-danger" data-testid="history-clear-confirm" disabled="@_busy" @onclick="ClearAllAsync">Clear all history</button>
+                    <button type="button" class="btn" data-testid="history-clear-cancel" @onclick="() => _confirmClear = false">Keep it</button>
+                </div>
+            </div>
+        }
+
+        @if (_items.Count == 0)
+        {
+            <p class="empty-state" data-testid="history-empty">@(_query is null ? HistoryMessages.Empty : HistoryMessages.EmptyFiltered)</p>
+        }
+        else
+        {
+            <ol class="stack history-list" aria-label="History entries" data-testid="history-list">
+                @foreach (var item in _items)
+                {
+                    <li>
+                        <a class="history-row @(item.Id == _selected ? "history-row-selected" : null)"
+                           href="@HistoryLinks.List(_query, plan.Page, item.Id)"
+                           aria-current="@(item.Id == _selected ? "true" : null)"
+                           data-testid="history-row-@item.Id">
+                            <span class="badge">@item.Method</span>
+                            <span class="history-url">@item.Url</span>
+                            <span class="num">@(item.StatusCode?.ToString() ?? "no status")</span>
+                            <span class="num history-time">@RelativeTime.Describe(item.ExecutedAt, Clock.GetUtcNow())</span>
+                        </a>
+                    </li>
+                }
+            </ol>
+        }
+
+        <nav class="cluster history-pages" aria-label="History pages" data-testid="history-pages">
+            @if (plan.HasPrevious)
+            {
+                <a class="btn" href="@HistoryLinks.List(_query, plan.Page - 1, _selected)" data-testid="history-prev">Newer</a>
+            }
+            <span class="num">Page @plan.Page of @plan.PageCount</span>
+            @if (plan.HasNext)
+            {
+                <a class="btn" href="@HistoryLinks.List(_query, plan.Page + 1, _selected)" data-testid="history-next">Older</a>
+            }
+        </nav>
+    }
+
+    @if (_detailFailure is { } detailFailure)
+    {
+        <div class="callout callout-danger" role="alert" data-testid="history-detail-missing">@detailFailure</div>
+    }
+    else if (_detail is { } detail && _view is { } view)
+    {
+        <section class="card stack history-detail" aria-labelledby="history-detail-heading" data-testid="history-detail">
+            <div class="split">
+                <h2 id="history-detail-heading">
+                    <span class="badge">@detail.Request.Method</span>
+                    <span class="history-url">@detail.Request.Url</span>
+                </h2>
+                <time class="num" datetime="@detail.ExecutedAt.ToString("O")" data-testid="history-detail-time">@RelativeTime.Describe(detail.ExecutedAt, Clock.GetUtcNow())</time>
+            </div>
+
+            <div class="cluster">
+                <a class="btn btn-primary" href="@HistoryLinks.OpenInBuilder(detail.Id)" data-testid="history-open-builder">Open in builder</a>
+                @if (_pendingDelete == detail.Id)
+                {
+                    <button type="button" class="btn btn-danger" data-testid="history-delete-confirm" disabled="@_busy" @onclick="() => DeleteOneAsync(detail.Id)">Delete this entry</button>
+                    <button type="button" class="btn" data-testid="history-delete-cancel" @onclick="() => _pendingDelete = null">Keep it</button>
+                    <span class="callout callout-danger" role="status" data-testid="history-delete-confirm-text">@HistoryMessages.ConfirmDelete</span>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-danger" data-testid="history-delete" disabled="@_busy" @onclick="() => _pendingDelete = detail.Id">Delete…</button>
+                }
+            </div>
+
+            <h3>Request as sent</h3>
+            <p class="response-detail">The request keeps its <code>{{name}}</code> references. Secret values show as ••••••.</p>
+            <p>
+                <span class="badge">Auth: @(detail.Request.Auth?.Type ?? "none")</span>
+                <span class="response-detail">The auth helper's values are never stored.</span>
+            </p>
+
+            @if (detail.Request.Params is { Count: > 0 } parameters)
+            {
+                <h4>Query parameters</h4>
+                <div class="table-wrap">
+                    <table class="kv-table" data-testid="history-detail-params">
+                        <tbody>
+                            @foreach (var row in parameters)
+                            {
+                                <tr><th scope="row">@row.Key</th><td>@row.Value</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (detail.Request.Headers is { Count: > 0 } headers)
+            {
+                <h4>Headers</h4>
+                <div class="table-wrap">
+                    <table class="kv-table" data-testid="history-detail-headers">
+                        <tbody>
+                            @foreach (var row in headers)
+                            {
+                                <tr><th scope="row">@row.Key</th><td>@row.Value</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (detail.Request.Body is { } body && body.Type != "none")
+            {
+                <h4>Body (@body.Type)</h4>
+                @if (body.Fields is { Count: > 0 } fields)
+                {
+                    <div class="table-wrap">
+                        <table class="kv-table" data-testid="history-detail-fields">
+                            <tbody>
+                                @foreach (var row in fields)
+                                {
+                                    <tr><th scope="row">@row.Key</th><td>@row.Value</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(body.Raw))
+                {
+                    <pre class="history-body" data-testid="history-detail-body">@BodyPreview(body.Raw)</pre>
+                }
+            }
+
+            <h3>Response</h3>
+            <ResponsePanel View="@view" />
+        </section>
+    }
+</section>
+
+@code {
+    /// <summary>The list's page, from the query (<c>?page=</c>). Defaults to the first.</summary>
+    [Parameter, SupplyParameterFromQuery]
+    public int? Page { get; set; }
+
+    /// <summary>The filter, from the query (<c>?q=</c>), matched against the masked URL.</summary>
+    [Parameter, SupplyParameterFromQuery(Name = "q")]
+    public string? Filter { get; set; }
+
+    /// <summary>The selected entry, from the query (<c>?entry=</c>).</summary>
+    [Parameter, SupplyParameterFromQuery(Name = "entry")]
+    public Guid? Entry { get; set; }
+
+    /// <summary>How much of a request body the detail shows. The rest is kept by the service, and the page says so.</summary>
+    private const int BodyPreviewLength = 20_000;
+
+    private readonly CancellationTokenSource _cancellation = new();
+    private CancellationToken Token => _cancellation.Token;
+
+    private List<HistorySummaryDto> _items = [];
+    private HistoryPage? _plan;
+    private string? _query;
+    private string _filterText = string.Empty;
+    private Guid? _selected;
+    private HistoryEntryDto? _detail;
+    private SendView? _view;
+    private Guid? _pendingDelete;
+    private bool _confirmClear;
+    private bool _busy;
+    private string? _listFailure;
+    private string? _detailFailure;
+    private string? _notice;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _query = HistoryPaging.NormalizeFilter(Filter);
+        _filterText = _query ?? string.Empty;
+        _selected = Entry;
+        _pendingDelete = null;
+        _confirmClear = false;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var requested = Page ?? 1;
+        var answer = await Entries.ListAsync(requested, HistoryPaging.PageSize, _query, Token);
+        if (answer.Value is not { } list)
+        {
+            _items = [];
+            _plan = null;
+            _listFailure = HistoryMessages.ForFailure(answer.Outcome);
+        }
+        else
+        {
+            var plan = HistoryPaging.Plan(requested, list.Total, HistoryPaging.PageSize);
+            if (plan.Page != requested)
+            {
+                // A page past the end is the last page: the address is corrected, and the list is read again from there.
+                Navigation.NavigateTo(HistoryLinks.List(_query, plan.Page, _selected), replace: true);
+                return;
+            }
+
+            _items = list.Items.ToList();
+            _plan = plan;
+            _listFailure = null;
+        }
+
+        await LoadDetailAsync();
+    }
+
+    private async Task LoadDetailAsync()
+    {
+        _detail = null;
+        _view = null;
+        _detailFailure = null;
+        if (_selected is not { } id)
+        {
+            return;
+        }
+
+        var answer = await Entries.GetAsync(id, Token);
+        if (answer.Value is { } entry)
+        {
+            _detail = entry;
+            // The stored result is shown as the sender kept it, through the same panel as a live send (ADR-0023).
+            _view = new SendView(SendPhase.Shown, entry.Id, ResponseView.From(entry.Result), null);
+            return;
+        }
+
+        _detailFailure = HistoryMessages.ForFailure(answer.Outcome);
+    }
+
+    private void ApplyFilter()
+    {
+        Navigation.NavigateTo(HistoryLinks.List(HistoryPaging.NormalizeFilter(_filterText), 1));
+    }
+
+    private async Task DeleteOneAsync(Guid entryId)
+    {
+        _busy = true;
+        var answer = await Entries.DeleteAsync(entryId, Token);
+        _busy = false;
+        _pendingDelete = null;
+        _notice = answer.Outcome == CollectionOutcome.Succeeded ? HistoryMessages.Deleted : HistoryMessages.ForFailure(answer.Outcome);
+
+        // The entry is gone from the list: the address drops it, and the list is read again from the same page.
+        Navigation.NavigateTo(HistoryLinks.List(_query, _plan?.Page ?? 1), replace: true);
+    }
+
+    private async Task ClearAllAsync()
+    {
+        _busy = true;
+        var answer = await Entries.ClearAsync(Token);
+        _busy = false;
+        _confirmClear = false;
+        _notice = answer.Outcome == CollectionOutcome.Succeeded ? HistoryMessages.Cleared : HistoryMessages.ForFailure(answer.Outcome);
+        if (Entry is null && Page is null && Filter is null)
+        {
+            // The address is already the bare list, so no navigation runs: the list is read again here.
+            _selected = null;
+            await LoadAsync();
+            return;
+        }
+
+        Navigation.NavigateTo(HistoryLinks.List(null, 1), replace: true);
+    }
+
+    /// <summary>The start of a request body, cut on a character boundary. The text stays encoded; it is never markup.</summary>
+    private static string BodyPreview(string raw) =>
+        raw.Length <= BodyPreviewLength ? raw : raw[..BodyPreviewLength] + "\n… (the rest of the body is kept by the service and not shown here)";
+
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+}

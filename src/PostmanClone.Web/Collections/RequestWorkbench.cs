@@ -50,6 +50,12 @@ public sealed class RequestWorkbench(WorkspaceShell shell)
             return new CollectionAnswer<RequestEditor>(CollectionOutcome.NotFound, null, null);
         }
 
+        // An unsaved draft has no service row to write; it is saved as a new request, never by id.
+        if (!editor.IsSaved)
+        {
+            return new CollectionAnswer<RequestEditor>(CollectionOutcome.Invalid, null, null);
+        }
+
         if (editor.Draft.Validate().Count > 0 || !RequestEditor.IsValidName(editor.Name))
         {
             return new CollectionAnswer<RequestEditor>(CollectionOutcome.Invalid, null, null);
@@ -125,6 +131,18 @@ public sealed class RequestWorkbench(WorkspaceShell shell)
         var editor = new RequestEditor(created);
         _editors[created.Id] = editor;
         return new CollectionAnswer<RequestEditor>(CollectionOutcome.Succeeded, editor, null);
+    }
+
+    /// <summary>
+    /// Opens a draft that is not saved anywhere (WP22: a history entry opened in the builder). Nothing is sent to the service; the
+    /// draft is saved only as a new request, through <see cref="SaveAsNewAsync"/>.
+    /// </summary>
+    public RequestEditor OpenUnsaved(RequestDefinition definition, string name)
+    {
+        var localId = Guid.NewGuid();
+        var editor = RequestEditor.Unsaved(localId, name, definition);
+        _editors[localId] = editor;
+        return editor;
     }
 
     /// <summary>Creates an untitled request in a collection or a folder, with the default definition, and gives it an editor.</summary>

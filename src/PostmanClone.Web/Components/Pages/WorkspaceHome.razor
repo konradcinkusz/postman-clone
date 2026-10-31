@@ -9,11 +9,14 @@
 @using PostmanClone.Web.Components.Builder
 @using PostmanClone.Web.Components.Response
 @using PostmanClone.Web.Components.Shell
+@using PostmanClone.Web.History
 @using PostmanClone.Web.Response
 @inject WorkspaceState State
 @inject WorkspaceShell Shell
 @inject RequestWorkbench Workbench
 @inject SendCoordinator Sender
+@inject HistoryShell Entries
+@inject HistoryChangeSignal HistoryChanges
 @inject AuthenticationStateProvider AuthenticationState
 @implements IDisposable
 
@@ -63,6 +66,10 @@ else
                                 ToggleRow="@ToggleAsync"
                                 SelectRow="@SelectAsync"
                                 NewCollection="@BeginNewCollection" />
+            @if (_hasWorkspace)
+            {
+                <HistoryPanel OnOpen="@OpenHistoryEntryAsync" />
+            }
         </aside>
 
         <section class="workspace-main" aria-label="Open requests and the selected item">
@@ -314,6 +321,23 @@ else
     private string _moveTarget = string.Empty;
 
     private CancellationToken Token => _cancellation.Token;
+
+    /// <summary>"Open in builder" from the history page (WP22): <c>/?reopen=&lt;entry id&gt;</c>. The entry opens once per page instance.</summary>
+    [Parameter, SupplyParameterFromQuery(Name = "reopen")]
+    public Guid? Reopen { get; set; }
+
+    private bool _reopenHandled;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Reopen is not { } entryId || _reopenHandled || !_hasWorkspace)
+        {
+            return;
+        }
+
+        _reopenHandled = true;
+        await OpenHistoryEntryAsync(entryId);
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -912,8 +936,19 @@ else
 
     private Task SaveAsync() => SaveWithAsync(requestId => Workbench.SaveAsync(requestId, Token));
 
-    /// <summary>A send changed state on this circuit: the page re-renders on its own thread (BLAZOR-WEB-APP §4).</summary>
-    private void OnSendChanged() => _ = InvokeAsync(StateHasChanged);
+    /// <summary>
+    /// A send changed state on this circuit: the page re-renders on its own thread (BLAZOR-WEB-APP §4). A send that was recorded in the
+    /// history tells the history panel to reload (WP22).
+    /// </summary>
+    private void OnSendChanged()
+    {
+        if (Sender.View.Phase == SendPhase.Shown && Sender.View.Response?.HistoryId is not null)
+        {
+            HistoryChanges.Raise();
+        }
+
+        _ = InvokeAsync(StateHasChanged);
+    }
 
     /// <summary>Sends the active request as the builder holds it. The sender reads the environment selection (none until WP21).</summary>
     private Task SendActiveAsync()
@@ -923,7 +958,60 @@ else
             return Task.CompletedTask;
         }
 
-        return Sender.SendAsync(requestId, editor.Draft.ToDefinition(), requestId, Token);
+        if (RefuseMasked(requestId))
+        {
+            Rebuild();
+            return Task.CompletedTask;
+        }
+
+        // An unsaved draft (opened from history) has no saved request to name; the send records none.
+        return Sender.SendAsync(requestId, editor.Draft.ToDefinition(), editor.IsSaved ? requestId : null, Token);
+    }
+
+    /// <summary>
+    /// Opens a history entry as a new unsaved draft (WP22, ADR-0015). The stored request is the masked template: the mask stays where
+    /// it was, nothing is restored, and the draft is refused by send and save until the masked values are entered again.
+    /// </summary>
+    private async Task OpenHistoryEntryAsync(Guid entryId)
+    {
+        await RunAsync(async () =>
+        {
+            var answer = await Entries.GetAsync(entryId, Token);
+            if (answer.Value is not { } entry)
+            {
+                _notice = new Notice(HistoryMessages.ForFailure(answer.Outcome), IsError: true);
+                return;
+            }
+
+            var title = HistoryReopen.TitleFor(entry.Request.Method, entry.Request.Url);
+            var editor = Workbench.OpenUnsaved(entry.Request, title);
+            if (_tabs.Open(editor.RequestId, title) == OpenTabResult.Full)
+            {
+                Workbench.Forget(editor.RequestId);
+                _notice = new Notice(CollectionMessages.TabLimit, IsError: true);
+                return;
+            }
+
+            // An unsaved draft is dirty from the start, so closing its tab asks before it is lost.
+            _tabs.SetDirty(editor.RequestId, true);
+            _notice = new Notice(HistoryMessages.Reopened, IsError: false);
+        });
+        Rebuild();
+    }
+
+    /// <summary>
+    /// True when the active draft still holds a masked value from history: it is not sent or saved then, and the notice says why.
+    /// A masked value is not a secret, but sending or saving it would send or store the mask as if it were the value.
+    /// </summary>
+    private bool RefuseMasked(Guid requestId)
+    {
+        if (!Workbench.TryGet(requestId, out var editor) || HistoryReopen.MaskedValueCount(editor.Draft.ToDefinition()) == 0)
+        {
+            return false;
+        }
+
+        _notice = new Notice(HistoryMessages.MaskedBeforeSend, IsError: true);
+        return true;
     }
 
     private Task CancelSend()
@@ -942,6 +1030,12 @@ else
     {
         if (_tabs.ActiveRequestId is not { } requestId)
         {
+            return;
+        }
+
+        if (RefuseMasked(requestId))
+        {
+            Rebuild();
             return;
         }
 
@@ -985,6 +1079,12 @@ else
     {
         if (_tabs.ActiveRequestId is not { } sourceId)
         {
+            return false;
+        }
+
+        if (RefuseMasked(sourceId))
+        {
+            Rebuild();
             return false;
         }
 

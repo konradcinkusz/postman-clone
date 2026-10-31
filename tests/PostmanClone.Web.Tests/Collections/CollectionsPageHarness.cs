@@ -7,6 +7,9 @@ using PostmanClone.Web.Auth;
 using PostmanClone.Web.Collections;
 using PostmanClone.Web.Response;
 using PostmanClone.Web.Tests.Auth;
+using PostmanClone.Web.Tests.History;
+using PostmanClone.Web.Tests.HistoryPages;
+using Microsoft.Extensions.Time.Testing;
 
 namespace PostmanClone.Web.Tests.Collections;
 
@@ -17,11 +20,20 @@ namespace PostmanClone.Web.Tests.Collections;
 /// </summary>
 internal static class CollectionsPageHarness
 {
-    public static BunitContext Create(AuthHarness harness, ClaimsPrincipal principal, FakeCollectionsService collections, IExecutionGateway? gateway = null)
+    public static BunitContext Create(
+        AuthHarness harness,
+        ClaimsPrincipal principal,
+        FakeCollectionsService collections,
+        IExecutionGateway? gateway = null,
+        WorkspaceState? workspace = null,
+        CircuitSession? circuit = null,
+        FakeHistoryClient? history = null,
+        TimeProvider? clock = null)
     {
         var context = new BunitContext();
-        var state = new WorkspaceState();
-        var session = new CircuitSession(state, harness.Refresher);
+        // A caller that adds more services to the same circuit (the history, WP22) passes its own state and session.
+        var state = workspace ?? new WorkspaceState();
+        var session = circuit ?? new CircuitSession(state, harness.Refresher);
 
         var services = new ServiceCollection();
         services.AddTransient<BearerTokenHandler>();
@@ -40,6 +52,8 @@ internal static class CollectionsPageHarness
         var sender = gateway ?? new UnusedExecutionGateway();
         context.Services.AddSingleton(sender);
         context.Services.AddSingleton(new SendCoordinator(sender, new EnvironmentSelection()));
+        // The workspace home shows the history panel (WP22), so the history services are part of every home page's circuit.
+        HistoryPageHarness.AddHistoryServices(context, state, session, history ?? new FakeHistoryClient(), clock ?? new FakeTimeProvider());
         return context;
     }
 
