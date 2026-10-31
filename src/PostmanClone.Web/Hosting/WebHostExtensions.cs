@@ -56,6 +56,8 @@ public static class WebHostExtensions
     /// </summary>
     public static WebApplication UseWebPipeline(this WebApplication app)
     {
+        // Before anything is served: a Web whose static files do not match their manifest stops here (OI-27).
+        StaticAssetManifestCheck.Verify(AppContext.BaseDirectory, app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"));
         app.UseForwardedHeaders();
         app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseMiddleware<OriginGuardMiddleware>();
