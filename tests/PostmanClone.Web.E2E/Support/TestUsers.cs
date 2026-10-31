@@ -47,6 +47,9 @@ public static class TestUsers
             catch (Exception exception) when (attempt < Attempts && exception is HttpRequestException or TaskCanceledException)
             {
                 // A stalled attempt may still have created its user; the retry uses a new address, so nothing is reused.
+                // Logged to the test output: a retry is visible, never a silent pass.
+                TestContext.Current.SendDiagnosticMessage(
+                    $"authservice register attempt {attempt} of {Attempts} failed ({exception.GetType().Name}); retrying with a new address.");
             }
         }
 
