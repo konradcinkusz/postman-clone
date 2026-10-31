@@ -29,6 +29,7 @@ public static class E2ESettings
     /// The journeys tagged "loopback" need it; the journeys tagged "strict" need it absent. The trait selects which
     /// job runs which journey, so a wrong filter is visible as a failing journey, not a skip.
     /// </summary>
-    public const string LoopbackTrait = "loopback";
-    public const string StrictTrait = "strict";
+    public const string ModeTrait = "Mode";
+    public const string LoopbackMode = "loopback";
+    public const string StrictMode = "strict";
 }
