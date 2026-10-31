@@ -1,3 +1,376 @@
 @page "/import"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using PostmanClone.Web.Api
+@using PostmanClone.Web.Auth
+@using PostmanClone.Web.Collections
+@inject WorkspaceState State
+@inject WorkspaceShell Shell
+@inject AuthenticationStateProvider AuthenticationState
+@implements IDisposable
 
-<PlaceholderPage Title="Import" />
+<PageTitle>Import · PostmanClone</PageTitle>
+
+<h1 data-testid="page-title">Import</h1>
+
+<p class="hint">
+    Import a Postman v2.1 collection file, or a cURL command. The service checks everything before it saves anything. Scripts are
+    never run, and a literal secret is never kept: it is replaced by a variable reference.
+</p>
+
+@if (!_hasWorkspace)
+{
+    <section class="empty-state" data-testid="import-no-workspace">
+        <p>Importing needs exactly one workspace. <a href="/no-workspace">See what to do next</a>.</p>
+    </section>
+}
+else
+{
+    <div class="tabs" role="tablist" aria-label="What to import" data-testid="import-tabs">
+        <a role="tab"
+           class="tab"
+           href="/import?tab=postman"
+           aria-selected="@(_kind == ImportKind.Postman ? "true" : "false")"
+           data-testid="import-tab-postman">Postman v2.1 file</a>
+        <a role="tab"
+           class="tab"
+           href="/import?tab=curl"
+           aria-selected="@(_kind == ImportKind.Curl ? "true" : "false")"
+           data-testid="import-tab-curl">cURL</a>
+    </div>
+
+    @if (_error is { } error)
+    {
+        <div class="callout callout-danger" role="alert" data-testid="import-error">@error</div>
+    }
+
+    @if (_kind == ImportKind.Postman)
+    {
+        <form class="card stack" data-testid="import-file-form" @onsubmit="SubmitFileAsync" @onsubmit:preventDefault>
+            <h2>Postman v2.1 file</h2>
+            <div class="field">
+                <label for="import-file">Collection file</label>
+                <InputFile id="import-file" accept=".json,application/json" OnChange="FileChosen" data-testid="import-file" />
+                <p class="hint" data-testid="import-file-hint">
+                    A .json file exported from Postman in the v2.1 format, at most 5 MB. It becomes a new collection.
+                </p>
+            </div>
+            <div class="cluster">
+                <button type="submit" class="btn btn-primary" data-testid="import-file-submit" disabled="@(_busy || _file is null)">Import file</button>
+            </div>
+        </form>
+    }
+    else
+    {
+        <form class="card stack" data-testid="import-curl-form" @onsubmit="SubmitCurlAsync" @onsubmit:preventDefault>
+            <h2>cURL command</h2>
+            <div class="field">
+                <label for="import-curl-command">Command</label>
+                <textarea id="import-curl-command"
+                          rows="8"
+                          maxlength="@ImportRules.MaximumCommandLength"
+                          spellcheck="false"
+                          autocomplete="off"
+                          data-testid="import-curl-command"
+                          @bind="_command"
+                          @bind:event="oninput"></textarea>
+                <p class="hint num" data-testid="import-curl-counter" aria-live="polite">@_command.Length / @ImportRules.MaximumCommandLength characters</p>
+            </div>
+
+            @if (_collectionsError is { } collectionsError)
+            {
+                <p class="callout callout-danger" role="alert" data-testid="import-collections-error">@collectionsError</p>
+            }
+
+            <div class="field">
+                <label for="import-curl-collection">Collection</label>
+                <select id="import-curl-collection"
+                        data-testid="import-curl-collection"
+                        @bind="_targetCollection"
+                        @bind:after="CollectionChangedAsync">
+                    <option value="">Choose a collection</option>
+                    @foreach (var collection in _collections)
+                    {
+                        <option value="@collection.Id">@collection.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label for="import-curl-folder">Folder (optional)</label>
+                <select id="import-curl-folder"
+                        data-testid="import-curl-folder"
+                        disabled="@(_folderChoices.Count == 0)"
+                        @bind="_targetFolder">
+                    <option value="">Top of the collection</option>
+                    @foreach (var choice in _folderChoices)
+                    {
+                        <option value="@choice.Id">@choice.Path</option>
+                    }
+                </select>
+            </div>
+
+            <div class="cluster">
+                <button type="submit" class="btn btn-primary" data-testid="import-curl-submit" disabled="@(_busy || _targetCollection.Length == 0)">Import command</button>
+            </div>
+        </form>
+    }
+
+    @if (_result is { } result)
+    {
+        <section class="stack" aria-labelledby="import-result-heading" data-testid="import-result">
+            <div class="card stack">
+                <h2 id="import-result-heading">Import finished</h2>
+                <p data-testid="import-summary">@_summary</p>
+                <p>@(_kind == ImportKind.Postman ? "The collection is in the tree on the home page." : "The request is in the tree on the home page.") <a href="/">Go to the workspace</a>.</p>
+            </div>
+
+            @if (_groups.Count == 0)
+            {
+                <p class="callout callout-success" role="status" data-testid="import-no-warnings">Nothing was left out.</p>
+            }
+
+            @foreach (var group in _groups)
+            {
+                var slug = Kebab(group.Code);
+                <section class="card stack" aria-labelledby="warnings-@slug" data-testid="warnings-group-@slug">
+                    <h3 id="warnings-@slug">
+                        @group.Description.Title
+                        <span class="badge badge-warning" data-testid="warnings-count-@slug">@group.Items.Count</span>
+                    </h3>
+                    <p>@group.Description.Explanation</p>
+                    @if (group.Code == ImportWarnings.SecretCode)
+                    {
+                        <p><a class="btn" href="/environments" data-testid="import-create-variables">Create variables in environment…</a></p>
+                    }
+                    <ul class="stack warning-list">
+                        @foreach (var item in group.Items)
+                        {
+                            <li data-testid="warning-item"><code>@item.Path</code>: @item.Message</li>
+                        }
+                    </ul>
+                </section>
+            }
+        </section>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "tab")]
+    public string? Tab { get; set; }
+
+    private readonly CancellationTokenSource _cancellation = new();
+    private readonly List<CollectionSummary> _collections = [];
+    private readonly List<FolderChoice> _folderChoices = [];
+
+    private bool _hasWorkspace;
+    private bool _busy;
+    private ImportKind _kind = ImportKind.Postman;
+    private IBrowserFile? _file;
+    private string? _error;
+    private string? _collectionsError;
+    private string _command = string.Empty;
+    private string _targetCollection = string.Empty;
+    private string _targetFolder = string.Empty;
+    private ImportResult? _result;
+    private string _summary = string.Empty;
+    private IReadOnlyList<WarningGroup> _groups = [];
+
+    private CancellationToken Token => _cancellation.Token;
+
+    /// <summary>The tab is the query's, so a switch between tabs shows the other form with nothing carried over.</summary>
+    protected override void OnParametersSet()
+    {
+        var kind = string.Equals(Tab, "curl", StringComparison.OrdinalIgnoreCase) ? ImportKind.Curl : ImportKind.Postman;
+        if (kind == _kind)
+        {
+            return;
+        }
+
+        _kind = kind;
+        _error = null;
+        _file = null;
+        ClearResult();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await State.CaptureAsync(AuthenticationState);
+        _hasWorkspace = Shell.HasWorkspace;
+        if (!_hasWorkspace)
+        {
+            return;
+        }
+
+        // The cURL form needs the collections to choose from. Both tabs load them, because the page is one route.
+        await RunAsync(async () =>
+        {
+            var answer = await Shell.ListCollectionsAsync(Token);
+            if (answer.Value is { } collections)
+            {
+                _collections.AddRange(collections.OrderBy(collection => collection.Name, StringComparer.OrdinalIgnoreCase).ThenBy(collection => collection.Id));
+                _collectionsError = null;
+                return;
+            }
+
+            _collectionsError = answer.Outcome is CollectionOutcome.SessionEnded or CollectionOutcome.NoWorkspace
+                ? CollectionMessages.For(answer.Outcome, answer.Code)
+                : CollectionMessages.CollectionsNotLoaded;
+        });
+    }
+
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+
+    // ---- The Postman file -----------------------------------------------------------------------------
+
+    /// <summary>The file's size and type are checked when it is chosen, so a refused file never reaches the submit.</summary>
+    private Task FileChosen(InputFileChangeEventArgs args)
+    {
+        ClearResult();
+        _error = null;
+        _file = null;
+        var problem = ImportRules.FileProblem(args.File.Name, args.File.Size, args.File.ContentType);
+        if (problem is null)
+        {
+            _file = args.File;
+        }
+        else
+        {
+            _error = problem;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task SubmitFileAsync()
+    {
+        var file = _file;
+        if (file is null)
+        {
+            _error = "Choose a Postman collection file to import.";
+            return;
+        }
+
+        ClearResult();
+        _error = null;
+        await RunAsync(async () =>
+        {
+            // Checked again at the submit: the choice may have been made long before, and the stream below is capped too.
+            var problem = ImportRules.FileProblem(file.Name, file.Size, file.ContentType);
+            if (problem is not null)
+            {
+                _error = problem;
+                return;
+            }
+
+            // The browser's bytes go straight into the upload; they are not copied into a buffer first.
+            using var stream = file.OpenReadStream(ImportRules.MaximumFileBytes);
+            var answer = await Shell.ImportPostmanAsync(stream, ImportRules.SafeFileName(file.Name), Token);
+            ShowResult(ImportKind.Postman, answer);
+        });
+    }
+
+    // ---- The cURL command -----------------------------------------------------------------------------
+
+    /// <summary>The folders of the chosen collection, read when the collection changes. A bad choice is a message, not a crash.</summary>
+    private async Task CollectionChangedAsync()
+    {
+        _targetFolder = string.Empty;
+        _folderChoices.Clear();
+        if (!Guid.TryParse(_targetCollection, out var collectionId))
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var answer = await Shell.LoadTreeAsync(collectionId, Token);
+            if (answer.Value is { } tree)
+            {
+                _folderChoices.AddRange(CollectionTreeModel.From(tree).FolderChoices());
+                return;
+            }
+
+            _error = answer.Outcome == CollectionOutcome.NotFound
+                ? "That collection no longer exists. Choose another."
+                : CollectionMessages.TreeNotLoaded;
+        });
+    }
+
+    private async Task SubmitCurlAsync()
+    {
+        ClearResult();
+        _error = ImportRules.CommandProblem(_command);
+        if (_error is not null)
+        {
+            return;
+        }
+
+        if (!Guid.TryParse(_targetCollection, out var collectionId))
+        {
+            _error = "Choose the collection to import into.";
+            return;
+        }
+
+        var folderId = Guid.TryParse(_targetFolder, out var folder) ? folder : (Guid?)null;
+        await RunAsync(async () =>
+        {
+            var answer = await Shell.ImportCurlAsync(_command, collectionId, folderId, Token);
+            ShowResult(ImportKind.Curl, answer);
+        });
+    }
+
+    // ---- Shared ----------------------------------------------------------------------------------------
+
+    /// <summary>A body is the result, grouped by code; a refusal is the message for its code. Nothing is shown as HTML.</summary>
+    private void ShowResult(ImportKind kind, CollectionAnswer<ImportResult> answer)
+    {
+        if (answer.Value is { } result)
+        {
+            _result = result;
+            _summary = ImportRules.Summary(kind, result);
+            _groups = ImportWarnings.Group(result.Warnings);
+            return;
+        }
+
+        _error = ImportMessages.For(kind, answer.Outcome, answer.Code);
+    }
+
+    private void ClearResult()
+    {
+        _result = null;
+        _summary = string.Empty;
+        _groups = [];
+    }
+
+    private static string Kebab(string code) => code.Replace('_', '-');
+
+    /// <summary>
+    /// Runs one call of the page. Every outcome lands in state: an exception becomes the "not imported" message, and the page
+    /// keeps rendering (BLAZOR-WEB-APP §5, §15). The page is redrawn at once so a busy form disables its button.
+    /// </summary>
+    private async Task RunAsync(Func<Task> action)
+    {
+        _busy = true;
+        StateHasChanged();
+        try
+        {
+            await action();
+        }
+        catch (OperationCanceledException) when (Token.IsCancellationRequested)
+        {
+            // The circuit closed. Nothing is shown to nobody.
+        }
+        catch (Exception)
+        {
+            _error = CollectionMessages.For(CollectionOutcome.Unavailable, null);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

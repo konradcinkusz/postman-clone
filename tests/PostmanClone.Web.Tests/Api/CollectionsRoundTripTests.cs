@@ -117,4 +117,34 @@ public sealed class CollectionsRoundTripTests
         Headers: [],
         Body: new RequestBody("formUrlEncoded", null, null, [new KeyValue("name", "{{name}}")]),
         Auth: new RequestAuth("apiKey", null, null, null, "X-Key", "{{api.key}}", "header"));
+
+    [Fact]
+    public void An_import_result_with_its_warnings_reads_into_the_copies_and_writes_back_unchanged()
+    {
+        var result = new Service.ImportResult(
+            Guid.NewGuid(),
+            "Billing",
+            FoldersCreated: 2,
+            RequestsCreated: 3,
+            [new Service.ImportWarning("secret_not_imported", "Replaced a bearer with imported_auth_1.", "$.item[0].request.auth")]);
+        var original = JsonNode.Parse(JsonSerializer.Serialize(result, WebOptions));
+
+        var copy = JsonSerializer.Deserialize<ImportResult>(original!.ToJsonString(), WebOptions);
+        var again = JsonNode.Parse(JsonSerializer.Serialize(copy, WebOptions));
+
+        Assert.True(JsonNode.DeepEquals(original, again), $"The import result changed on the way through the copies:\n{original}\n{again}");
+        Assert.Equal("secret_not_imported", copy!.Warnings.Single().Code);
+    }
+
+    [Fact]
+    public void A_curl_import_body_writes_the_names_the_service_reads_with_its_optional_folder_absent()
+    {
+        var body = new Service.CurlImportBody("curl https://api.example.test/items", Guid.NewGuid(), FolderId: null);
+        var original = JsonNode.Parse(JsonSerializer.Serialize(body, WebOptions));
+
+        var copy = JsonSerializer.Deserialize<CurlImportBody>(original!.ToJsonString(), WebOptions);
+        var again = JsonNode.Parse(JsonSerializer.Serialize(copy, WebOptions));
+
+        Assert.True(JsonNode.DeepEquals(original, again));
+    }
 }

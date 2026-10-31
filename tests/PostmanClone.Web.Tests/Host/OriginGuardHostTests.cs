@@ -63,7 +63,7 @@ public sealed class OriginGuardHostTests(WebHostFactory factory) : IClassFixture
     [Fact]
     public async Task A_form_post_with_the_null_origin_is_refused_and_the_same_origin_form_post_is_not()
     {
-        // The sign-in form (ADR-0021): the browser's real Origin passes, the "null" origin of a no-referrer page does not.
+        // The sign-in form (ADR-0022): the browser's real Origin passes, the "null" origin of a no-referrer page does not.
         using var client = factory.CreateClient();
         var own = client.BaseAddress!.GetLeftPart(UriPartial.Authority);
 

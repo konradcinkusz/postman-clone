@@ -26,6 +26,12 @@ public sealed class AuthHostFactory : WebApplicationFactory<Program>
 
     public FakeAuthService AuthService { get; }
 
+    /// <summary>The fake CollectionsService behind the Web's <c>collections</c> client, for the import and export endpoints.</summary>
+    public PostmanClone.Web.Tests.Collections.FakeCollectionsService Collections { get; } = new(Guid.NewGuid());
+
+    /// <summary>Every line the hosted Web logs, for the tests that check what must not be logged.</summary>
+    public PostmanClone.Web.Tests.Collections.CapturingLoggerProvider Logs { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
@@ -33,6 +39,8 @@ public sealed class AuthHostFactory : WebApplicationFactory<Program>
         {
             services.AddHttpClient(BackendServices.AuthServiceName).ConfigurePrimaryHttpMessageHandler(() => AuthService.Handler);
             services.AddSingleton<IConfigurationManager<OpenIdConnectConfiguration>>(_tokens.ConfigurationManager());
+            services.AddHttpClient(BackendServices.CollectionsName).ConfigurePrimaryHttpMessageHandler(() => Collections.Handler);
+            services.AddSingleton<Microsoft.Extensions.Logging.ILoggerProvider>(Logs);
         });
     }
 

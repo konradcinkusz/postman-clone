@@ -109,7 +109,7 @@ public sealed class OriginGuardTests
     [Fact]
     public async Task A_form_post_from_the_own_origin_is_allowed_as_a_browser_sends_it()
     {
-        // The sign-in form (ADR-0021): a same-origin POST carries the real Origin and Referer and Sec-Fetch-Site same-origin.
+        // The sign-in form (ADR-0022): a same-origin POST carries the real Origin and Referer and Sec-Fetch-Site same-origin.
         await using var app = await SecureTestHost.StartAsync(map: MapBrowserEndpoints);
         using var client = TestHost.ClientFor(app);
         var ownOrigin = app.Urls.First();

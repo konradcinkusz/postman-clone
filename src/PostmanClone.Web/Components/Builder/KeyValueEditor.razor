@@ -1,0 +1,185 @@
+@using PostmanClone.Web.Builder
+
+@* A list of key/value rows (WP19): the query parameters, the headers and the form fields. It edits the draft directly through the
+   draft's methods and raises OnChanged, so the URL bar and the other editors see the change. Bulk mode edits the same rows as text. *@
+
+<div class="kv" data-testid="kv-editor">
+    <div class="cluster">
+        <button type="button" class="btn" data-testid="kv-add" disabled="@_bulk" @onclick="AddAsync">Add row</button>
+        <button type="button"
+                class="btn"
+                data-testid="kv-bulk-toggle"
+                aria-pressed="@(_bulk ? "true" : "false")"
+                @onclick="ToggleBulk">@(_bulk ? "Back to the table" : "Bulk edit")</button>
+    </div>
+
+    @if (_listIssue is not null)
+    {
+        <p class="field-error" role="alert" data-testid="kv-list-error">@_listIssue.Message</p>
+    }
+
+    @if (_bulk)
+    {
+        <form class="stack" data-testid="kv-bulk-form" @onsubmit="ApplyBulkAsync" @onsubmit:preventDefault>
+            <div class="field">
+                <label for="@BulkId">@Label, one per line as key: value</label>
+                <textarea id="@BulkId" rows="8" spellcheck="false" data-testid="kv-bulk" @bind="_bulkText" @bind:event="oninput"></textarea>
+            </div>
+            <p class="hint">Start a line with <code>//</code> to disable it. @BuilderMessages.BulkCrossCheck</p>
+            <div class="cluster">
+                <button type="submit" class="btn btn-primary" data-testid="kv-bulk-apply">Apply</button>
+            </div>
+        </form>
+    }
+    else if (Rows.Count == 0)
+    {
+        <p class="empty-state" data-testid="kv-empty">No @Label.ToLowerInvariant() yet.</p>
+    }
+    else
+    {
+        <ol class="kv-list" aria-label="@Label">
+            @for (var index = 0; index < Rows.Count; index++)
+            {
+                var position = index;
+                var row = Rows[index];
+                var keyIssue = IssueFor(position, "key");
+                var valueIssue = IssueFor(position, "value");
+                <li class="kv-row" data-testid="kv-row-@position" @key="row.Id">
+                    <label class="kv-enabled">
+                        <input type="checkbox"
+                               data-testid="kv-enabled-@position"
+                               checked="@row.Enabled"
+                               aria-label="@($"{Label} {position + 1} enabled")"
+                               @onchange="e => EditAsync(new RowEdit(row.Id, null, null, e.Value is bool on && on))" />
+                    </label>
+
+                    <div class="kv-cell">
+                        <input id="kv-key-@position"
+                               type="text"
+                               data-testid="kv-key-@position"
+                               value="@row.Key"
+                               maxlength="@DraftValidator.MaximumKeyLength"
+                               placeholder="Name"
+                               aria-label="@($"Name, {Label} {position + 1}")"
+                               aria-invalid="@(keyIssue is null ? null : "true")"
+                               aria-describedby="@(keyIssue is null ? null : $"kv-key-error-{position}")"
+                               autocomplete="off"
+                               spellcheck="false"
+                               @oninput="e => EditAsync(new RowEdit(row.Id, e.Value?.ToString() ?? string.Empty, null, null))" />
+                        @if (keyIssue is not null)
+                        {
+                            <p class="field-error" id="kv-key-error-@position" data-testid="kv-key-error-@position">@keyIssue.Message</p>
+                        }
+                    </div>
+
+                    <div class="kv-cell">
+                        <input id="kv-value-@position"
+                               type="text"
+                               data-testid="kv-value-@position"
+                               value="@row.Value"
+                               maxlength="@DraftValidator.MaximumValueLength"
+                               placeholder="Value"
+                               aria-label="@($"Value, {Label} {position + 1}")"
+                               aria-invalid="@(valueIssue is null ? null : "true")"
+                               autocomplete="off"
+                               spellcheck="false"
+                               @oninput="e => EditAsync(new RowEdit(row.Id, null, e.Value?.ToString() ?? string.Empty, null))" />
+                        @if (valueIssue is not null)
+                        {
+                            <p class="field-error" data-testid="kv-value-error-@position">@valueIssue.Message</p>
+                        }
+                        @if (WarnReserved && HeaderAdvice.IsReserved(row.Key))
+                        {
+                            <p class="hint" data-testid="kv-advice-@position">@BuilderMessages.ReservedHeader</p>
+                        }
+                    </div>
+
+                    <button type="button"
+                            class="btn"
+                            data-testid="kv-remove-@position"
+                            aria-label="@($"Remove {Label} {position + 1}")"
+                            @onclick="() => RemoveAsync(row.Id)">Remove</button>
+                </li>
+            }
+        </ol>
+    }
+</div>
+
+@code {
+    private bool _bulk;
+    private string _bulkText = string.Empty;
+
+    /// <summary>The draft this list belongs to. The list edits it and raises <see cref="OnChanged"/>.</summary>
+    [Parameter, EditorRequired]
+    public RequestDraft Draft { get; set; } = new();
+
+    /// <summary>Which of the draft's lists this editor shows.</summary>
+    [Parameter, EditorRequired]
+    public RowList List { get; set; }
+
+    /// <summary>The service's field path of the list (for instance <c>request.params</c>), so each row finds its own issues.</summary>
+    [Parameter, EditorRequired]
+    public string Prefix { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public IReadOnlyList<DraftIssue> Issues { get; set; } = [];
+
+    /// <summary>Set on the header list: a header the service usually sets gets a note (HeaderAdvice).</summary>
+    [Parameter]
+    public bool WarnReserved { get; set; }
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private string BulkId => $"kv-bulk-{Prefix.Replace('.', '-')}";
+
+    private IReadOnlyList<DraftRow> Rows => Draft.RowsOf(List);
+
+    private DraftIssue? _listIssue;
+
+    protected override void OnParametersSet()
+    {
+        // The list-level rule (more than 100 rows) names the list, not a row.
+        _listIssue = Issues.FirstOrDefault(issue => issue.Field == Prefix);
+    }
+
+    private DraftIssue? IssueFor(int index, string part) =>
+        Issues.FirstOrDefault(issue => issue.Field == $"{Prefix}[{index}].{part}");
+
+    private async Task EditAsync(RowEdit edit)
+    {
+        Draft.EditRow(List, edit.Id, edit.Key, edit.Value, edit.Enabled);
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task AddAsync()
+    {
+        Draft.AddRow(List);
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task RemoveAsync(Guid rowId)
+    {
+        Draft.RemoveRow(List, rowId);
+        await OnChanged.InvokeAsync();
+    }
+
+    private void ToggleBulk()
+    {
+        _bulk = !_bulk;
+        if (_bulk)
+        {
+            _bulkText = BulkRows.Format(Rows);
+        }
+    }
+
+    private async Task ApplyBulkAsync()
+    {
+        Draft.ReplaceRows(List, BulkRows.Parse(_bulkText, Draft.NewId));
+        _bulk = false;
+        await OnChanged.InvokeAsync();
+    }
+}

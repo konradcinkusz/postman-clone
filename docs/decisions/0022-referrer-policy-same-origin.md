@@ -1,8 +1,8 @@
-# ADR-0021: Referrer-Policy same-origin, and a Referer check on unsafe requests
+# ADR-0022: Referrer-Policy same-origin, and a Referer check on unsafe requests
 
 - **Status:** Accepted
 - **Date:** 2026-10-31
-- **Work package:** WP18b (a fix after WP18; the number is the next spare one in [`docs/decisions/README.md`](README.md))
+- **Work package:** WP18b (a fix after WP18; numbered after the ADRs already on `main` in [`docs/decisions/README.md`](README.md))
 
 ## Context
 

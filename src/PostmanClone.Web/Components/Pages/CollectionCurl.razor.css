@@ -1,0 +1,13 @@
+/* The command is shown as text: it wraps, it never widens the page, and one click selects all of it (no script). */
+.curl-command {
+    margin: 0;
+    padding: var(--space-3);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: all;
+}

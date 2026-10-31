@@ -1,0 +1,106 @@
+@using PostmanClone.Web.Builder
+
+@* The auth helper (WP19, CONTRACTS §1, ADR-0006). A secret field takes a {{variable}} reference only: a literal is shown as refused
+   beside the field, and the service would refuse it too. The draft keeps only the fields of the chosen type. *@
+
+<div class="stack auth-editor" data-testid="builder-auth">
+    <div class="field">
+        <label for="builder-auth-type">Type</label>
+        <select id="builder-auth-type" data-testid="builder-auth-type" @onchange="ChangeTypeAsync">
+            @foreach (var (value, label) in BuilderChoices.AuthTypes)
+            {
+                <option value="@value" selected="@(value == Draft.AuthType)">@label</option>
+            }
+        </select>
+    </div>
+
+    @switch (Draft.AuthType)
+    {
+        case "bearer":
+            <div class="field">
+                <label for="auth-bearer">Token</label>
+                <input id="auth-bearer" type="text" autocomplete="off" spellcheck="false" data-testid="auth-bearer"
+                       aria-invalid="@(Refused("request.auth.bearerToken") ? "true" : null)"
+                       aria-describedby="auth-bearer-note"
+                       @bind="BearerToken" @bind:event="oninput" @bind:after="NotifyAsync" />
+                <SecretNote Id="auth-bearer-note" Refused="@(Refused("request.auth.bearerToken"))" TestId="auth-bearer-refused" />
+            </div>
+            break;
+        case "basic":
+            <div class="field">
+                <label for="auth-username">Username</label>
+                <input id="auth-username" type="text" autocomplete="off" spellcheck="false" data-testid="auth-username"
+                       @bind="Username" @bind:event="oninput" @bind:after="NotifyAsync" />
+            </div>
+            <div class="field">
+                <label for="auth-password">Password</label>
+                <input id="auth-password" type="text" autocomplete="off" spellcheck="false" data-testid="auth-password"
+                       aria-invalid="@(Refused("request.auth.password") ? "true" : null)"
+                       aria-describedby="auth-password-note"
+                       @bind="Password" @bind:event="oninput" @bind:after="NotifyAsync" />
+                <SecretNote Id="auth-password-note" Refused="@(Refused("request.auth.password"))" TestId="auth-password-refused" />
+            </div>
+            break;
+        case "apiKey":
+            <div class="field">
+                <label for="auth-apikey-name">Key name</label>
+                <input id="auth-apikey-name" type="text" autocomplete="off" spellcheck="false" data-testid="auth-apikey-name"
+                       @bind="ApiKeyName" @bind:event="oninput" @bind:after="NotifyAsync" />
+            </div>
+            <div class="field">
+                <label for="auth-apikey-value">Key value</label>
+                <input id="auth-apikey-value" type="text" autocomplete="off" spellcheck="false" data-testid="auth-apikey-value"
+                       aria-invalid="@(Refused("request.auth.apiKeyValue") ? "true" : null)"
+                       aria-describedby="auth-apikey-value-note"
+                       @bind="ApiKeyValue" @bind:event="oninput" @bind:after="NotifyAsync" />
+                <SecretNote Id="auth-apikey-value-note" Refused="@(Refused("request.auth.apiKeyValue"))" TestId="auth-apikey-value-refused" />
+            </div>
+            <div class="field">
+                <label for="auth-apikey-in">Add to</label>
+                <select id="auth-apikey-in" data-testid="auth-apikey-in" @onchange="ChangeKeyLocationAsync">
+                    @foreach (var (value, label) in BuilderChoices.ApiKeyLocations)
+                    {
+                        <option value="@value" selected="@(value == Draft.ApiKeyIn)">@label</option>
+                    }
+                </select>
+            </div>
+            break;
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public RequestDraft Draft { get; set; } = new();
+
+    [Parameter]
+    public IReadOnlyList<DraftIssue> Issues { get; set; } = [];
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private bool Refused(string field) => Issues.Any(issue => issue.Field == field);
+
+    private string BearerToken { get => Draft.BearerToken; set => Draft.SetBearerToken(value); }
+
+    private string Username { get => Draft.Username; set => Draft.SetUsername(value); }
+
+    private string Password { get => Draft.Password; set => Draft.SetPassword(value); }
+
+    private string ApiKeyName { get => Draft.ApiKeyName; set => Draft.SetApiKeyName(value); }
+
+    private string ApiKeyValue { get => Draft.ApiKeyValue; set => Draft.SetApiKeyValue(value); }
+
+    private Task NotifyAsync() => OnChanged.InvokeAsync();
+
+    private async Task ChangeTypeAsync(ChangeEventArgs args)
+    {
+        Draft.SetAuthType(args.Value?.ToString() ?? "none");
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task ChangeKeyLocationAsync(ChangeEventArgs args)
+    {
+        Draft.SetApiKeyIn(args.Value?.ToString() ?? "header");
+        await OnChanged.InvokeAsync();
+    }
+}

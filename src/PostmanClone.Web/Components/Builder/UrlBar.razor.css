@@ -1,0 +1,58 @@
+/* The URL bar's own layout. Colours come from the tokens only (UI-STYLE §1). */
+.url-bar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.url-bar input {
+    width: 100%;
+    font-family: var(--font-mono);
+}
+
+.url-note {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+}
+
+.url-preview {
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+}
+
+.url-preview-label {
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-weight: 600;
+}
+
+.var-token {
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-sm);
+    background: var(--accent-soft);
+    color: var(--accent-hover);
+}
+
+.var-known {
+    background: var(--success-soft);
+    color: var(--success);
+}
+
+/* Unresolved: a warning tint and a dashed edge, so it is not told apart by colour alone. */
+.var-unresolved {
+    background: var(--warning-soft);
+    color: var(--warning);
+    border: 1px dashed var(--warning);
+}
+
+.hint {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
