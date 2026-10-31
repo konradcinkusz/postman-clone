@@ -81,7 +81,7 @@ public sealed class CollectionDownloadTests : IClassFixture<AuthHostFactory>
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
         Assert.Equal("attachment", response.Content.Headers.ContentDisposition?.DispositionType);
         Assert.Equal("Billing.postman_collection.json", response.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
-        Assert.Contains("no-store", response.Headers.CacheControl?.ToString() ?? string.Empty);
+        Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
         Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
         Assert.Equal(Fake.ExportBody, await response.Content.ReadAsStringAsync(Cancellation));
     }

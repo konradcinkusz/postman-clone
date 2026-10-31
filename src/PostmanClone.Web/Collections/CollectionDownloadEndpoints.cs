@@ -33,7 +33,7 @@ public static class CollectionDownloadEndpoints
         CancellationToken cancellationToken)
     {
         // A download is a navigation, so the answers that are not files are plain text, and never cached.
-        http.Response.Headers.CacheControl = "private, no-store";
+        http.Response.Headers.CacheControl = "no-store";
         http.Response.Headers["X-Content-Type-Options"] = "nosniff";
 
         var sessionId = http.User.FindFirst(ServerSession.SessionIdClaim)?.Value;
