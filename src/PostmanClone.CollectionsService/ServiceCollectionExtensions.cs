@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using PostmanClone.CollectionsService.Data;
+using PostmanClone.CollectionsService.Interop.Postman;
 using PostmanClone.CollectionsService.Services;
 using PostmanClone.ServiceDefaults;
 using PostmanClone.ServiceDefaults.Authentication;
@@ -29,6 +31,11 @@ public static class ServiceCollectionExtensions
         builder.Services.AddScoped<ICollectionService, CollectionService>();
         builder.Services.AddScoped<IFolderService, FolderService>();
         builder.Services.AddScoped<IRequestService, RequestService>();
+        builder.Services.AddScoped<IPostmanIoService, PostmanIoService>();
+
+        // The multipart import is read as one file; a form larger than the file limit plus its envelope is refused while it is read.
+        builder.Services.Configure<FormOptions>(options =>
+            options.MultipartBodyLengthLimit = PostmanImportLimits.MaxFileBytes + PostmanImportLimits.MaxMultipartEnvelopeBytes);
 
         if (builder.Environment.IsDevelopment())
         {
