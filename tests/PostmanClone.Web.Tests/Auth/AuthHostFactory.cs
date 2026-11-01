@@ -15,7 +15,7 @@ namespace PostmanClone.Web.Tests.Auth;
 /// trusts for token signatures. The environment is Development over plain http, so the session cookie is the
 /// unprefixed one; the Secure rules have their own unit tests.
 /// </summary>
-public sealed class AuthHostFactory : WebApplicationFactory<Program>
+public class AuthHostFactory : WebApplicationFactory<Program>
 {
     private readonly TestTokens _tokens = new();
 
@@ -34,6 +34,9 @@ public sealed class AuthHostFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Every test in this host signs in from one address; the production window (10 a minute) would refuse most of them.
+        // The rate-limit tests have their own host (AuthFormRateLimitTests) with a small window.
+        builder.UseSetting("RateLimiting:AuthPermitsPerMinute", "1000");
         builder.UseEnvironment("Development");
         builder.ConfigureTestServices(services =>
         {

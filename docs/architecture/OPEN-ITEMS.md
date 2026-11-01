@@ -1,93 +1,129 @@
 # Open items register
 
-The register of what is not finished, not verified, or known to be wrong on `main` as of WP27. It follows the
+The register of what is still open, unverified, or accepted on `main` after WP28 (the final review). It follows the
 readiness-ledger format of [SECURITY-REVIEW §3](https://github.com/konradcinkusz/architecture-standards/blob/main/docs/guides/SECURITY-REVIEW.md):
-one row per item, a status (`OPEN`, `FIXED`, `NOT APPLICABLE`), a priority with a time window, the evidence
-location, and the action. Security findings also carry an attack scenario, because a finding without one is a style note.
+one row per item, a status (`OPEN`, `FIXED`, `NOT APPLICABLE`), a priority with a time window, the evidence location, and the action.
+Findings from the review are in [SECURITY_REVIEW.md](../SECURITY_REVIEW.md) and [ARCHITECTURE_REVIEW.md](../ARCHITECTURE_REVIEW.md);
+decisions are in [ADR-0019](../decisions/0019-final-review-outcomes.md).
 
 Priorities: **P1** immediately · **P2** within a week · **P3** within two weeks · **P4** long-term.
 
-Evidence was re-checked on the merged tree (after WP18b, WP19, WP20, WP23 and WP25). Each row says when it was
-last checked. Rows that a later work package closes are kept with `FIXED` and the PR that closed them, until the
-final review deletes them.
+Rows closed by WP28 are listed in §5 with the commit that closed them, so the history stays findable.
 
-## 1. Blocks deployment
+## 0. Owner decisions and actions
 
-| ID | Pri | Status | Location | Issue | Context: what exists | Action |
-|---|---|---|---|---|---|---|
-| OI-02 | P2 | OPEN | `ServiceDefaults/RateLimiting/RateLimitingExtensions.cs:39` (policy `auth`, 10 per minute per IP); no production endpoint uses it (`grep`) | The sign-in, register, invitation and accept forms are not rate-limited by this application. | The policy and its fixed-window limiter exist and are tested (`RateLimitingTests.cs:85`). The Web does not call `AddRateLimitingDefaults` and no Web endpoint calls `RequireRateLimiting`. | Register the kernel limiter in the Web, apply `RequireRateLimiting(RateLimitPolicies.Auth)` to the form endpoints in `Auth/AuthEndpoints.cs` and `Membership/MembershipEndpoints.cs`, and test the 429 body. authservice's own limits were not inspected. |
+Nothing in this list is done by a session. Each item says what the owner must do; none of them is a code change.
 
-**Upstream control (OI-02).** authservice already limits its auth endpoints to 20 requests a minute per client IP (`Program.cs`,
-the `auth` policy), and queues five more (OI-26). That covers the Web's login call, but only per client IP as authservice sees it.
-Behind a shared address, every user counts against one window.
+**Repository and GitHub settings (the owner, in GitHub):**
 
-**Attack scenario (OI-02).** An attacker holding a list of addresses posts `/sign-in` with a list of passwords at the rate the
-network allows, one request per guess. Nothing in this application slows the attempts down. Impact: a weak password is found.
-Recommendation: the change above. Better: a per-account lockout or delay in authservice, which owns the accounts (not inspected here).
+- **Branch protection on `main`:** require the `pr-validation` check (its aggregate counts the `e2e` job), and require `secret-scan` if wanted.
+- **Secret scanning and push protection, Dependabot alerts, and CodeQL** if wanted (PR #2).
+- **Stale remote branches to delete** (sessions cannot delete them; the merged work is on `main`):
+  `origin/claude/postman-clone-plan`, and `origin/wp/00-baseline`, `wp/01-kernel-core`, `wp/02-kernel-security`, `wp/03-apphost-authservice`,
+  `wp/04-collections-skeleton`, `wp/05-environments-skeleton`, `wp/06-execution-skeleton`, `wp/07-web-skeleton`, `wp/08-collections-api`,
+  `wp/09-environments-api`, `wp/10-ssrf-guard`, `wp/11-variables-assembler`, `wp/12-web-auth`, `wp/13-requests-api`, `wp/14-sender`,
+  `wp/15-history`, `wp/16-postman-io`, `wp/17-curl-io`, `wp/18-web-shell`, `wp/18b-signin-origin-fix`, `wp/19-request-builder`,
+  `wp/20-response-viewer`, `wp/21-environments-ui`, `wp/22-history-ui`, `wp/23-import-export-ui`, `wp/24-workspace-members`,
+  `wp/25-isolation-arch-tests`, `wp/26-e2e`, `wp/27-docs-final`. Delete `wp/28-final-review` after its pull request is merged.
+- **Licence holder:** confirm the copyright holder in `LICENSE` (PR #2).
+- **Make the `e2e` job part of the required set** with `pr-validation` (the aggregate is the required check).
 
-## 2. Should be done before deployment
+**Gitleaks (OI-05):**
 
-| ID | Pri | Status | Location | Issue | Context | Action |
-|---|---|---|---|---|---|---|
-| OI-03 | P3 | OPEN | `docs/PRIVACY.md` §5 | Deleting an account in authservice does not remove this system's rows that refer to the user's id, and nothing consumes authservice's deletion. | authservice soft-deletes and schedules permanent deletion (`UserCleanupService`, source read in v0.3.4). The services hold `CreatedBy` and `UserId` only. | An owner decision on what to remove or keep for a workspace, then an erasure job. |
-| OI-04 | P2 | OPEN | `src/PostmanClone.Web/Components/Pages/Legal/Privacy.razor`, `Terms.razor` (each one `PlaceholderPage`) | `/legal/privacy` and `/legal/terms` are placeholders, so no notice is published. | The routes exist and are linked from the register page. | Owner: supply the text. Engineering: render it as a page. |
-| OI-05 | P2 | OPEN | `scripts/hooks/pre-commit`; `.github/workflows/secret-scan.yml` (gitleaks v8.19.0) | gitleaks v8.19.0, built from its module source or from the release binary, fails the hook's `git --staged` form with `flag accessed but not defined: source`, so the hook refuses every commit. The hook fails closed, as designed. | Seen on this branch (2026-10-31). gitleaks latest (`go install …/v8@latest`) passes the hook and refuses a dummy secret. WP26 (2026-10-31) used `go install …/v8@v8.28.0` into `$HOME/.local/bin`: the hook ran clean on every WP26 commit. The CI job uses the Docker image with `detect`, not `git --staged`. | Document a version that passes the hook for developers, in its own PR. Verified here: the latest module release passes the hook and refuses a dummy secret. Do not change the hook's checks. |
-| OI-08 | P3 | OPEN | `ExecutionService/Sending/Execution/RequestExecutor.cs:192-194` | The sender builds a plain `HttpClient` without the kernel's resilience handler, so it never retries. This is deliberate (a user's request is not resent silently), but ADR-0014 does not say so. | The kernel now adds retries only for safe methods (`Extensions.cs`, `DisableForUnsafeHttpMethods`), so an ordinary service client is safe; the sender is the exception. | Recorded in `DEVIATIONS.md` (2026-10-31). An ADR-0014 addendum would make the reason findable. |
-| OI-09 | P3 | OPEN | `EnvironmentsService/Environments/EnvironmentLimits.cs:10` (50 per workspace) | The 50-environment limit is checked, then inserted, with no database constraint. Two concurrent creates at 49 can both succeed. | Reported in the WP09 PR (#10); the collections limit is taken under a workspace lock (WP08) and could be reused. | Take the same workspace lock, or add a constraint. Not re-tested here. |
-| OI-12 | P4 | OPEN | `ExecutionService/Sending/Execution/ResponseBody.cs` | A secret cut by the 5 MB read cap is not masked, so the kept prefix is visible. | The masker works on what was read. | Mask the last `secret-length - 1` bytes of the cap, or refuse the response when a secret is near the cap. |
-| OI-13 | P2 | FIXED | `scripts/run-local-stack.sh`; `ExecutionService` resolves through `http://environments-service` | EnvironmentsService and the Web were not started by the no-Docker script. A send with `environmentId` answered `502 upstream_unavailable` locally. | WP26 (this PR): the script starts EnvironmentsService (5302, with the encryption key) and the Web (5310). The E2E bearer journey sends with an environment variable and passes on that stack. |
-| OI-14 | P3 | OPEN | `src/PostmanClone.AppHost/Resources/*.cs` and `scripts/run-local-stack.sh` | The `Auth__*`, `ConnectionStrings__*` and key wiring exists in two places with no check that they agree. | `docs/OPERATIONS.md` §1 names the authority. | A test or a script that reads both and compares the variable names. |
-| OI-15 | P2 | FIXED | `.github/workflows/pr-validation.yml` (job `e2e`) | The browser flows were not in CI. | WP26 (this PR): job `e2e` runs the loopback and strict sets on the estate, with `POSTMANCLONE_E2E_REQUIRED=1`, and the aggregate check counts it. Its result on the head is on the PR (TESTING.md §6). |
-| OI-18 | P3 | OPEN | `ServiceDefaults/Telemetry/OpenTelemetryExtensions.cs:43` | The OTLP exporter branch has no test and was never run against a collector. | The exporter is registered only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. | A test with a stub collector. |
-| OI-19 | P3 | OPEN | `src/PostmanClone.AppHost/` and the four Dockerfiles | The AppHost has never been run, and no Docker image has been built in a session. | Sessions have no Docker daemon. CI's `docker-build` builds the four images. | An owner run of the AppHost once, with Docker, recorded here. |
-| OI-20 | P4 | OPEN | Web security headers (`ServiceDefaults/Security/SecurityExtensions.cs`) | No `Strict-Transport-Security`. | Right for the plain-HTTP local stack. A TLS edge decides it. | Owner: set HSTS at the TLS edge when deployed. |
-| OI-24 | P3 | FIXED | `Components/Builder`, `Components/Response`, `Api/ExecutionClient.cs` | The Web's send path (builder → `POST /api/v1/execute` → response viewer) was not exercised in a browser. | WP26 (this PR): `SendJourneys` sends a GET and a POST to the local target, shows markup as text, and reopens the send from history; `EnvironmentJourneys` sends a bearer secret. 16 of 16 loopback journeys passed on the sandbox (2026-10-31). |
+- The hook and the installer now name `v8.28.0`, the version verified to run the hook's `git --staged` form. The hook itself is unchanged and fail-closed.
+- The CI scan still runs `ghcr.io/gitleaks/gitleaks:v8.19.0` (`secret-scan.yml`, `pr-validation.yml`). Bump it in its own pull request, with the
+  image digest checked and a full-history scan after the bump. Not done here: this session has no Docker to read a digest.
 
-## 3. Fixed (kept until the final review)
+**Before any deployment (the owner):**
 
-| ID | Pri | Status | Location | Issue | Closed by |
-|---|---|---|---|---|---|
-| OI-01 | P1 | FIXED | `ServiceDefaults/Security/SecurityExtensions.cs:16` (`Referrer-Policy: same-origin`) | Browser sign-in POST was refused with 403: the browser sent `Origin: null` under `no-referrer`, and the origin guard refused it. | WP18b (#25), ADR-0022. **Verified 2026-10-31** in headless Chromium: the sign-in POST returns 200 and lands on `/no-workspace` (before: 403, `/sign-in`). |
-| OI-07 | P4 | FIXED | `Components/Shared/StatusStrip.razor` | The status strip read a disposed cancellation token and logged `ObjectDisposedException`. | WP18b (#25): a `_disposed` guard and the cancellation cancelled in `Dispose`. Read in code; not re-run. |
-| OI-11 | P3 | FIXED | `AGENTS.md` | AGENTS.md said the SSRF guard was "not yet wired to a route". It is wired (`SsrfHandlerFactory` in `RequestExecutor`). | WP27 (this PR). |
+- **OI-26 (client-IP trust):** set authservice's `ClientIpHeader` and trusted proxies for the edge, and the Web's `Proxy:TrustForwardedFor` and
+  `ForwardedHeaders:KnownProxies`. Decide whether one shared sign-in window per edge address is acceptable.
+- **Email verification (SR-11):** authservice requires a confirmed email only when it can send mail. Configure a sender, or decide that
+  accounts may be active unverified.
+- **HSTS (OI-20):** set `Strict-Transport-Security` at the TLS edge.
+- **Legal text (OI-04):** supply `/legal/privacy` and `/legal/terms`.
+- **Erasure, retention and anonymisation policy (OI-03, SR-14):** decide what is removed or kept for a workspace when a user is deleted, and
+  for how long. Documented in PRIVACY.md §5; not decided. Then an erasure job.
+- **Production key and secret custody (ADR-0007).**
+- **The AppHost, once, with Docker (OI-19):** run it and record the result here.
 
-## 4. Other open rows (verification and housekeeping)
+**Deployment:** Fly.io deployment was intentionally **not** done, and no tags were pushed. ADR-0007 keeps deployment out of this build.
+`flyio/` does not exist and the deploy workflows were not touched.
+
+**Other decisions the owner should confirm:**
+
+- Whether a Member may edit a collection another Member created (SR-19; the README roles table says yes; deletion is limited to the creator,
+  an Admin or an Owner).
+- Whether the sender keeps no resilience handler (ADR-0019 §8).
+- OI-06 is fixed (§5); confirm that the telemetry test is the right one to accept.
+
+## 1. Open — before deployment
 
 | ID | Pri | Status | Location | Issue | Action |
 |---|---|---|---|---|---|
-| OI-26 | P2 | OPEN | `authservice` v0.3.4, `src/AuthService/Program.cs` (the `auth` policy: fixed window, 20 per minute per client IP, queue 5, `OldestFirst`) | A request past the window waits inside authservice until the window reopens, up to a minute, and a request past the queue is refused. Every caller behind one address shares the window. | Seen by WP26 (2026-10-31): register and login took 10 to 60 s when the suite or a burst of curl exceeded 20 a minute from 127.0.0.1; the same calls took 0.1 s otherwise. authservice's log showed the time spent outside the action (the action took 93 ms). The suite now budgets its own calls (`tests/PostmanClone.Web.E2E/Support/AuthBudget.cs`, ADR-0018). In production, a reverse proxy in front of the Web and authservice would put every user behind one address: the owner must configure authservice's client IP header and trusted proxies (`ClientIpHeader`, `networkOptions`) before deployment, and decide whether a shared limit is wanted. | Owner: set the client-IP trust for the edge. Engineering: `AuthBudget` (test code) is exercised by every journey run and has no unit test yet; it reads the system clock, so a unit test would need the clock injected. |
-| OI-27 | P3 | OPEN | `src/PostmanClone.Web` run from a folder other than its publish folder | Started from a working directory without `wwwroot`, every static file (CSS, `blazor.web.js`) answers `200` with `Content-Length: 0`, and the circuit never starts. The failure is silent. | Seen by WP26 (2026-10-31): `dotnet PostmanClone.Web.dll` from the repository root served the bundle empty; from its publish folder it served 200 KB. The image sets `WORKDIR /app` (`Dockerfile`), so the container is not affected. A minimal Kestrel app serving a file from the same host returned it in full, so this is the Web's static assets, not the host. | At startup, fail (or log an error) when the static assets manifest points at files that are missing, instead of answering empty. Until then, run the Web from its publish folder (`scripts/run-local-stack.sh` does). |
-| OI-06 | P3 | OPEN | `ServiceDefaults.Tests/Telemetry/TelemetryTests.cs` | `Requests_are_traced_but_health_probes_are_filtered_out_of_traces` passes in full Debug and full Release runs, and fails when run alone in Release (`Assert.Contains() Failure: Filter not matched in collection`, empty collection). Reproduced on 2026-10-31 on the merged tree. Predates WP25 (PR #21). | Make the test wait for the span to be exported, or assert on what it can see deterministically. Not fixed here: it is a test change, out of WP27 scope. |
-| OI-10 | P3 | FIXED | `docs/OPERATIONS.md` §4.3 | The Web started outside the AppHost needs four settings to sign in. Without them, sign-in answers `error=unavailable`. | WP26: `scripts/run-local-stack.sh up` starts the Web with the discovery and metadata settings, and the browser journeys sign in through the form on that stack. |
-| OI-16 | P3 | OPEN | `Components/Pages/Environments.razor`, `History.razor`, `About.razor` | Placeholders. | WP21 (environments UI) and WP22 (history UI) are in progress. |
-| OI-17 | P4 | OPEN | test totals | The run reports 1927 tests; the per-project discovery (`--list-tests`) sums to 1919. Eight tests are not attributed to a project in this session. | Find the eight (probably a theory or a shared fixture) and say so in TESTING.md. |
-| OI-23 | P4 | OPEN | `docs/AUTH.md` | The invitation accept branch "already a member" was never observed live (authservice does not allow a second open invitation). | Covered by a fake only. Revisit when authservice allows it. |
-| OI-25 | P4 | OPEN | `Membership`, `Auth` | `ServerSessionStore` and `OpenTabs` live in the Web's memory; a restart signs everyone out. | Accepted by ADR-0008 (one instance, sessions in memory). Residual risk, listed. |
+| OI-26 | P2 | OPEN (owner) | authservice v0.3.4 `auth` policy; the Web's `ForwardedHeaders`, `Proxy:TrustForwardedFor` | Behind one edge address, every user shares authservice's sign-in window (20 a minute). The Web's own forms are limited per address too (SR-01). | §0, owner. |
+| OI-20 | P4 | OPEN (owner) | `ServiceDefaults/Security/SecurityExtensions.cs` | No `Strict-Transport-Security`. | Set it at the TLS edge (§0). |
+| OI-03 | P3 | OPEN (owner decision) | `docs/PRIVACY.md` §5 | Deleting an account in authservice does not remove this system's rows that refer to the user's id (SR-14). | §0, owner. Then an erasure job. |
+| OI-04 | P2 | OPEN (owner text) | `Components/Pages/Legal/Privacy.razor`, `Terms.razor` (each a `PlaceholderPage`) | No notice is published. | Owner supplies the text; engineering renders it. |
+| — | P2 | OPEN (owner) | authservice `RequireConfirmedEmail` follows `canSendEmail` | Accounts can be active without verification when no sender is configured (SR-11). | §0, owner. |
 
-## 5. Owner actions
+## 2. Open — engineering
 
-Collected from the merged PR bodies and this work. None of them is done by a session.
+| ID | Pri | Status | Location | Issue | Action |
+|---|---|---|---|---|---|
+| OI-05 | P2 | OPEN (CI pin) | `.github/workflows/secret-scan.yml`, `pr-validation.yml` | The CI image pin `v8.19.0` is not the version the hook drives (SR-18). Developer guidance is fixed (`v8.28.0`). | §0, owner (bump with a digest). |
+| OI-09 | P3 | OPEN | `EnvironmentsService/Environments/EnvironmentLimits.cs:10` | Two concurrent creates at 49 can both succeed (AR-07). | Take the workspace lock CollectionsService takes, or add a constraint. |
+| OI-14 | P3 | OPEN | `src/PostmanClone.AppHost/Resources/*.cs`, `scripts/run-local-stack.sh` | `Auth__*`, `ConnectionStrings__*` and key settings are in two places with no check that they agree (AR-06). | A test or script that reads both and compares. |
+| OI-18 | P3 | OPEN | `ServiceDefaults/Telemetry/OpenTelemetryExtensions.cs` | The OTLP exporter has no test and was never run against a collector (AR-05). | A test with a stub collector. |
+| OI-19 | P3 | OPEN (no Docker) | `src/PostmanClone.AppHost/`, the four Dockerfiles | The AppHost has never been run, and no image has been built in a session. | Owner run with Docker, recorded here. |
+| OI-16 | P4 | OPEN | `Components/Pages/About.razor` | `/about` is a placeholder. Environments and History are no longer placeholders (WP21, WP22). | Write the page. |
+| OI-17 | P4 | OPEN | test totals | The solution run reports 2067 tests on the branch. The per-project discovery total was not re-measured in WP28. | Re-measure and reconcile in TESTING.md §2. |
+| OI-23 | P4 | OPEN | `docs/AUTH.md` | The invitation "already a member" branch was never observed live (authservice allows one open invitation). | Covered by a fake only. |
+| SR-15 | P3 | OPEN (consider) | `Web/Components/Pages/Environments.razor` and `EnvironmentRules` | Environments have no version: the last write wins (SR-15). Documented in OPERATIONS.md; no contract change made. | Decide whether a version is wanted (a contract amendment, separately). |
 
-- Branch protection on `main`: require the `pr-validation` check (and `secret-scan`, if wanted).
-- GitHub secret-scanning push protection, Dependabot alerts, and CodeQL if wanted (PR #2).
-- Confirm the copyright holder in `LICENSE` (PR #2).
-- Make `ghcr.io/konradcinkusz/authservice:v0.3.4` pullable by CI and developers if the package is private (PR #4).
-- Decide OI-02 (the rate-limit owner) and OI-03 (erasure); supply the text for OI-04.
-- Decide the production key and secret custody (ADR-0007).
-- Decide OI-06: fix the test or accept the flake.
-- OI-26: configure the client-IP trust for the edge (authservice `ClientIpHeader` and trusted proxies) before any deployment, and
-  decide whether one shared sign-in window per edge address is acceptable.
-- Make the `e2e` job a required check with `pr-validation` (it is part of the aggregate; the aggregate is the required check).
-- Delete the merged remote branches, which sessions cannot delete (PR #3 onward):
-  `origin/wp/00-baseline`, `wp/01-kernel-core`, `wp/02-kernel-security`, `wp/03-apphost-authservice`, `wp/04-collections-skeleton`,
-  `wp/05-environments-skeleton`, `wp/06-execution-skeleton`, `wp/07-web-skeleton`, `wp/08-collections-api`, `wp/09-environments-api`,
-  `wp/10-ssrf-guard`, `wp/11-variables-assembler`, `wp/12-web-auth`, `wp/13-requests-api`, `wp/14-sender`, `wp/15-history`,
-  `wp/16-postman-io`, `wp/17-curl-io`, `wp/18-web-shell`, `wp/19-request-builder`, `wp/23-import-export-ui`, `wp/24-workspace-members`,
-  `wp/25-isolation-arch-tests`, and `claude/postman-clone-plan`. Keep `wp/27-docs-final` until this PR is merged.
+## 3. Accepted residual risks
 
-## 6. Residual risks accepted for now
+- The Web keeps sessions and open tabs in memory and runs as one instance (ADR-0008, OI-25). A restart ends every session.
+- Non-secret environment values are stored in clear, by design (ADR-0006).
+- The sender sends a user's secret to the host the user names. That is the product (ADR-0011).
+- The masking covers known secret values, not personal data in responses (PRIVACY.md §2.4, SR-21).
+- The sender has no resilience handler, so it never retries (ADR-0019 §8).
+- Login and sign-up are limited per client address; per account, authservice locks an account for five minutes after five failures (upstream).
+- A `v8.19.0` scan image in CI until §0 is done (SR-18).
 
-- The Web keeps sessions and open tabs in memory and runs as one instance (ADR-0008). A restart ends every session.
-- Non-secret environment values are stored in clear (by design; ADR-0006).
-- The sender sends a user's secret to the host the user names. That is the product, not a leak, but it is recorded here so it is a decision.
-- The masking covers known secret values, not personal data in responses (PRIVACY.md §2.4).
+## 4. Verification gaps (not run in this session)
+
+- The AppHost and the Dockerfiles (OI-19).
+- The browser journeys against the local stack in this session. CI's `e2e` job runs them for the head SHA; the local stack was started
+  and stopped as documented in OPERATIONS.md §4.5 (see the PR body for the exact commands and results).
+- `scripts/smoke-auth.sh` against authservice in this session (see the PR body).
+- The OTLP exporter against a collector (OI-18).
+
+## 5. Closed (history)
+
+| ID | Was | Closed by |
+|---|---|---|
+| OI-01 | Browser sign-in refused with 403 under `Referrer-Policy: no-referrer` | WP18b (#25), ADR-0022. Verified in a browser. |
+| OI-02 | Sign-in, register, invitation and accept were not rate-limited | WP28: `2908fc3` (Web limiter, configurable window, telemetry), `6ad2d70` (invitations and creation). Test `AuthFormRateLimitTests`. |
+| OI-06 | `TelemetryTests` flaky in Release | WP28: the test waits for the span it asserts on (`TelemetryTests.cs`). Three Release runs alone passed. |
+| OI-07 | Status strip read a disposed token | WP18b (#25). |
+| OI-08 | Sender's lack of retries was undocumented | WP28: ADR-0019 §8; DEVIATIONS.md. |
+| OI-10 | Web started outside the AppHost needed four settings | WP26 (`run-local-stack.sh`). |
+| OI-11 | AGENTS.md said the SSRF guard was not wired | WP27 (#27). |
+| OI-12 | Secret cut by the 5 MB read cap was not masked | WP28: `df4b7b9` (`TrimPartialSecretAtEnd`, UTF-8 tail). Tests in `ResponseBodyTests`. |
+| OI-13 | No EnvironmentsService or Web in the no-Docker stack | WP26 (#30). |
+| OI-15 | Browser flows not in CI | WP26 (#30), job `e2e`. |
+| OI-16 (part) | Environments and History placeholders | WP21 (#29), WP22 (#28). |
+| OI-24 | The send path was not exercised in a browser | WP26 (#30). 16 of 16 loopback journeys passed on the sandbox (2026-10-31). |
+| OI-26 (code part) | The suite's own budget was not tested | WP28: `AuthBudgetWindowTests` on a fake clock (`aa29143`). The production issue stays open (§1). |
+| OI-27 | Web answered empty static files when started from the wrong folder | WP28: `08f584a` (startup manifest check). The empty response was not reproduced; the check covers the symptom. |
+| — | SR-01 (SSRF relaxations allowed outside Production) | WP28: `aa29143`. Now refused outside Development. |
+| — | SR-02 (sender targets traced) | WP28: `2908fc3`. Deviation recorded (P15). |
+| — | SR-04 (body cut mid-character sent as base64 unmasked) | WP28: `df4b7b9`. |
+| — | SR-07 (Teredo and 6to4 relay not blocked) | WP28: `df4b7b9`. |
+| — | Register page did not show authservice's password rule | WP28: `aa29143`. |
+| — | Web had no health check in the AppHost | WP28 (AR-01). AppHost not run. |
+
+## 6. Residual risks (see SECURITY_REVIEW.md §6)
+
+Listed above in §3, with the same content.

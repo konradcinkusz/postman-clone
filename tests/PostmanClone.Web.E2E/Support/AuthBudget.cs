@@ -10,39 +10,54 @@ namespace PostmanClone.Web.E2E.Support;
 public static class AuthBudget
 {
     public const int PerWindow = 18;
-    private static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
-    private static readonly Queue<DateTimeOffset> Counted = new();
-    private static readonly SemaphoreSlim Gate = new(1, 1);
 
-    /// <summary>Waits, if needed, until one more auth call fits in the window, then counts it.</summary>
-    public static async Task AcquireAsync(CancellationToken cancellationToken)
+    private static readonly AuthBudgetWindow Shared = new(TimeProvider.System, PerWindow);
+
+    /// <summary>Waits, if needed, until one more auth call fits in the shared window, then counts it.</summary>
+    public static Task AcquireAsync(CancellationToken cancellationToken) => Shared.AcquireAsync(cancellationToken);
+}
+
+/// <summary>
+/// The budget's arithmetic, with the clock injected (TimeProvider, P-rules) so a test can move time: a fixed window of one
+/// minute, at most <see cref="Limit"/> counted calls in it. A call past the limit waits for the oldest counted call to age out.
+/// </summary>
+public sealed class AuthBudgetWindow(TimeProvider clock, int limit)
+{
+    private static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
+    private readonly Queue<DateTimeOffset> _counted = new();
+    private readonly SemaphoreSlim _gate = new(1, 1);
+
+    public int Limit { get; } = limit;
+
+    public async Task AcquireAsync(CancellationToken cancellationToken)
     {
         while (true)
         {
             TimeSpan wait;
-            await Gate.WaitAsync(cancellationToken);
+            await _gate.WaitAsync(cancellationToken);
             try
             {
-                var now = TimeProvider.System.GetUtcNow();
-                while (Counted.Count > 0 && now - Counted.Peek() >= Window)
+                var now = clock.GetUtcNow();
+                while (_counted.Count > 0 && now - _counted.Peek() >= Window)
                 {
-                    Counted.Dequeue();
+                    _counted.Dequeue();
                 }
 
-                if (Counted.Count < PerWindow)
+                if (_counted.Count < Limit)
                 {
-                    Counted.Enqueue(now);
+                    _counted.Enqueue(now);
                     return;
                 }
 
-                wait = Window - (now - Counted.Peek());
+                wait = Window - (now - _counted.Peek());
             }
             finally
             {
-                Gate.Release();
+                _gate.Release();
             }
 
-            await Task.Delay(wait + TimeSpan.FromMilliseconds(100), cancellationToken);
+            // The wait is the window's end plus a little, read from the same clock the window uses.
+            await Task.Delay(wait + TimeSpan.FromMilliseconds(100), clock, cancellationToken);
         }
     }
 }

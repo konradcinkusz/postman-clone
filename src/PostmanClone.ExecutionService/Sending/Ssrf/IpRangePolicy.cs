@@ -6,7 +6,7 @@ namespace PostmanClone.ExecutionService.Sending.Ssrf;
 
 /// <summary>
 /// Decides whether the sender may connect to an address (ADR-0011). Loopback and private ranges are lifted only by
-/// the matching <see cref="SsrfOptions"/> flag, which the service refuses in Production. Everything else in the block
+/// the matching <see cref="SsrfOptions"/> flag, which the service refuses outside Development. Everything else in the block
 /// list is refused unconditionally. An IPv4 address carried inside an IPv6 address (mapped, compatible, NAT64, 6to4)
 /// is judged on the IPv4 address it carries, so the wrapper cannot change the answer.
 /// </summary>
@@ -32,6 +32,7 @@ public sealed class IpRangePolicy(SsrfOptions options)
         Rule("192.0.0.0", 24, "reserved"),
         Rule("192.0.2.0", 24, "documentation"),
         Rule("192.168.0.0", 16, "private", Relaxation.Private),
+        Rule("192.88.99.0", 24, "reserved"),
         Rule("198.18.0.0", 15, "benchmarking"),
         Rule("198.51.100.0", 24, "documentation"),
         Rule("203.0.113.0", 24, "documentation"),
@@ -47,6 +48,7 @@ public sealed class IpRangePolicy(SsrfOptions options)
         Rule("fc00::", 7, "private", Relaxation.Private),
         Rule("fe80::", 10, "link_local", Relaxation.Private),
         Rule("ff00::", 8, "multicast"),
+        Rule("2001::", 32, "teredo"),
         Rule("2001:db8::", 32, "documentation"),
         Rule("64:ff9b:1::", 48, "nat64_local"),
     ];

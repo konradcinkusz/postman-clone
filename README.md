@@ -11,26 +11,28 @@ Deployment is deliberately absent ([ADR-0007](docs/decisions/0007-deployment-out
 ## Status
 
 The work packages are in [`docs/implementation-plan/WORK-PACKAGES.md`](docs/implementation-plan/WORK-PACKAGES.md).
-This page describes `main` at WP27.
+This page describes `main` after WP28, the final review (`docs/SECURITY_REVIEW.md`, `docs/ARCHITECTURE_REVIEW.md`).
 
 | Area | State |
 |---|---|
-| Sign-in, register, sign-out, workspace resolution (BFF session) | Built (WP12). Browser sign-in works (WP18b, OI-01 fixed). |
+| Sign-in, register, sign-out, workspace resolution (BFF session) | Built (WP12). Browser sign-in works (WP18b). The sign-in, register and invitation forms are rate-limited (WP28). |
 | Members page and invitations | Built (WP24) |
 | Collections, folders, saved requests API | Built (WP08, WP13) |
 | Postman v2.1 and cURL import and export, API and UI | Built (WP16, WP17, WP23) |
-| Environments and secret variables API | Built (WP09). EnvironmentsService is not in the no-Docker stack (OI-13). |
+| Environments and secret variables API | Built (WP09). The no-Docker stack starts EnvironmentsService (WP26). |
 | Sender (`POST /api/v1/execute`) with SSRF guard, redirects and caps | Built (WP10, WP11, WP14) |
 | History API (masked, 200 entries per user and workspace) | Built (WP15) |
 | Workspace shell, collection tree, request builder, response viewer | Built (WP18, WP18b, WP19, WP20) |
-| Environments page, history page | In progress (WP21, WP22). Placeholders on `main`. |
+| Environments page, history page | Built (WP21, WP22). |
 | About page | Placeholder |
 | Legal pages (`/legal/privacy`, `/legal/terms`) | Placeholders (OI-04) |
 | Browser end-to-end tests | Built (WP26): `tests/PostmanClone.Web.E2E`, 18 journeys over the protected flows, run by the `e2e` CI job; ADR-0018 |
-| Final review and the review document | Not started (WP28) |
+| Final review | Done (WP28): [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md), [`docs/ARCHITECTURE_REVIEW.md`](docs/ARCHITECTURE_REVIEW.md), ADR-0019. No open blocking finding in the code. |
 
 Known open items, with their evidence, are in [`docs/architecture/OPEN-ITEMS.md`](docs/architecture/OPEN-ITEMS.md).
-The one that blocks deployment is OI-02: the sign-in and invitation forms are not rate-limited by this application.
+Nothing in the code blocks a deployment that the owner has not decided. The owner actions that must come first (the edge's
+client-IP trust, email verification, HSTS, the legal text, the erasure policy) are in
+[OPEN-ITEMS.md §0](docs/architecture/OPEN-ITEMS.md#0-owner-decisions-and-actions).
 
 ## What you can do today
 
@@ -70,7 +72,8 @@ scripts/run-local-stack.sh down           # stops the services; the databases ar
 ```
 
 The Web needs those discovery and metadata settings because outside the AppHost nothing resolves the service names.
-EnvironmentsService is not started by the script, so a send that names an environment answers `502`.
+The script starts EnvironmentsService (5302) and the Web (5310) too; `WEB_AUTH_PERMITS_PER_MINUTE` sets the sign-in window
+(default 10 a minute per address).
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md#4-running-locally) has the details, the logs, and the configuration reference.
 
 ### With the AppHost (needs Docker)
@@ -93,9 +96,9 @@ bash scripts/check-doc-links.sh
 bash scripts/check-kernel-size.sh
 ```
 
-On 2026-10-31 (WP27, merged tree): 1927 tests in the run, 1926 passed, 1 skipped, in Debug and in Release. One
-test is timing-dependent when run alone in Release (OI-06). What each layer proves, what CI runs, and what has never
-run are in [`docs/TESTING.md`](docs/TESTING.md).
+On 2026-10-31 (WP28, the final branch): 2067 tests in the solution run, 2066 passed, 1 skipped (the InMemory LIKE escape case), 0 failed,
+with `TEST_POSTGRES` set. Browser journeys on the local stack: 15 strict and 20 loopback, all passed. What each layer proves, what CI runs, and what has never run are in
+[`docs/TESTING.md`](docs/TESTING.md).
 
 ## Layout
 
@@ -154,12 +157,14 @@ The kernel holds no domain (rule R1), and no service references another (R2); bo
 | [0017](docs/decisions/0017-builder-state-model.md) | Builder state model |
 | [0020](docs/decisions/0020-architecture-fitness-tests.md) | Architecture and tenancy rules as tests |
 | [0021](docs/decisions/0021-import-export-in-the-web.md) | Import and export in the Web |
-| [0022](docs/decisions/0022-referrer-policy-same-origin.md) | Referrer-Policy same-origin, so browser sign-in passes the origin guard |
 | [0018](docs/decisions/0018-e2e-scope-and-charter.md) | End-to-end journeys: scope, the two sender modes, and what the suite may not do |
+| [0019](docs/decisions/0019-final-review-outcomes.md) | Final review outcomes: telemetry for user targets, SSRF relaxation only in Development, rate limits, partial secrets at the cap |
+| [0022](docs/decisions/0022-referrer-policy-same-origin.md) | Referrer-Policy same-origin, so browser sign-in passes the origin guard |
 | [0023](docs/decisions/0023-response-viewer-rendering.md) | Response viewer rendering |
+| [0024](docs/decisions/0024-history-ui-and-unsaved-drafts.md) | History UI and unsaved drafts |
+| [0025](docs/decisions/0025-environments-ui-write-only-secrets.md) | Environments UI: write-only secrets |
 
-Number 0019 (review outcomes) is reserved for WP28. The index is in
-[`docs/decisions/README.md`](docs/decisions/README.md).
+The index is in [`docs/decisions/README.md`](docs/decisions/README.md).
 
 ## Working on it
 
@@ -167,8 +172,7 @@ Read [`AGENTS.md`](AGENTS.md) first: it lists the rules that are easy to break (
 masking, frozen contracts). Commits use an area prefix (`web:`, `exec:`, `docs:` …) and say why.
 
 The pre-commit hook refuses a commit when no secret scanner runs, by design. Install gitleaks, or Docker for the
-gitleaks image. On 2026-10-31, gitleaks v8.19.0 built from source failed the hook's `git --staged` form, and the
-latest module release passed it (OI-05). `git commit --no-verify` bypasses the hook; do not use it.
+gitleaks image. On 2026-10-31, gitleaks v8.19.0 failed the hook's `git --staged` form; `v8.28.0` runs it and refuses a dummy token (OI-05). `git commit --no-verify` bypasses the hook; do not use it.
 
 ## Security
 

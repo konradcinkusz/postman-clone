@@ -167,6 +167,13 @@ Local dev token retrieval is the path above; a token is single-use and expires a
   and a queue of five. A request past the window waits inside authservice until the window reopens, up to a minute; a request past
   the queue is refused. Measured by WP26 (2026-10-31, OI-26): the action took 93 ms and the request 31 s. Every caller behind one address
   shares the window. The E2E suite keeps its own register, login and logout calls at 18 a minute (ADR-0018).
+- **The Web's own window (WP28).** The sign-in, register and accept-invitation forms are limited per client address in the Web,
+  10 a minute by default (`RateLimiting:AuthPermitsPerMinute`, OPERATIONS.md §2). Invitations and workspace creation are limited per
+  user. authservice's lockout is per account: five failed sign-ins lock the account for five minutes (`Program.cs:163-164`).
+- **Password rule.** authservice requires at least eight characters with a digit, a lowercase letter, an uppercase letter and a
+  non-alphanumeric character (`Program.cs:157-161`). The register page states it before submit (WP28).
+- **Email verification.** authservice requires a confirmed email only when it can send mail (`RequireConfirmedEmail` defaults to
+  `canSendEmail`). With no sender, accounts are active without verification (SECURITY_REVIEW SR-11, an owner decision).
 - **No workspace switch.** authservice issues no organization-scoped token and has no switch endpoint. A user
   with two memberships is refused by every domain endpoint (`403 multiple_workspaces`) until one membership is
   removed.

@@ -101,7 +101,7 @@ The browser holds an HttpOnly cookie with a random id.
 | Masked header names | `Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`, `X-Auth-Token`, and any name containing `token`, `secret`, `password`, `apikey` or `api-key` |
 
 Known limit: a secret that the 5 MB response cap cuts in half is not masked, and only the prefix that was kept is visible.
-The caller is a workspace member who already holds that secret (OI-12).
+The caller is a workspace member who already holds that secret (OI-12, closed in WP28: the cut-off part is removed before masking).
 
 ## 4. Retention
 

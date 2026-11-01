@@ -1,3 +1,4 @@
+using PostmanClone.ServiceDefaults.RateLimiting;
 using PostmanClone.ServiceDefaults.Authentication;
 using PostmanClone.Web.Api;
 using PostmanClone.Web.Auth;
@@ -13,8 +14,8 @@ public static class MembershipEndpoints
 {
     public static WebApplication MapMembershipEndpoints(this WebApplication app)
     {
-        app.MapPost("/workspace/invitations", InviteAsync).RequireAuthorization();
-        app.MapPost("/accept-invitation", AcceptAsync).RequireAuthorization();
+        app.MapPost("/workspace/invitations", InviteAsync).RequireAuthorization().RequireRateLimiting(RateLimitPolicies.Api);
+        app.MapPost("/accept-invitation", AcceptAsync).RequireAuthorization().RequireRateLimiting(RateLimitPolicies.Auth);
         return app;
     }
 

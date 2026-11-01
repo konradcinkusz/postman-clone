@@ -54,20 +54,31 @@ public sealed class ExecutionOptionsValidatorTests
 
         Assert.True(result.Failed);
         Assert.Single(result.Failures);
-        Assert.Equal($"Execution:Ssrf:{setting} must be false in Production.", result.Failures.Single());
+        Assert.Equal($"Execution:Ssrf:{setting} must be false outside Development.", result.Failures.Single());
+    }
+
+    [Fact]
+    public void Development_accepts_the_loopback_relaxation()
+    {
+        var options = new ExecutionOptions();
+        options.Ssrf.AllowLoopback = true;
+
+        Assert.True(Validate("Development", options).Succeeded);
     }
 
     [Theory]
-    [InlineData("Development")]
     [InlineData("Staging")]
-    public void Outside_Production_the_loopback_relaxation_is_accepted(string environment)
+    [InlineData("Production")]
+    [InlineData("Qa")]
+    public void Any_environment_other_than_Development_refuses_the_loopback_relaxation(string environment)
     {
         var options = new ExecutionOptions();
         options.Ssrf.AllowLoopback = true;
 
         var result = Validate(environment, options);
 
-        Assert.True(result.Succeeded);
+        Assert.True(result.Failed);
+        Assert.Equal("Execution:Ssrf:AllowLoopback must be false outside Development.", result.Failures.Single());
     }
 
     [Theory]

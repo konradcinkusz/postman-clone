@@ -20,7 +20,26 @@ public static class Ui
         await page.GetByTestId("sign-in-email").FillAsync(email);
         await page.GetByTestId("sign-in-password").FillAsync(password);
         await AuthBudget.AcquireAsync(TestContext.Current.CancellationToken);
+        var answered = page.WaitForResponseAsync(response => response.Request.Method == "POST" && new Uri(response.Url).AbsolutePath == "/sign-in");
         await page.GetByTestId("sign-in-submit").ClickAsync();
+        // Say what the server answered when the sign-in does not land. Without this, a refused or queued sign-in
+        // reads as a generic URL timeout (the failure seen in CI on the strict set).
+        IResponse answer;
+        try
+        {
+            answer = await answered;
+        }
+        catch (TimeoutException)
+        {
+            throw new InvalidOperationException("The sign-in form was submitted, but no answer came from the Web within the timeout. " +
+                "A request queued in authservice's sign-in window looks like this.");
+        }
+
+        if (answer.Status is 429 or >= 500)
+        {
+            throw new InvalidOperationException($"The sign-in form was answered {answer.Status}: {await answer.TextAsync()}");
+        }
+
         await page.WaitForURLAsync(url => new Uri(url).AbsolutePath is "/" or "/no-workspace");
         await Circuit.WaitForConnectedAsync(page);
     }

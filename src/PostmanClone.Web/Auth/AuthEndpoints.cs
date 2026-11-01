@@ -1,3 +1,4 @@
+using PostmanClone.ServiceDefaults.RateLimiting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -15,10 +16,11 @@ public static class AuthEndpoints
 {
     public static WebApplication MapAuthEndpoints(this WebApplication app)
     {
-        app.MapPost("/sign-in", SignInAsync).AllowAnonymous();
-        app.MapPost("/register", RegisterAsync).AllowAnonymous();
+        // The sign-in and register forms are the ones an attacker guesses through (OI-02): a per-address window.
+        app.MapPost("/sign-in", SignInAsync).AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Auth);
+        app.MapPost("/register", RegisterAsync).AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Auth);
         app.MapPost("/sign-out", SignOutAsync).AllowAnonymous();
-        app.MapPost("/no-workspace/create", CreateWorkspaceAsync).RequireAuthorization();
+        app.MapPost("/no-workspace/create", CreateWorkspaceAsync).RequireAuthorization().RequireRateLimiting(RateLimitPolicies.Api);
         return app;
     }
 

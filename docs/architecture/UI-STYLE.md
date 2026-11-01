@@ -51,7 +51,7 @@ request; a page-specific style goes in its own scoped `*.razor.css`.
 | `.stack` | A vertical list with the standard gap (also removes the list bullets) |
 | `.cluster` | A wrapping row with the standard gap |
 | `.split` | A wrapping row with the space between items |
-| `.field` | A label above a form control (`.field > label`, then the input, select or textarea) |
+| `.field` | A label above a form control (`.field > label`, then the input, select or textarea). A `.rule` paragraph under the control states a rule the server enforces (the register password, WP28) |
 | `.btn` | A button or link-button. `.btn-primary` for the one main action, `.btn-danger` for a destructive one |
 | `.badge` | A small pill for a state or a count. Modifiers: `.badge-success`, `.badge-warning`, `.badge-danger`, `.badge-accent` |
 | `.callout` | A message in a box with a coloured left edge. Modifiers: `.callout-success`, `.callout-warning`, `.callout-danger` |

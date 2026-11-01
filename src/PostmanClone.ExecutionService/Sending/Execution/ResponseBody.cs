@@ -62,8 +62,14 @@ public static class ResponseBody
     public static ResponseBodyDto Describe(CapturedBody captured, string? contentType, SecretMasker masker)
     {
         // With no declared type the bytes decide: a plain-text answer from a server that omits the header is still text.
-        if ((contentType is null || IsText(contentType)) && TryDecodeUtf8(captured.Bytes, out var text))
+        if ((contentType is null || IsText(contentType)) && TryDecodeUtf8(captured, out var text))
         {
+            // A body cut at the read cap can end inside a secret; the beginning of that secret would be visible (OI-12).
+            if (captured.Truncated)
+            {
+                text = masker.TrimPartialSecretAtEnd(text);
+            }
+
             return new ResponseBodyDto("utf8", masker.MaskText(text), captured.SizeBytes, captured.Truncated, contentType);
         }
 
@@ -96,17 +102,28 @@ public static class ResponseBody
             || media.EndsWith("+xml", StringComparison.Ordinal);
     }
 
-    private static bool TryDecodeUtf8(byte[] bytes, out string text)
+    /// <summary>
+    /// Strict UTF-8. A body cut at the read cap can end inside a multi-byte character: that incomplete tail is set aside
+    /// (at most three bytes) rather than turning the whole text into base64, which would show it unmasked (OI-12).
+    /// </summary>
+    private static bool TryDecodeUtf8(CapturedBody captured, out string text)
     {
-        try
+        var bytes = captured.Bytes;
+        var trailing = captured.Truncated ? 3 : 0;
+        for (var cut = 0; cut <= trailing && cut <= bytes.Length; cut++)
         {
-            text = StrictUtf8.GetString(bytes);
-            return true;
+            try
+            {
+                text = StrictUtf8.GetString(bytes, 0, bytes.Length - cut);
+                return true;
+            }
+            catch (DecoderFallbackException)
+            {
+                // Try again with one byte fewer: only an incomplete sequence at the cut can be fixed this way.
+            }
         }
-        catch (DecoderFallbackException)
-        {
-            text = string.Empty;
-            return false;
-        }
+
+        text = string.Empty;
+        return false;
     }
 }

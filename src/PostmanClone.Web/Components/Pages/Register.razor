@@ -28,8 +28,9 @@ else
             <input id="register-email" name="email" type="email" autocomplete="username" required data-testid="register-email" />
         </div>
         <div class="field">
-            <label for="register-password">Password (at least 8 characters)</label>
-            <input id="register-password" name="password" type="password" minlength="8" autocomplete="new-password" required data-testid="register-password" />
+            <label for="register-password">Password</label>
+            <input id="register-password" name="password" type="password" minlength="8" autocomplete="new-password" required aria-describedby="register-password-rule" data-testid="register-password" />
+            <p id="register-password-rule" class="rule" data-testid="register-password-rule">The rule that authservice enforces: at least 8 characters, with an uppercase letter, a lowercase letter, a digit and a symbol (for example !, ? or #).</p>
         </div>
         <label class="cluster">
             <input type="checkbox" name="acceptTerms" required data-testid="register-accept-terms" />

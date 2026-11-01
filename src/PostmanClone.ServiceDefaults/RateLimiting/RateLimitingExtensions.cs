@@ -27,6 +27,9 @@ public static class RateLimitingExtensions
     public static IServiceCollection AddRateLimitingDefaults(this IServiceCollection services, IConfiguration configuration)
     {
         var trustForwardedFor = configuration.GetValue("Proxy:TrustForwardedFor", false);
+        // The sign-in forms' limit per client address. 10 is the default; a test stack that signs in many users from one
+        // address raises it (RateLimiting:AuthPermitsPerMinute). It is never below 1.
+        var authPermitsPerMinute = Math.Max(1, configuration.GetValue("RateLimiting:AuthPermitsPerMinute", 10));
 
         services.AddRateLimiter(options =>
         {
@@ -36,7 +39,7 @@ public static class RateLimitingExtensions
                 context => ClientIdentity.ForUser(context, trustForwardedFor));
             FixedWindowPolicy(options, RateLimitPolicies.Execute, permitsPerMinute: 60,
                 context => ClientIdentity.ForUser(context, trustForwardedFor));
-            FixedWindowPolicy(options, RateLimitPolicies.Auth, permitsPerMinute: 10,
+            FixedWindowPolicy(options, RateLimitPolicies.Auth, permitsPerMinute: authPermitsPerMinute,
                 context => ClientIdentity.ForAddress(context, trustForwardedFor));
         });
         return services;

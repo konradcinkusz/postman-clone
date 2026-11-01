@@ -64,6 +64,9 @@ public sealed class IpRangePolicyTests
     [InlineData("198.51.100.255", false, "documentation")]
     [InlineData("198.51.101.0", true, null)]
     // documentation 203.0.113.0/24
+    [InlineData("192.88.98.255", true, null)]
+    [InlineData("192.88.99.1", false, "reserved")]
+    [InlineData("192.88.100.0", true, null)]
     [InlineData("203.0.112.255", true, null)]
     [InlineData("203.0.113.0", false, "documentation")]
     [InlineData("203.0.113.255", false, "documentation")]
@@ -89,6 +92,7 @@ public sealed class IpRangePolicyTests
     [Theory]
     [InlineData("::", false, "unspecified")]
     [InlineData("::1", false, "loopback")]
+    [InlineData("2001:0:4136:e378:8000:63bf:3fff:fdd2", false, "teredo")]
     // IPv4-compatible (deprecated) addresses are judged on the IPv4 address they carry
     [InlineData("::2", false, "this_network")]
     [InlineData("::127.0.0.1", false, "loopback")]

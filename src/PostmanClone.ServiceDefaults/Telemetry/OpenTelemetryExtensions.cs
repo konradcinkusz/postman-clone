@@ -36,7 +36,9 @@ public static class OpenTelemetryExtensions
             .WithTracing(tracing => tracing
                 // Probe traffic would otherwise dominate the traces (P15).
                 .AddAspNetCoreInstrumentation(options => options.Filter = IsNotHealthProbe)
-                .AddHttpClientInstrumentation());
+                .AddHttpClientInstrumentation(options =>
+                    // A user's target is not traced: its URL is the user's data (see OutboundTelemetry).
+                    options.FilterHttpRequestMessage = OutboundTelemetry.RecordsSpan));
 
         if (!string.IsNullOrWhiteSpace(builder.Configuration[OtlpEndpointSetting]))
         {
