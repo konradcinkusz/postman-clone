@@ -197,3 +197,121 @@ records differences in `docs/AUTH.md`; a difference is an Amendment, not a silen
 A new **Web page**, not an API route, so the API contract is unchanged. It shows the text of `GET /api/v1/requests/{id}/export/curl`
 (§2) in a read-only block. A request that is absent or belongs to another workspace is the same "no longer exists" answer (§0).
 Optional only: no existing route, field, limit or status changes. Recorded in [ADR-0021](../decisions/0021-import-export-in-the-web.md).
+
+### A2 (WP29): Local agent: pairing, the agent-only routes, the local protocol, and run history from the agent
+
+Proposed by WP29 and decided in [ADR-0026](../decisions/0026-local-agent-and-fly-estate.md). Implemented by WP30 (the agent,
+EnvironmentsService and ExecutionService routes), WP31 (the Web) and WP33 (the deployment). Only new routes, new error codes
+and optional fields. No existing route, field, limit or status changes. Where this amendment and §0 or §4 name the same
+thing, the same rules apply (for example, the masking of §4).
+
+**A2.1 Error codes (new, additive to §0).**
+
+| Code | Status | Where |
+|---|---|---|
+| `pairing_code_invalid` | 400 | `POST /agent/pair` (EnvironmentsService), local `POST /v1/pair`. Unknown, used or expired: one answer, no hint which |
+| `agent_token_invalid` | 401 | Agent-only routes: no token, a wrong token, a revoked or expired one, or a user's token. Local `POST /v1/send`: a missing or wrong `X-Agent-Pairing-Token` |
+| `agent_not_paired` | 409 | Local `POST /v1/send` when no pairing exists or the agent token was revoked (the page says "pair again") |
+| `origin_not_allowed` | 403 | Local listener: `Origin` absent or not in the allow-list |
+| `host_not_allowed` | 421 | Local listener: `Host` is not the loopback name and port |
+
+Every other error is as in §0. A user's token or an agent token on any other route answers the standard `401` with no code, as
+an unknown bearer does.
+
+**A2.2 EnvironmentsService: the user's agent routes (user token, policy `api`).**
+
+| Method & path | Body → Response | Notes |
+|---|---|---|
+| `POST /agent/pairing-codes` | → `201 PairingCodeDto { code, expiresAt }` | `code` is shown once. Lives 5 minutes. A new code for the same user replaces an unused one. Workspace from the token |
+| `GET /agent/installations` | → `Page<AgentInstallationDto>` | Only the caller's own agents in the active workspace |
+| `DELETE /agent/installations/{id}` | → `204` | Revokes the agent. Another user's agent, another workspace's, or an absent one → `404 not_found`. Scoping test `Scoping_DELETE_agent_installations_id` |
+
+```jsonc
+PairingCodeDto          { code: "string(10), Crockford base32", expiresAt }
+AgentInstallationDto    { id, name, platform, version, pairedAt, lastUsedAt /*null*/, expiresAt, revokedAt /*null*/ }
+```
+
+**A2.3 EnvironmentsService: pairing (no bearer; policy `auth`, per address).**
+
+| Method & path | Body → Response | Notes |
+|---|---|---|
+| `POST /agent/pair` | `AgentPairRequest` → `201 AgentPairing` | The code is consumed atomically. The agent token is returned once. An unused or expired code → `400 pairing_code_invalid` |
+
+```jsonc
+AgentPairRequest  { code: "string(10..20)", agentName: "string(1..100)", platform: "string(1..40)", version: "string(1..40)" }
+AgentPairing      { agentId, agentToken: "string(43) /*opaque, shown once*/", expiresAt, workspaceId,
+                    allowedWebOrigins: ["https://…"] /*from the server's configuration Agent:AllowedWebOrigins*/ }
+```
+
+**A2.4 EnvironmentsService: agent-only routes (agent token; no other credential is accepted here).**
+
+| Method & path | Body → Response | Notes |
+|---|---|---|
+| `GET /agent/me` | → `200 { agentId, workspaceId, expiresAt }` | The agent checks at start and after a `401` whether it is still paired |
+| `POST /agent/environments/{id}/resolve` | → `200 ResolvedEnvironment` | Same shape and rules as §3 `resolve`: enabled variables only, **plaintext secrets**. Workspace from the agent token. Another workspace's or absent environment → `404 not_found`. Policy `execute`. Audit log without values. Scoping test `Scoping_POST_agent_environments_id_resolve` |
+
+Agent-only routes accept an agent token and refuse every other credential with `401 agent_token_invalid`. Every other route refuses an agent
+token as an unknown bearer. An architecture test in WP30 checks both rules by reading each route's authorization metadata.
+
+**A2.5 ExecutionService: run history from the agent (user token, reached through the Web's BFF; policy `api`).**
+
+| Method & path | Body → Response | Notes |
+|---|---|---|
+| `POST /history/records` | `HistoryRecordWrite` → `201 HistoryEntry` | Records a run that was sent by an agent. It does not resolve or send anything. Stored under the caller's id and active workspace, with the same retention as §4 (200 per user and workspace, oldest removed on insert) |
+
+```jsonc
+HistoryRecordWrite  { source: "agent" /*only value accepted here*/, request: RequestDefinition /*template, unresolved*/,
+                      environmentId: Guid|null, savedRequestId: Guid|null,
+                      result: ExecutionResult /*masked by the agent; historyId null; body is cut to 64 KB*/ }
+```
+
+The service applies the name-based masking of §4 to the stored headers, query and URL, and the 64 KB cut to the body. It cannot
+apply value-based masking (it holds no secret values), so the agent masks values before the result leaves the machine (A2.6).
+The service rejects a `source` other than `"agent"` with `400 validation_failed`, and a `request` that holds a secret literal with
+`400 secret_literal_not_allowed` (§1).
+
+**Optional field on the history shapes (§4).** `HistorySummary` and `HistoryEntry` gain `source: "server" | "agent"`. Rows written
+before this amendment read as `"server"`. A reader that ignores the field keeps working.
+
+**A2.6 Local agent protocol (`http://127.0.0.1:47631`).** The agent is a program on the user's computer. The browser calls it with
+JavaScript that the Web serves (ADR-0028). Nothing else calls it.
+
+- **Listener.** Bound to `127.0.0.1` only (`Agent:Port`, default `47631`). Not `0.0.0.0`, not `::`. The agent refuses to start when the port is in use.
+- **Every request.** `Host` must be `127.0.0.1:<port>` or `localhost:<port>`, else `421 host_not_allowed`. `Origin` must equal one entry of
+  the agent's `allowedWebOrigins` exactly (scheme, host and port), else `403 origin_not_allowed`. An absent `Origin` is refused.
+- **CORS.** A response echoes the exact allowed origin in `Access-Control-Allow-Origin`, with `Vary: Origin`. Never `*`. Never
+  `Access-Control-Allow-Credentials`.
+- **Preflight `OPTIONS`.** `204`, with `Access-Control-Allow-Methods: GET, POST, OPTIONS`, `Access-Control-Allow-Headers: Content-Type, X-Agent-Pairing-Token`,
+  `Access-Control-Max-Age: 600`, and `Access-Control-Allow-Private-Network: true` when the request carries
+  `Access-Control-Request-Private-Network: true`. Refused origins get no allow headers.
+- **`GET /v1/status`** → `200 { agent: "postmanclone-agent", protocol: 1, version, paired: boolean }`. No token. Nothing else is returned.
+- **`POST /v1/pair`** `{ code }` (`application/json`) → `201 { pairingToken, agentId, expiresAt, workspaceId }`. The agent exchanges the code
+  at `POST /agent/pair` (A2.3) and stores the agent token and the hash of `pairingToken`. `pairingToken` is 32 random bytes, base64url. A
+  new pairing replaces the previous one. Errors: `400 pairing_code_invalid`, `502 upstream_unavailable` when EnvironmentsService is unreachable.
+- **`POST /v1/send`** headers `Content-Type: application/json` and `X-Agent-Pairing-Token: <pairingToken>`. A missing or wrong token → `401 agent_token_invalid`.
+  No pairing, or a revoked agent token → `409 agent_not_paired`. A body over 2 MB → `413 payload_too_large`. Other `Content-Type` → `415`.
+  Body:
+
+  ```jsonc
+  AgentSendRequest  { request: RequestDefinition, environmentId: Guid|null, timeoutSeconds: int /*1..60, default 30*/,
+                      followRedirects: bool /*default true, max 5*/ }      // ExecuteRequest without savedRequestId
+  ```
+
+  Success → `200 ExecutionResult` (§4), identical in shape and rules, with `historyId: null`. When `environmentId` is set, the agent resolves it
+  (A2.4). A failed resolve is an `outcome: "invalidRequest"` with `errorCode: "environment_unavailable"` (a new `errorCode` value, additive); the
+  message does not say whether the environment exists.
+- **Sender.** The same assembler, executor, masking and caps as §4 (body ≤ 1 MB, ≤ 100 headers, URL ≤ 8192, read cap 5 MB, timeout, redirects ≤ 5,
+  no ambient proxy, no cookies). The SSRF guard is not applied unless `Agent:Targets:AllowPrivate` is `false`. Always refused, whatever that flag says,
+  with `outcome: "blocked"`: a scheme other than `http` or `https` (`errorCode` `ssrf_blocked_scheme`); user info in the URL (`invalid_url`);
+  a target whose host and port are the agent's own listener (`ssrf_blocked_port`).
+- **Logging.** Method, host, status, sizes and durations, as §4. Never a header value, body or variable value.
+
+**A2.7 Web routes and BFF (not API routes; the API contract is unchanged, as A1).**
+
+- `/agent`: pairing (creates a code through A2.2 and shows it for five minutes), the installation list with revoke (A2.2), and the install
+  instructions. Form posts with antiforgery (WP31).
+- `POST /agent/runs` (BFF, cookie session, antiforgery, the origin guard of ADR-0022): takes a `HistoryRecordWrite` from the page and calls
+  `POST /api/v1/history/records` (A2.5) with the session's bearer. Anonymous → `401`. It does not forward the body unchecked: the Web applies the
+  same name-based masking first.
+- `connect-src` in the Web's Content-Security-Policy gains exactly `http://127.0.0.1:47631` and `http://localhost:47631` (the configured port),
+  and no other origin (WP31).

@@ -1,6 +1,8 @@
 # ADR-0007: Deployment is out of scope for this build
 
-- **Status:** Accepted
+- **Status:** Accepted. **Superseded for this product by [ADR-0026](0026-local-agent-and-fly-estate.md) (2026-11-01):** the shared estate is
+  deployed to Fly.io by a manual workflow, and the sender moves to a local agent. The text below is the record of the decision as it was
+  made; it is not edited.
 - **Date:** 2026-10-26
 - **Work package:** WP00
 

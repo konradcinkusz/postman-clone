@@ -47,8 +47,24 @@ Nothing in this list is done by a session. Each item says what the owner must do
 - **Production key and secret custody (ADR-0007).**
 - **The AppHost, once, with Docker (OI-19):** run it and record the result here.
 
-**Deployment:** Fly.io deployment was intentionally **not** done, and no tags were pushed. ADR-0007 keeps deployment out of this build.
-`flyio/` does not exist and the deploy workflows were not touched.
+**Deployment:** Fly.io deployment was intentionally **not** done, and no tags were pushed, for the build that ended at WP28 (ADR-0007). That
+decision is superseded for this product by ADR-0026 (WP29). Deployment is now planned (WP33) as a manual workflow with no tag or push trigger.
+Until WP33 lands, `flyio/` does not exist. The owner must add `FLY_API_TOKEN` and the production values; nothing is deployed without them.
+
+**Local agent (ADR-0026, WP29–WP32), owner decisions:**
+
+- **Secrets reach the user's computer during a send (accepted trade-off, ADR-0026 Decision 11).** Confirm that this is accepted for the product.
+- **Private and loopback targets are allowed by default** (`Agent:Targets:AllowPrivate=true`). A shared collection can therefore send a request
+  from a member's machine to that member's LAN. Decide whether to add a confirmation on first use per host, or to default the flag to `false`.
+- **Membership removal does not revoke agent tokens.** The owner decides whether a removed member's agents should be revoked, and how (an
+  authservice event, or a check at each resolve).
+- **Distribution of the agent to non-developers.** WP30 builds artifacts in CI only; a non-developer cannot download them without a GitHub
+  account. Decide the release channel (which needs a release step, not a tag in the Fly workflow).
+- **Server path for requests that carry secrets.** Decide whether a send with a secret must go through the agent only.
+- **Agent token at rest.** It is in a `0600` file. Decide whether the OS keychain is required before the first user.
+- **Companion pattern.** The `aurelius-promptus` Companion pattern was not read in WP29 (the repository could not be attached). Compare ADR-0026
+  with it before WP30 starts.
+- **Browser support (not verified).** Safari's handling of an HTTPS page calling `http://127.0.0.1`, and Chrome's Local Network Access prompt.
 
 **Other decisions the owner should confirm:**
 

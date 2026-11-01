@@ -17,7 +17,7 @@ Numbers are reserved per work package in
 | [0004](0004-authservice-identity-and-workspace.md) | authservice is the only IdP; a workspace is one organization | Accepted |
 | [0005](0005-bff-session.md) | Backend-for-frontend session: opaque HttpOnly cookie, tokens on the server | Accepted |
 | [0006](0006-secret-variables.md) | Secret variables: encrypted at rest, referenced by name, masked everywhere | Accepted |
-| [0007](0007-deployment-out-of-scope.md) | Deployment is out of scope for this build | Accepted |
+| [0007](0007-deployment-out-of-scope.md) | Deployment is out of scope for this build | Accepted; superseded for this product by 0026 |
 | [0008](0008-single-instance-web.md) | The Web keeps sessions in server memory and runs as one instance | Accepted |
 | [0009](0009-dependency-budget.md) | Dependency budget | Accepted |
 | [0010](0010-authservice-pin-and-local-run.md) | authservice pinned to v0.3.4; run from its tagged source when there is no Docker | Accepted |
@@ -37,4 +37,6 @@ Numbers are reserved per work package in
 | [0025](0025-environments-ui-write-only-secrets.md) | Environments in the Web: a secret's value is write-only in the page, the chosen environment is held in the circuit, and the page checks what the service checks | Accepted |
 | [0019](0019-final-review-outcomes.md) | Final review outcomes: the sender's telemetry, SSRF relaxation only in Development, the rate limits, partial secrets at the read cap, the gitleaks version, the sender's retries | Accepted |
 
-Assigned (see WORK-PACKAGES.md): 0016 WP16, 0017 WP19, 0018 WP26, 0019 WP28, 0020 WP25, 0021 WP23, 0022 WP18b, 0023 WP20, 0024 WP22, 0025 WP21. 0026–0029 are spare.
+| [0026](0026-local-agent-and-fly-estate.md) | Local agent sends requests; Fly hosts the shared estate: opaque agent credentials, secrets delivered to the agent (accepted), the localhost threat model, manual deployment only | Accepted; supersedes 0007 for this product |
+
+Assigned (see WORK-PACKAGES.md): 0016 WP16, 0017 WP19, 0018 WP26, 0019 WP28, 0020 WP25, 0021 WP23, 0022 WP18b, 0023 WP20, 0024 WP22, 0025 WP21, 0026 WP29. 0027 WP30 (agent threat model and sending rules), 0028 WP31 (the Web's agent client and its one script), 0029 WP33 (Fly topology and manual deployment) are reserved; WP32 writes none.
