@@ -16,6 +16,8 @@ name: PR validation
 #                     local target) and once without it (the default refuses loopback). Runs when src/, tests/, scripts/ or this
 #                     workflow changed. POSTMANCLONE_E2E_REQUIRED=1, so a missing prerequisite fails the job, never skips it.
 #  • docs-links     — every relative link in the Markdown files resolves.
+#  • flyio-config   — the Fly workflow has no trigger but workflow_dispatch (scripts/check-flyio-trigger.sh), and the six Fly
+#                     configs, the workflow and flyio/SECRETS.md agree (scripts/check-flyio-config.py). No Fly account needed.
 #  • pr-validation  — the aggregate check. Its name is the one required status to configure
 #                     on `main` (owner action). It fails if any job above failed.
 #
@@ -291,9 +293,22 @@ jobs:
       - name: Check every relative link resolves
         run: bash scripts/check-doc-links.sh
 
+  flyio-config:
+    name: Fly configuration (no Fly account)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: The Fly workflow is started by workflow_dispatch only (ADR-0029)
+        run: bash scripts/check-flyio-trigger.sh
+
+      - name: The Fly configs, the workflow and SECRETS.md agree (and the check rejects broken copies)
+        run: python3 scripts/check-flyio-config.py --self-test
+
   pr-validation:
     name: pr-validation
-    needs: [detect-changes, dotnet, docker-build, kernel-size, auth-smoke, e2e, docs-links]
+    needs: [detect-changes, dotnet, docker-build, kernel-size, auth-smoke, e2e, docs-links, flyio-config]
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -307,6 +322,7 @@ jobs:
           AUTH: ${{ needs.auth-smoke.result }}
           E2E: ${{ needs.e2e.result }}
           DOCS: ${{ needs.docs-links.result }}
+          FLYIO: ${{ needs.flyio-config.result }}
         run: |
           {
             echo "## PR validation"
@@ -320,8 +336,9 @@ jobs:
             echo "| authservice smoke | ${AUTH} |"
             echo "| Browser journeys (E2E) | ${E2E} |"
             echo "| Markdown links | ${DOCS} |"
+            echo "| Fly configuration | ${FLYIO} |"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$DETECT" "$DOTNET" "$DOCKER" "$KERNEL" "$AUTH" "$E2E" "$DOCS"; do
+          for result in "$DETECT" "$DOTNET" "$DOCKER" "$KERNEL" "$AUTH" "$E2E" "$DOCS" "$FLYIO"; do
             case "$result" in
               success|skipped) ;;
               *) echo "A validation job ended with: ${result}"; exit 1 ;;

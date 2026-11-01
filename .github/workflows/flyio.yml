@@ -1,0 +1,226 @@
+name: Fly.io deploy (manual)
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Deploys the shared estate to Fly.io. BY HAND ONLY (ADR-0026 Decision 10, ADR-0029).
+#
+#  The only trigger is workflow_dispatch. There is no push, tag, pull_request, schedule or workflow_call trigger,
+#  and scripts/check-flyio-trigger.sh fails the pr-validation check if one is added. A commit or a tag never deploys.
+#
+#  Before the first run, read docs/FLY_DEPLOYMENT.md. The owner adds the FLY_API_TOKEN secret to the GitHub environment
+#  `fly` last. Without it the run stops in the first job, with a message, and nothing is deployed.
+#
+#  Order (each job waits for the one before it to succeed or to be skipped):
+#    preflight → verify-postgres → authservice → environments → collections → execution → web
+#  PostgreSQL is bootstrapped by hand (docs/FLY_DEPLOYMENT.md §4) and is only checked here, never redeployed.
+#
+#  To deploy everything, choose apps = all and type deploy-all in confirm. To deploy one app, choose it and type its name.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: 'What to deploy: all (in dependency order) or one app'
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - authservice
+          - environments-service
+          - collections-service
+          - execution-service
+          - web
+      confirm:
+        description: 'Type deploy-all for "all", or the app name (for example web) for one app'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+# Two runs must not deploy at once: a second run waits for the first.
+concurrency:
+  group: flyio-manual-deploy
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Preflight (token and confirmation)
+    runs-on: ubuntu-latest
+    environment: fly
+    timeout-minutes: 5
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      APPS: ${{ inputs.apps }}
+      CONFIRM: ${{ inputs.confirm }}
+    steps:
+      - name: The Fly token is set
+        run: |
+          if [ -z "${FLY_API_TOKEN:-}" ]; then
+            echo "::error title=FLY_API_TOKEN is missing::The GitHub environment 'fly' has no FLY_API_TOKEN. Add it (docs/FLY_DEPLOYMENT.md §2), then run this workflow again. Nothing was deployed."
+            exit 1
+          fi
+          echo "FLY_API_TOKEN is set (its value is not shown)."
+
+      - name: The confirmation matches the choice
+        run: |
+          if [ "$APPS" = "all" ]; then
+            expected="deploy-all"
+          else
+            expected="$APPS"
+          fi
+          if [ "$CONFIRM" != "$expected" ]; then
+            echo "::error title=Confirmation does not match::Type '${expected}' in confirm to deploy '${APPS}'. Nothing was deployed."
+            exit 1
+          fi
+          echo "Confirmed: deploying ${APPS}."
+
+  verify-postgres:
+    name: Check PostgreSQL is bootstrapped
+    needs: [preflight]
+    if: ${{ always() && needs.preflight.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment: fly
+    timeout-minutes: 10
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: superfly/flyctl-actions/setup-flyctl@v1.5
+
+      - name: The app, its volume and its secrets exist
+        run: |
+          set -euo pipefail
+          scripts/flyio-preflight.sh postmanclone-postgres POSTGRES_PASSWORD PG_AUTH_PASSWORD PG_COLLECTIONS_PASSWORD PG_ENVIRONMENTS_PASSWORD PG_EXECUTION_PASSWORD
+          flyctl volumes list --app postmanclone-postgres --json > volumes.json
+          jq -e 'any(.[]; ((.Name // .name) == "postmanclone_pgdata"))' volumes.json >/dev/null || {
+            echo "::error title=Volume missing::postmanclone_pgdata does not exist on postmanclone-postgres. Create it (docs/FLY_DEPLOYMENT.md §4). Nothing was deployed."
+            exit 1
+          }
+          rm -f volumes.json
+
+  deploy-authservice:
+    name: Deploy authservice
+    needs: [preflight, verify-postgres]
+    if: >-
+      ${{ always()
+          && needs.preflight.result == 'success'
+          && needs.verify-postgres.result == 'success'
+          && (inputs.apps == 'all' || inputs.apps == 'authservice') }}
+    runs-on: ubuntu-latest
+    environment: fly
+    timeout-minutes: 30
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: superfly/flyctl-actions/setup-flyctl@v1.5
+
+      - name: The app and its secrets exist
+        run: scripts/flyio-preflight.sh postmanclone-authservice ConnectionStrings__DefaultConnection Jwt__PrivateKeyPem
+
+      - name: Deploy (the pinned image; no build)
+        run: flyctl deploy --remote-only --config flyio/authservice.fly.toml
+
+  deploy-environments:
+    name: Deploy environments-service
+    needs: [preflight, deploy-authservice]
+    if: >-
+      ${{ always()
+          && needs.preflight.result == 'success'
+          && (needs.deploy-authservice.result == 'success' || needs.deploy-authservice.result == 'skipped')
+          && (inputs.apps == 'all' || inputs.apps == 'environments-service') }}
+    runs-on: ubuntu-latest
+    environment: fly
+    timeout-minutes: 30
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: superfly/flyctl-actions/setup-flyctl@v1.5
+
+      - name: The app and its secrets exist
+        run: scripts/flyio-preflight.sh postmanclone-environments ConnectionStrings__environmentsdb Secrets__EncryptionKey
+
+      - name: Deploy
+        run: flyctl deploy --remote-only --config flyio/environments-service.fly.toml
+
+  deploy-collections:
+    name: Deploy collections-service
+    needs: [preflight, deploy-environments]
+    if: >-
+      ${{ always()
+          && needs.preflight.result == 'success'
+          && (needs.deploy-environments.result == 'success' || needs.deploy-environments.result == 'skipped')
+          && (inputs.apps == 'all' || inputs.apps == 'collections-service') }}
+    runs-on: ubuntu-latest
+    environment: fly
+    timeout-minutes: 30
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: superfly/flyctl-actions/setup-flyctl@v1.5
+
+      - name: The app and its secrets exist
+        run: scripts/flyio-preflight.sh postmanclone-collections ConnectionStrings__collectionsdb
+
+      - name: Deploy (build from the Dockerfile, context = repository root)
+        run: flyctl deploy --remote-only --config flyio/collections-service.fly.toml
+
+  deploy-execution:
+    name: Deploy execution-service
+    needs: [preflight, deploy-collections]
+    if: >-
+      ${{ always()
+          && needs.preflight.result == 'success'
+          && (needs.deploy-collections.result == 'success' || needs.deploy-collections.result == 'skipped')
+          && (inputs.apps == 'all' || inputs.apps == 'execution-service') }}
+    runs-on: ubuntu-latest
+    environment: fly
+    timeout-minutes: 30
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: superfly/flyctl-actions/setup-flyctl@v1.5
+
+      - name: The app and its secrets exist
+        run: scripts/flyio-preflight.sh postmanclone-execution ConnectionStrings__executiondb
+
+      - name: Deploy
+        run: flyctl deploy --remote-only --config flyio/execution-service.fly.toml
+
+  deploy-web:
+    name: Deploy web
+    needs: [preflight, deploy-execution]
+    if: >-
+      ${{ always()
+          && needs.preflight.result == 'success'
+          && (needs.deploy-execution.result == 'success' || needs.deploy-execution.result == 'skipped')
+          && (inputs.apps == 'all' || inputs.apps == 'web') }}
+    runs-on: ubuntu-latest
+    environment: fly
+    timeout-minutes: 30
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: superfly/flyctl-actions/setup-flyctl@v1.5
+
+      - name: The app exists (the Web has no secret)
+        run: scripts/flyio-preflight.sh postmanclone-web
+
+      - name: Deploy (build from the Dockerfile, context = repository root)
+        run: flyctl deploy --remote-only --config flyio/web.fly.toml
+
+      - name: The public origin answers its health check
+        # The one check the health probe cannot make from outside: the Web's public address reaches the Fly proxy and the app.
+        run: curl --fail --silent --show-error --max-time 30 --retry 5 --retry-delay 10 https://postmanclone-web.fly.dev/health
