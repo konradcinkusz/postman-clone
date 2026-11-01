@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
-using PostmanClone.ExecutionService.Sending.Assembly;
+using PostmanClone.Sending.Assembly;
+using PostmanClone.Sending.Contracts;
 
 namespace PostmanClone.ExecutionService.Api;
 

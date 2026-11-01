@@ -1,5 +1,5 @@
 using PostmanClone.ExecutionService.Options;
-using PostmanClone.ExecutionService.Sending.Assembly;
+using PostmanClone.Sending.Assembly;
 using Xunit;
 
 namespace PostmanClone.ExecutionService.Tests.Sending.Assembly;
@@ -11,7 +11,7 @@ internal static class AssemblyFixtures
     {
         var options = new ExecutionOptions();
         configure?.Invoke(options);
-        return new RequestAssembler(options, random ?? new SeededRandomBytes(1));
+        return new RequestAssembler(options.ToLimits(), random ?? new SeededRandomBytes(1));
     }
 
     public static IReadOnlyDictionary<string, ResolvedValue> Variables(params (string Name, string Value, bool Secret)[] variables) =>

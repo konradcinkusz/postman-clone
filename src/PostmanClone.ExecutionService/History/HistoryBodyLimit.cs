@@ -1,5 +1,6 @@
 using System.Text;
 using PostmanClone.ExecutionService.Api;
+using PostmanClone.Sending.Contracts;
 
 namespace PostmanClone.ExecutionService.History;
 

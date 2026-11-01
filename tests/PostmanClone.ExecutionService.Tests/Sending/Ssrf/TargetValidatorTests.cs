@@ -1,5 +1,6 @@
+using PostmanClone.ExecutionService.Tests.Support;
 using PostmanClone.ExecutionService.Options;
-using PostmanClone.ExecutionService.Sending.Ssrf;
+using PostmanClone.Sending.Ssrf;
 using Xunit;
 
 namespace PostmanClone.ExecutionService.Tests.Sending.Ssrf;
@@ -237,5 +238,5 @@ public sealed class TargetValidatorTests
     }
 
     private static TargetCheck Validate(string url, ExecutionOptions? options = null) =>
-        new TargetValidator(options ?? new ExecutionOptions()).Validate(url);
+        Senders.Validator(options ?? new ExecutionOptions()).Validate(url);
 }

@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using PostmanClone.Web.Api;
 using Service = execution::PostmanClone.ExecutionService.Api;
-using ServiceAssembly = execution::PostmanClone.ExecutionService.Sending.Assembly;
+using ServiceAssembly = execution::PostmanClone.Sending.Assembly;
 
 namespace PostmanClone.Web.Tests.Api;
 

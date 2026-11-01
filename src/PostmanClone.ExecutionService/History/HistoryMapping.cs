@@ -1,9 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PostmanClone.ExecutionService.Api;
+using PostmanClone.Sending.Contracts;
 using PostmanClone.ExecutionService.Data;
-using PostmanClone.ExecutionService.Sending.Assembly;
-using PostmanClone.ExecutionService.Sending.Execution;
+using PostmanClone.Sending.Assembly;
+using PostmanClone.Sending.Execution;
 
 namespace PostmanClone.ExecutionService.History;
 

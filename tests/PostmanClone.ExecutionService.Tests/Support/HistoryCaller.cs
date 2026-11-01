@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PostmanClone.ExecutionService.Api;
+using PostmanClone.Sending.Contracts;
 using PostmanClone.TestKit;
 using Xunit;
 

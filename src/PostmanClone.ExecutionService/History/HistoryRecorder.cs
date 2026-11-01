@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Options;
 using PostmanClone.ExecutionService.Data;
 using PostmanClone.ExecutionService.Options;
-using PostmanClone.ExecutionService.Sending.Execution;
+using PostmanClone.Sending.Execution;
 
 namespace PostmanClone.ExecutionService.History;
 

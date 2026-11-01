@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using PostmanClone.ExecutionService.Api;
+using PostmanClone.Sending.Contracts;
 using PostmanClone.ExecutionService.Data;
 using PostmanClone.ExecutionService.History;
 using PostmanClone.ServiceDefaults.Authentication;

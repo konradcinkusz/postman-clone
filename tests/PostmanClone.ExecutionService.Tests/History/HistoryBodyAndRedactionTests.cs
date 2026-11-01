@@ -1,6 +1,6 @@
 using System.Text;
 using PostmanClone.ExecutionService.History;
-using PostmanClone.ExecutionService.Sending.Assembly;
+using PostmanClone.Sending.Assembly;
 using Xunit;
 
 namespace PostmanClone.ExecutionService.Tests.History;

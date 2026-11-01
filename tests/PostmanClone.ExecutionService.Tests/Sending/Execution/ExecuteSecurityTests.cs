@@ -3,6 +3,7 @@ using System.Net;
 using Microsoft.AspNetCore.Http;
 using System.Text.Json;
 using PostmanClone.ExecutionService.Api;
+using PostmanClone.Sending.Contracts;
 using PostmanClone.ExecutionService.Tests.Support;
 using Xunit;
 

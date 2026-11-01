@@ -9,6 +9,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\PostmanClone.ExecutionService\PostmanClone.ExecutionService.csproj" />
+    <ProjectReference Include="..\..\src\PostmanClone.Sending\PostmanClone.Sending.csproj" />
     <ProjectReference Include="..\PostmanClone.TestKit\PostmanClone.TestKit.csproj" />
   </ItemGroup>
   <ItemGroup>
