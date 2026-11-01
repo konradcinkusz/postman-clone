@@ -20,6 +20,9 @@ public sealed class TargetServer : IAsyncDisposable
 
     public Uri BaseAddress { get; private set; } = new("http://127.0.0.1");
 
+    /// <summary>The Authorization header of the last /echo request: what the sender actually transmitted, before any masking.</summary>
+    public string? LastAuthorization { get; private set; }
+
     public async Task StartAsync()
     {
         var builder = WebApplication.CreateBuilder();
@@ -29,6 +32,7 @@ public sealed class TargetServer : IAsyncDisposable
         _app.MapGet("/json", () => Results.Text("{\"ok\":true,\"items\":[1,2,3]}", "application/json"));
         _app.MapMethods("/echo", ["GET", "POST", "PUT", "PATCH", "DELETE"], async (HttpContext context) =>
         {
+            LastAuthorization = context.Request.Headers.Authorization.ToString();
             using var reader = new StreamReader(context.Request.Body, Encoding.UTF8);
             var body = await reader.ReadToEndAsync();
             var headers = string.Join(", ", context.Request.Headers
