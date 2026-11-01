@@ -69,14 +69,23 @@ public sealed class OutboundSender
     }
 
     /// <summary>
-    /// Checks a request template the way a send would, but with no variable values and no send: the shape, the caps, and the
-    /// rule that a secret field holds a reference and never a literal (CONTRACTS §1). Used when a result is recorded without
-    /// being sent here (CONTRACTS A2.5). Throws <see cref="ExecuteFailure"/> with the same codes a send gives.
+    /// Checks a request template with no variable values and no send: the shape, the caps, and the rule that a secret field holds
+    /// a reference and never a literal (CONTRACTS §1). Used when a result is recorded without being sent here (CONTRACTS A2.5).
+    /// Throws <see cref="ExecuteFailure"/> with the codes a send gives. The references are not resolved, so the URL is not
+    /// required to be absolute yet: a template such as <c>{{base}}/items</c> is what the history keeps (WP32 found the send
+    /// rules refused it).
     /// </summary>
     public void CheckTemplate(ExecuteRequest request)
     {
         var definition = Shape(request);
-        Assemble(definition, new Dictionary<string, ResolvedValue>(StringComparer.Ordinal));
+        try
+        {
+            AuthApplier.CheckSecretFields(definition.Auth);
+        }
+        catch (RequestAssemblyException failure)
+        {
+            throw new ExecuteFailure(BadRequest, failure.Code, failure.Message);
+        }
     }
 
     /// <summary>Assembles the prepared request with the given variables and sends it. Never throws for a refused target or a failed send.</summary>

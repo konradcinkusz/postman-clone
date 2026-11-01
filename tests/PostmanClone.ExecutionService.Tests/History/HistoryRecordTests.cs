@@ -55,6 +55,26 @@ public sealed class HistoryRecordTests
     }
 
     [Fact]
+    public async Task A_template_whose_url_and_secret_are_references_is_stored_as_the_template()
+    {
+        // The agent's run uses an environment: the stored template keeps the references, and the stored URL is the template.
+        await using var factory = new ExecutionServiceFactory();
+        var caller = await HistoryCaller.ForAsync(factory, Guid.NewGuid(), Guid.NewGuid(), Ct);
+        var body = Record(
+            source: "agent",
+            auth: new { type = "bearer", bearerToken = "{{token}}" },
+            url: "{{base}}/items");
+
+        using var response = await caller.RecordAsync(body, Ct);
+        var entry = await HistoryCaller.ReadAsync<PostmanClone.ExecutionService.Api.HistoryEntry>(response);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal("{{base}}/items", entry.Request.Url);
+        // The secret field is never kept in history (HistoryRedaction clears it), so the stored template holds no credential.
+        Assert.Null(entry.Request.Auth.BearerToken);
+    }
+
+    [Fact]
     public async Task A_name_that_carries_a_credential_is_masked_in_the_stored_headers()
     {
         await using var factory = new ExecutionServiceFactory();
@@ -91,13 +111,14 @@ public sealed class HistoryRecordTests
         Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
     }
 
-    private static object Record(string source, object? auth = null, IEnumerable<object>? responseHeaders = null, string bodyText = "reached") => new
+    private static object Record(
+        string source, object? auth = null, IEnumerable<object>? responseHeaders = null, string bodyText = "reached", string url = "https://api.example.test/items") => new
     {
         source,
         request = new
         {
             method = "GET",
-            url = "https://api.example.test/items",
+            url,
             @params = Array.Empty<object>(),
             headers = Array.Empty<object>(),
             body = new { type = "none", raw = (string?)null, rawLanguage = (string?)null, fields = Array.Empty<object>() },
