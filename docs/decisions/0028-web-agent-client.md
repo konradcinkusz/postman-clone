@@ -43,7 +43,8 @@ present to the agent on loopback (ADR-0026 Decision 5). It is held in the circui
 5. **Sender choice.** The default is the agent when the page holds a pairing and the agent answered as paired; otherwise the
    server. A choice the user makes is kept for the page visit. The response panel names the sender.
 6. **Run record through the Web.** After an agent send the script posts the masked result to `POST /agent/runs` with the
-   antiforgery token in the `X-CSRF-TOKEN` header. The route refuses an anonymous caller with 401 and a bad token with 400, applies the
+   antiforgery token in the `RequestVerificationToken` header (the framework's default; WP31 wrote `X-CSRF-TOKEN`, which the validation
+   never read, so no run was recorded until WP32 fixed it). The route refuses an anonymous caller with 401 and a bad token with 400, applies the
    name-based mask, and forwards the record to ExecutionService with the session's bearer (CONTRACTS A2.5, A2.7). A JSON caller that is
    not signed in gets 401 from the session scheme, not a redirect: a general rule in `SessionAuthenticationHandler`, tested.
 7. **Secrets.** A send carries the environment's id. The agent resolves the values itself with its agent token (ADR-0026 Decision 4).

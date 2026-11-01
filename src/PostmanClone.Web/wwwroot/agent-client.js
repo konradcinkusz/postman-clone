@@ -108,7 +108,9 @@
             method: "POST",
             credentials: "same-origin",
             cache: "no-store",
-            headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": antiforgery },
+            // The framework's antiforgery header (AddAntiforgery's default HeaderName). WP31 sent X-CSRF-TOKEN, which the route
+            // never reads: every run record was refused with 400 and no send reached the history (found by WP32's journeys).
+            headers: { "Content-Type": "application/json", "RequestVerificationToken": antiforgery },
             body: recordJson
         });
     }
