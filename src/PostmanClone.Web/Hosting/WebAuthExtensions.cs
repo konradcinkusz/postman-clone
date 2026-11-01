@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using PostmanClone.Web.Agent;
 using PostmanClone.Web.Api;
 using PostmanClone.Web.Auth;
 using PostmanClone.Web.Collections;
@@ -59,6 +60,13 @@ public static class WebAuthExtensions
         // The sender (WP20, ADR-0023): one send per circuit, the environment chosen for it.
         builder.Services.AddScoped<EnvironmentSelection>();
         builder.Services.AddScoped<IExecutionGateway, SessionExecutionGateway>();
+        // The local agent (WP31, ADR-0028): the origins the page may reach (validated at startup), the one-time pairing
+        // tickets, the circuit's connection and pairing token, the browser bridge and the runner that sends through the agent.
+        builder.Services.AddSingleton(AgentWebOptions.From(builder.Configuration));
+        builder.Services.AddSingleton<AgentPairingTickets>();
+        builder.Services.AddScoped<AgentBridge>();
+        builder.Services.AddScoped<AgentConnection>();
+        builder.Services.AddScoped<IAgentRunner, AgentRunner>();
         builder.Services.AddScoped<SendCoordinator>();
         builder.Services.AddScoped<HistoryShell>();
         builder.Services.AddScoped<HistoryChangeSignal>();

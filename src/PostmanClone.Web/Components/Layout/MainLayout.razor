@@ -1,5 +1,6 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Authorization
+@using PostmanClone.Web.Components.Agent
 @using PostmanClone.Web.Components.Environments
 @inherits LayoutComponentBase
 @inject WorkspaceState Workspace
@@ -20,6 +21,7 @@
         </form>
     }
     <EnvironmentSelector />
+    <AgentStatusBadge />
 </header>
 
 <StatusStrip />

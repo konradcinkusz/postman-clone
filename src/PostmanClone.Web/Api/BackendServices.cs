@@ -52,6 +52,7 @@ public static class BackendServices
         services.AddSingleton<CollectionsClient>();
         services.AddSingleton<EnvironmentsClient>();
         services.AddSingleton<IExecutionClient, ExecutionClient>();
+        services.AddSingleton<IAgentClient, AgentClient>();
         services.AddSingleton<IHistoryClient, HistoryClient>();
         return services;
     }

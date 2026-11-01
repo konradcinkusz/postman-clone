@@ -6,6 +6,7 @@
 @using PostmanClone.Web.Auth
 @using PostmanClone.Web.Builder
 @using PostmanClone.Web.Collections
+@using PostmanClone.Web.Components.Agent
 @using PostmanClone.Web.Components.Builder
 @using PostmanClone.Web.Components.Response
 @using PostmanClone.Web.Components.Shell
@@ -116,6 +117,7 @@ else
                                         Sending="@Sender.IsSending"
                                         OnSend="@SendActiveAsync"
                                         OnCancel="@CancelSend" />
+                        <SendTargetSelect />
                         <ResponsePanel View="@Sender.ViewFor(active.RequestId)" />
                     }
                     else if (_loadFailures.Contains(active.RequestId))

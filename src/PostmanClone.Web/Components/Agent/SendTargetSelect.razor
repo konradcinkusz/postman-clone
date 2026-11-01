@@ -1,0 +1,57 @@
+@namespace PostmanClone.Web.Components.Agent
+@using PostmanClone.Web.Agent
+@implements IDisposable
+@inject AgentConnection Connection
+
+@* The builder's choice of sender (WP31, ADR-0028). The default is the agent when this page holds a pairing and the agent answered as
+   paired; otherwise the server. A choice the user makes is kept for the page's visit. *@
+
+<div class="field send-target-field">
+    <label for="builder-send-target">Send with</label>
+    <select id="builder-send-target" data-testid="builder-send-target" @onchange="Choose">
+        <option value="agent" selected="@(_target == SendTarget.Agent)">Agent (this computer)</option>
+        <option value="server" selected="@(_target == SendTarget.Server)">Server</option>
+    </select>
+    <span class="field-hint" data-testid="builder-send-target-hint">@_hint</span>
+</div>
+
+@code {
+    private SendTarget _target = SendTarget.Server;
+    private string _hint = string.Empty;
+    private bool _disposed;
+
+    protected override void OnInitialized()
+    {
+        Connection.Changed += OnChanged;
+        Refresh();
+    }
+
+    private void Choose(ChangeEventArgs args) =>
+        Connection.Choose(string.Equals(args.Value?.ToString(), "agent", StringComparison.Ordinal) ? SendTarget.Agent : SendTarget.Server);
+
+    private void Refresh()
+    {
+        _target = Connection.EffectiveTarget;
+        _hint = _target == SendTarget.Agent
+            ? "Sends from this computer. An environment's secret values reach the agent for this send only."
+            : "Sends from the server. The server refuses local and private addresses.";
+    }
+
+    private void OnChanged()
+    {
+        if (!_disposed)
+        {
+            _ = InvokeAsync(() =>
+            {
+                Refresh();
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Connection.Changed -= OnChanged;
+    }
+}

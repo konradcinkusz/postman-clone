@@ -22,6 +22,7 @@ public sealed class MainLayoutTests
         context.Services.AddScoped<WorkspaceState>();
         context.Services.AddSingleton<AntiforgeryStateProvider>(new StubAntiforgery());
         context.Services.AddSingleton(reader);
+        PostmanClone.Web.Tests.Agent.AgentTestRig.AddAgentServices(context);
         EnvironmentsRig.AddSelectorServices(context.Services, harness);
         return context;
     }

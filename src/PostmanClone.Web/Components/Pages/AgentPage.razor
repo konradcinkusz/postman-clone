@@ -1,0 +1,300 @@
+@page "/agent"
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@using PostmanClone.Web.Agent
+@using PostmanClone.Web.Api
+@using PostmanClone.Web.Auth
+@using PostmanClone.Web.Components.Agent
+@implements IDisposable
+@inject AgentConnection Connection
+@inject AgentPairingTickets Tickets
+@inject IAgentClient Agents
+@inject CircuitSession Session
+@inject AuthenticationStateProvider AuthState
+@inject AntiforgeryStateProvider Antiforgery
+@inject NavigationManager Navigation
+
+<PageTitle>Agent · PostmanClone</PageTitle>
+
+@* The agent page (WP31, ADR-0028, CONTRACTS A2.7). Creating a code and revoking an agent are form posts with antiforgery; the code
+   reaches this page by a one-time ticket, never in the address. The pairing itself is the browser's call to the agent, made by the
+   user's click on "Pair this page": the page's token is held in this circuit and nowhere else. *@
+
+<section class="stack" aria-labelledby="agent-heading">
+    <h1 id="agent-heading">Agent</h1>
+    <p>
+        The agent is a small program on this computer. It sends requests to addresses only your computer can reach, such as
+        <code>localhost</code>. The server cannot send those.
+    </p>
+
+    @if (_notice is not null)
+    {
+        <div class="callout callout-success" role="status" data-testid="agent-notice">@_notice</div>
+    }
+    @if (_error is not null)
+    {
+        <div class="callout callout-danger" role="alert" data-testid="agent-error">@_error</div>
+    }
+
+    <section class="card stack" aria-labelledby="status-heading">
+        <h2 id="status-heading">Status</h2>
+        <p data-testid="agent-page-status" data-state="@AgentStatusRules.Key(_status)"><strong>@AgentStatusRules.Label(_status)</strong></p>
+        <p>@StatusText(_status)</p>
+        <div class="cluster">
+            <button type="button" class="btn" data-testid="agent-check" @onclick="CheckAsync">Check again</button>
+        </div>
+    </section>
+
+    <section class="card stack" aria-labelledby="pair-heading">
+        <h2 id="pair-heading">Pair this page</h2>
+        <p>
+            A pairing code works once and for five minutes. Create one, then choose <em>Pair this page</em>. The code is exchanged
+            with the server, and this page receives a token that only this computer's agent accepts.
+        </p>
+
+        @if (_pairingCode is null)
+        {
+            <form method="post" action="/agent/pairing-codes" data-testid="agent-create-code-form">
+                <input type="hidden" name="@_token?.FormFieldName" value="@_token?.Value" />
+                <button type="submit" class="btn btn-primary" data-testid="agent-create-code">Create pairing code</button>
+            </form>
+        }
+        else
+        {
+            <p>Your code, valid until <span data-testid="agent-code-expiry">@ExpiryText</span>:</p>
+            <p><code class="agent-code" data-testid="agent-pair-code">@_pairingCode</code></p>
+            <div class="cluster">
+                <button type="button" class="btn btn-primary" data-testid="agent-pair" disabled="@_pairing" @onclick="PairAsync">Pair this page</button>
+            </div>
+            <p>In a terminal instead, run <code>postmanclone-agent pair @_pairingCode</code>. The page then needs its own pairing: choose <em>Check again</em>.</p>
+        }
+
+        @if (_pairMessage is not null)
+        {
+            <p role="status" data-testid="agent-pair-message">@_pairMessage</p>
+        }
+    </section>
+
+    <section class="card stack" aria-labelledby="setup-heading">
+        <h2 id="setup-heading">Install and set up</h2>
+        <ol class="stack">
+            <li>
+                Install the agent once per computer. It is a .NET tool package that your team provides; install it from the folder that
+                holds the package:
+                <pre><code data-testid="agent-install-command">dotnet tool install --global postmanclone-agent --add-source &lt;folder-with-the-package&gt;</code></pre>
+            </li>
+            <li>
+                Tell it the server and this page's address. Run this once:
+                <pre><code data-testid="agent-setup-command">postmanclone-agent setup --server &lt;environments-service-url&gt; --web-origin @_origin</code></pre>
+            </li>
+            <li>
+                Start it, and keep it running while you use PostmanClone:
+                <pre><code>postmanclone-agent run</code></pre>
+            </li>
+            <li>Pair this page, above. Then choose <em>Check again</em>; the top bar shows <strong>Connected</strong>.</li>
+        </ol>
+        <p>
+            To remove the agent from a computer, run <code>postmanclone-agent forget</code> there, then revoke it in the list below.
+        </p>
+    </section>
+
+    <section class="card stack" aria-labelledby="installations-heading">
+        <h2 id="installations-heading">Your agents in this workspace</h2>
+        @if (_installations is null)
+        {
+            <p role="status">Loading…</p>
+        }
+        else if (_installations.Count == 0)
+        {
+            <p data-testid="agent-installations-empty">No agent is paired with your account in this workspace yet.</p>
+        }
+        else
+        {
+            <ul class="stack agent-installations">
+                @foreach (var item in _installations)
+                {
+                    <li data-testid="agent-installation-@item.Id">
+                        <span>
+                            <strong>@item.Name</strong>, @item.Platform, version @item.Version.
+                            Paired @item.PairedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.
+                            @if (item.LastUsedAt is { } used)
+                            {
+                                <span>Last used @used.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</span>
+                            }
+                        </span>
+                        @if (item.RevokedAt is null)
+                        {
+                            <form method="post" action="/agent/installations/@item.Id/revoke" class="inline-form">
+                                <input type="hidden" name="@_token?.FormFieldName" value="@_token?.Value" />
+                                <button type="submit" class="btn" data-testid="agent-revoke-@item.Id">Revoke</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <span>Revoked</span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+</section>
+
+@code {
+    private readonly CancellationTokenSource _cancellation = new();
+    private AntiforgeryRequestToken? _token;
+    private string _origin = string.Empty;
+    private AgentStatus _status = AgentStatus.Checking;
+    private string? _pairingCode;
+    private DateTimeOffset? _codeExpiresAt;
+    private string? _pairMessage;
+    private bool _pairing;
+    private List<AgentInstallationDto>? _installations;
+    private string? _notice;
+    private string? _error;
+    private bool _disposed;
+
+    private string ExpiryText => _codeExpiresAt is { } expires ? expires.UtcDateTime.ToString("HH:mm") + " UTC" : string.Empty;
+
+    protected override void OnInitialized()
+    {
+        // Prerendering and the circuit both run this. Nothing here takes the one-time ticket: that waits for the interactive render.
+        _token = Antiforgery.GetAntiforgeryToken();
+        _origin = Navigation.BaseUri.TrimEnd('/');
+        Connection.Changed += OnConnectionChanged;
+        _status = Connection.Status;
+
+        var query = QueryHelpers.ParseQuery(new Uri(Navigation.Uri).Query);
+        _notice = query.TryGetValue("notice", out var notice) && notice == "revoked" ? AgentMessages.Revoked : null;
+        _error = query.TryGetValue("error", out var error) ? AgentMessages.ForCode(error.ToString()) : null;
+    }
+
+    /// <summary>
+    /// The interactive work: take the code from its ticket (once, from the session that made it), read the installations and start the
+    /// probe. None of it runs while the page is prerendered, so the ticket is never spent on the prerender.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _disposed)
+        {
+            return;
+        }
+
+        _ = Connection.WatchAsync();
+        await TakeTicketAsync();
+        await LoadInstallationsAsync();
+        StateHasChanged();
+    }
+
+    private async Task TakeTicketAsync()
+    {
+        var query = QueryHelpers.ParseQuery(new Uri(Navigation.Uri).Query);
+        if (!query.TryGetValue("ticket", out var values) || values.ToString() is not { Length: > 0 } ticket)
+        {
+            return;
+        }
+
+        var sessionId = (await AuthState.GetAuthenticationStateAsync()).User.FindFirst(PostmanClone.Web.Auth.ServerSession.SessionIdClaim)?.Value;
+        var pairing = sessionId is null ? null : Tickets.Take(sessionId, ticket);
+
+        // The ticket leaves the address bar whatever the answer, so a copy of the URL is useless.
+        Navigation.NavigateTo("/agent", replace: true);
+        if (pairing is null)
+        {
+            _pairMessage = "That pairing code is no longer available. Create a new one.";
+            return;
+        }
+
+        _pairingCode = pairing.Code;
+        _codeExpiresAt = pairing.CodeExpiresAt;
+        _pairMessage = AgentMessages.Created;
+    }
+
+    private async Task LoadInstallationsAsync()
+    {
+        var accessToken = await Session.AccessTokenAsync(_cancellation.Token);
+        if (accessToken is null)
+        {
+            _installations = [];
+            return;
+        }
+
+        var answer = await Agents.ListInstallationsAsync(accessToken, _cancellation.Token);
+        _installations = answer.Value?.Items ?? [];
+        if (answer.Outcome != CollectionOutcome.Succeeded)
+        {
+            _error ??= AgentMessages.ForCode(AgentCodes.ForOutcome(answer.Outcome));
+        }
+    }
+
+    private async Task CheckAsync()
+    {
+        await Connection.ProbeAsync(_cancellation.Token);
+        _status = Connection.Status;
+    }
+
+    private async Task PairAsync()
+    {
+        if (_pairingCode is null || _pairing)
+        {
+            return;
+        }
+
+        _pairing = true;
+        _pairMessage = null;
+        try
+        {
+            var result = await Connection.PairAsync(_pairingCode, _cancellation.Token);
+            _pairMessage = result.Message;
+            if (result.Paired || result.Message == AgentMessages.CodeInvalid)
+            {
+                // A code is spent once the agent has answered about it. Only a missing agent leaves the code for another try.
+                _pairingCode = null;
+                _codeExpiresAt = null;
+            }
+
+            if (result.Paired)
+            {
+                await LoadInstallationsAsync();
+            }
+        }
+        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+        {
+            // The page closed while the pairing was in flight: nothing is left to show.
+        }
+        finally
+        {
+            _pairing = false;
+        }
+    }
+
+    private void OnConnectionChanged()
+    {
+        if (!_disposed)
+        {
+            _ = InvokeAsync(() =>
+            {
+                _status = Connection.Status;
+                StateHasChanged();
+            });
+        }
+    }
+
+    private static string StatusText(AgentStatus status) => status switch
+    {
+        AgentStatus.Connected => "This page is paired. Sends can go through the agent.",
+        AgentStatus.NotRunning => AgentMessages.NotRunning,
+        AgentStatus.NotPaired => AgentMessages.NotPaired,
+        AgentStatus.PairAgain => AgentMessages.PairAgain,
+        _ => "Checking this computer…",
+    };
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Connection.Changed -= OnConnectionChanged;
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+}

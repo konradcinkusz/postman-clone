@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using PostmanClone.Web.Agent;
 using PostmanClone.Web.Hosting;
 
 namespace PostmanClone.Web.Tests.Host;
@@ -49,6 +50,8 @@ public sealed class WebHostTests(WebHostFactory factory) : IClassFixture<WebHost
         Assert.Equal("same-origin", response.Headers.GetValues("Referrer-Policy").Single());
         Assert.Equal("DENY", response.Headers.GetValues("X-Frame-Options").Single());
         // One policy, exactly ours: Blazor's own frame-ancestors header must not sit beside it.
-        Assert.Equal(ContentSecurityPolicyMiddleware.Policy, response.Headers.GetValues("Content-Security-Policy").Single());
+        Assert.Equal(
+            ContentSecurityPolicyMiddleware.Build(AgentWebOptions.DefaultOrigins(AgentWebOptions.DefaultPort)),
+            response.Headers.GetValues("Content-Security-Policy").Single());
     }
 }
