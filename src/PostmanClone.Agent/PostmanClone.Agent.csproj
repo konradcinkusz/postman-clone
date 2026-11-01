@@ -8,7 +8,10 @@
     <Description>The PostmanClone local agent: sends requests from the user's computer on behalf of the Web.</Description>
     <RootNamespace>PostmanClone.Agent</RootNamespace>
     <AssemblyName>postmanclone-agent</AssemblyName>
+    <!-- A web SDK project disables packaging by default; the tool package is the point of this project (WP30). -->
+    <IsPackable>true</IsPackable>
     <PackAsTool>true</PackAsTool>
+    <Version>0.1.0</Version>
     <ToolCommandName>postmanclone-agent</ToolCommandName>
     <PackageId>PostmanClone.Agent</PackageId>
     <PackageDescription>Local agent for PostmanClone: sends requests to localhost and private addresses from your computer.</PackageDescription>

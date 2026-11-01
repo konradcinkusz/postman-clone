@@ -318,9 +318,24 @@ jobs:
           cd artifacts/${{ matrix.rid }}
           zip -r ../postmanclone-agent-${{ matrix.rid }}.zip .
 
+      - name: Run the single-file program (linux)
+        if: matrix.rid == 'linux-x64'
+        run: |
+          ./artifacts/linux-x64/postmanclone-agent --version
+          ./artifacts/linux-x64/postmanclone-agent --help | head -3
+
       - name: Pack the dotnet tool (once)
         if: matrix.rid == 'linux-x64'
-        run: dotnet pack src/PostmanClone.Agent/PostmanClone.Agent.csproj --configuration Release --no-restore -o artifacts/tool
+        run: |
+          dotnet pack src/PostmanClone.Agent/PostmanClone.Agent.csproj --configuration Release --no-restore -o artifacts/tool
+          test -n "$(ls artifacts/tool/*.nupkg 2>/dev/null)" || { echo "The tool package was not produced."; exit 1; }
+
+      - name: Install the tool package from the artifact and run it (linux)
+        if: matrix.rid == 'linux-x64'
+        run: |
+          dotnet tool install PostmanClone.Agent --tool-path "$RUNNER_TEMP/agent-tool" --add-source artifacts/tool --version 0.1.0
+          "$RUNNER_TEMP/agent-tool/postmanclone-agent" --version
+          "$RUNNER_TEMP/agent-tool/postmanclone-agent" --help | head -3
 
       - uses: actions/upload-artifact@v4
         with:
@@ -376,6 +391,7 @@ jobs:
           E2E: ${{ needs.e2e.result }}
           DOCS: ${{ needs.docs-links.result }}
           FLYIO: ${{ needs.flyio-config.result }}
+          AGENT: ${{ needs.agent-artifacts.result }}
         run: |
           {
             echo "## PR validation"
@@ -390,8 +406,9 @@ jobs:
             echo "| Browser journeys (E2E) | ${E2E} |"
             echo "| Markdown links | ${DOCS} |"
             echo "| Fly configuration | ${FLYIO} |"
+            echo "| Agent packages | ${AGENT} |"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$DETECT" "$DOTNET" "$DOCKER" "$KERNEL" "$AUTH" "$E2E" "$DOCS" "$FLYIO"; do
+          for result in "$DETECT" "$DOTNET" "$DOCKER" "$KERNEL" "$AUTH" "$E2E" "$DOCS" "$FLYIO" "$AGENT"; do
             case "$result" in
               success|skipped) ;;
               *) echo "A validation job ended with: ${result}"; exit 1 ;;

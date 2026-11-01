@@ -19,6 +19,12 @@ public static class AgentCli
         using var httpServer = server is null ? new AgentServerClient() : null;
         server ??= httpServer!;
 
+        if (args.Length == 1 && args[0] is "--version" or "-v")
+        {
+            Console.WriteLine($"postmanclone-agent {AgentInfo.Version} (protocol {AgentInfo.Protocol})");
+            return 0;
+        }
+
         if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
         {
             Console.WriteLine(Usage);
