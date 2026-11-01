@@ -51,6 +51,8 @@ public static partial class ArchitectureRules
         // Web: public legal pages, readable before sign-in.
         "/legal/privacy",
         "/legal/terms",
+        // EnvironmentsService: the pairing exchange. The one-time code is the credential; it is metered by the auth policy (CONTRACTS A2.3).
+        "/api/v1/agent/pair",
     };
 
     private const string Prefix = "PostmanClone.";

@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\PostmanClone.ServiceDefaults\PostmanClone.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\PostmanClone.Sending\PostmanClone.Sending.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />

@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
-using PostmanClone.ExecutionService.Sending.Ssrf;
+using PostmanClone.Sending.Ssrf;
 
 namespace PostmanClone.ExecutionService.Tests.Sending.Ssrf;
 

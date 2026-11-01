@@ -53,20 +53,30 @@ The owner must add `FLY_API_TOKEN` and the production values (docs/FLY_DEPLOYMEN
 The deployment's own open values: the region, the app names, `AllowedOrigins__0` and `FrontendBaseUrl` after a custom domain, and
 `Agent:AllowedWebOrigins` from WP30.
 
-**Local agent (ADR-0026, WP29–WP32), owner decisions:**
+**Local agent (ADR-0026, ADR-0027). Decided by the owner on 2026-11-01 (WP30):**
 
-- **Secrets reach the user's computer during a send (accepted trade-off, ADR-0026 Decision 11).** Confirm that this is accepted for the product.
-- **Private and loopback targets are allowed by default** (`Agent:Targets:AllowPrivate=true`). A shared collection can therefore send a request
-  from a member's machine to that member's LAN. Decide whether to add a confirmation on first use per host, or to default the flag to `false`.
-- **Membership removal does not revoke agent tokens.** The owner decides whether a removed member's agents should be revoked, and how (an
-  authservice event, or a check at each resolve).
-- **Distribution of the agent to non-developers.** WP30 builds artifacts in CI only; a non-developer cannot download them without a GitHub
-  account. Decide the release channel (which needs a release step, not a tag in the Fly workflow).
+- **Secrets reach the user's computer during a send.** Accepted. They are held in the agent's memory for one send, never written to disk, and
+  masked in every response, log line and error (ADR-0026 Decision 11, ADR-0027).
+- **Private and loopback targets are allowed by default** (`Agent:Targets:AllowPrivate=true`, the agent's setting `allowPrivate`). The flag
+  exists and is documented in `docs/AGENT.md`; setting it to `false` turns the SSRF ranges back on. The per-host confirmation on first use is
+  not built.
+- **The agent token is stored in a `0600` file** in the user's configuration folder. The OS keychain is a later item (not built).
+- **Revocation on membership removal is deferred.** A removed member's agent keeps working until it is revoked or expires (90 days). Listed as
+  an open item: the owner decides the mechanism (an authservice event, or a membership check at each resolve).
+- **Distribution is through CI artifacts for now** (`agent-artifacts` in `pr-validation.yml`: the dotnet tool package and single-file zips for
+  win-x64, linux-x64 and osx-arm64). No release and no tag. A release channel for non-developers is still undecided.
+
+**Still open after WP30:**
+
+- **Companion pattern not compared.** The `aurelius-promptus` repository could not be attached in WP30 (the access request was denied). Compare
+  ADR-0026 with `docs/COMPANION_AND_WORKFLOWS.md` and `src/AureliusPromptus.Companion` before the first user.
 - **Server path for requests that carry secrets.** Decide whether a send with a secret must go through the agent only.
-- **Agent token at rest.** It is in a `0600` file. Decide whether the OS keychain is required before the first user.
-- **Companion pattern.** The `aurelius-promptus` Companion pattern was not read in WP29 (the repository could not be attached). Compare ADR-0026
-  with it before WP30 starts.
+- **The EnvironmentsService address the agent calls.** The agent needs a public HTTPS address for EnvironmentsService (or a Web-side proxy).
+  Fly's private network does not reach a user's computer. WP33 decides the topology.
+- **Agent package size.** The single-file binaries are about 110 to 120 MB, because the shared library references the kernel. Trimming is a
+  follow-up.
 - **Browser support (not verified).** Safari's handling of an HTTPS page calling `http://127.0.0.1`, and Chrome's Local Network Access prompt.
+- **The first origin list is set at `setup`.** The server's list replaces it at pairing. An operator must run `setup` with the Web's origin.
 
 **Other decisions the owner should confirm:**
 

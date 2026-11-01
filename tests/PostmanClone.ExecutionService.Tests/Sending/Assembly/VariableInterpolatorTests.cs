@@ -1,4 +1,4 @@
-using PostmanClone.ExecutionService.Sending.Assembly;
+using PostmanClone.Sending.Assembly;
 using Xunit;
 
 namespace PostmanClone.ExecutionService.Tests.Sending.Assembly;

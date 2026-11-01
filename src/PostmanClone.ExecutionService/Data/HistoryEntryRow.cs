@@ -37,4 +37,9 @@ public sealed class HistoryEntryRow
     public string RequestJson { get; set; } = string.Empty;
 
     public string ResultJson { get; set; } = string.Empty;
+
+    /// <summary>
+    /// <c>server</c> or <c>agent</c> (CONTRACTS A2.5). Rows written before the column existed read as <c>server</c>.
+    /// </summary>
+    public string Source { get; set; } = "server";
 }

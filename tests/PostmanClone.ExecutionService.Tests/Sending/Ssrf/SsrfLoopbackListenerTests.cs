@@ -1,7 +1,8 @@
+using PostmanClone.ExecutionService.Tests.Support;
 using System.Net;
 using System.Net.Sockets;
 using PostmanClone.ExecutionService.Options;
-using PostmanClone.ExecutionService.Sending.Ssrf;
+using PostmanClone.Sending.Ssrf;
 using Xunit;
 
 namespace PostmanClone.ExecutionService.Tests.Sending.Ssrf;
@@ -69,8 +70,8 @@ public sealed class SsrfLoopbackListenerTests
 
         using var response = await client.GetAsync($"http://127.0.0.1:{port}/start", HttpCompletionOption.ResponseHeadersRead, TestContext.Current.CancellationToken);
         var location = response.Headers.Location?.ToString();
-        var step = new RedirectPlanner(new ExecutionOptions { Ssrf = new SsrfOptions { AllowLoopback = true } })
-            .Plan(new TargetValidator(new ExecutionOptions { Ssrf = new SsrfOptions { AllowLoopback = true } })
+        var step = Senders.Planner(new ExecutionOptions { Ssrf = new SsrfOptions { AllowLoopback = true } })
+            .Plan(Senders.Validator(new ExecutionOptions { Ssrf = new SsrfOptions { AllowLoopback = true } })
                 .Validate($"http://127.0.0.1:{port}/start").Target!, "GET", (int)response.StatusCode, location, 0);
 
         Assert.Equal(HttpStatusCode.Found, response.StatusCode);

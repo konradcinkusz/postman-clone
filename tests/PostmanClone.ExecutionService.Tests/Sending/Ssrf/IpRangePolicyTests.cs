@@ -1,6 +1,6 @@
 using System.Net;
 using PostmanClone.ExecutionService.Options;
-using PostmanClone.ExecutionService.Sending.Ssrf;
+using PostmanClone.Sending.Ssrf;
 using Xunit;
 
 namespace PostmanClone.ExecutionService.Tests.Sending.Ssrf;

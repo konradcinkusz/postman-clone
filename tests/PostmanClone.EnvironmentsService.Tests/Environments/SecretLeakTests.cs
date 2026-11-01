@@ -104,7 +104,16 @@ public sealed class SecretLeakTests(PostgresFixture postgres) : IClassFixture<Po
             .ToArray();
 
         // A new route fails this test until the sweep names it, so no endpoint can leak outside the sweep unnoticed.
-        var expected = SweptRoutes.Append($"{EnvironmentsRoute}/{{id:guid}}/resolve").OrderBy(route => route, StringComparer.Ordinal).ToArray();
+        // Both resolve routes are checked by their own tests: the user route and the agent-only route (CONTRACTS §3, A2.4).
+        var expected = SweptRoutes
+            .Append($"{EnvironmentsRoute}/{{id:guid}}/resolve")
+            .Append("/api/v1/agent/environments/{id:guid}/resolve")
+            .Append("/api/v1/agent/installations/{id:guid}")
+            .Append("/api/v1/agent/installations")
+            .Append("/api/v1/agent/me")
+            .Append("/api/v1/agent/pair")
+            .Append("/api/v1/agent/pairing-codes")
+            .OrderBy(route => route, StringComparer.Ordinal).ToArray();
         Assert.Equal(expected, routes);
     }
 

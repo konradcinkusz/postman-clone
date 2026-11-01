@@ -2,15 +2,17 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PostmanClone.ExecutionService.Clients;
 using PostmanClone.ExecutionService.Data;
 using PostmanClone.ExecutionService.History;
 using PostmanClone.ExecutionService.Options;
-using PostmanClone.ExecutionService.Sending.Assembly;
-using PostmanClone.ExecutionService.Sending.Execution;
-using PostmanClone.ExecutionService.Sending.Ssrf;
+using PostmanClone.ExecutionService.Sending;
 using PostmanClone.ExecutionService.Ssrf;
+using PostmanClone.Sending.Execution;
+using PostmanClone.Sending.Limits;
+using PostmanClone.Sending.Ssrf;
 using PostmanClone.ServiceDefaults.Database;
 using PostmanClone.ServiceDefaults.Integrations;
 
@@ -32,13 +34,21 @@ public static class ExecutionServiceExtensions
         builder.Services.ConfigureHttpJsonOptions(json =>
             json.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
 
-        // The sender's pieces. Stateless ones are singletons; RequestExecutor is per request because the typed
-        // EnvironmentsClient it holds is transient (a captured HttpClient would outlive its handler).
-        builder.Services.AddSingleton(provider => new TargetValidator(provider.GetRequiredService<IOptions<ExecutionOptions>>().Value));
-        builder.Services.AddSingleton(provider => new RedirectPlanner(provider.GetRequiredService<IOptions<ExecutionOptions>>().Value));
-        builder.Services.AddSingleton(provider => new RequestAssembler(provider.GetRequiredService<IOptions<ExecutionOptions>>().Value, CryptographicRandomBytes.Instance));
+        // The shared sender with the SSRF rules (ADR-0011). It is stateless, so it is a singleton. RequestExecutor is per
+        // request because the typed EnvironmentsClient it holds is transient (a captured HttpClient would outlive its handler).
+        builder.Services.AddSingleton(provider =>
+        {
+            var options = provider.GetRequiredService<IOptions<ExecutionOptions>>().Value;
+            return new OutboundRules(options.Ssrf);
+        });
         builder.Services.AddSingleton<IHostResolver, SystemHostResolver>();
         builder.Services.AddSingleton<IAddressDialer, SocketAddressDialer>();
+        builder.Services.AddSingleton(provider => new OutboundSender(
+            provider.GetRequiredService<IOptions<ExecutionOptions>>().Value.ToLimits(),
+            provider.GetRequiredService<OutboundRules>(),
+            provider.GetRequiredService<IHostResolver>(),
+            provider.GetRequiredService<IAddressDialer>(),
+            provider.GetRequiredService<ILogger<OutboundSender>>()));
         builder.Services.AddScoped<IHistoryRecorder, HistoryRecorder>();
         builder.Services.AddScoped<RequestExecutor>();
 

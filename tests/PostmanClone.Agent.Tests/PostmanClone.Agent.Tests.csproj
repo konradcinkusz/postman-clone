@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>PostmanClone.Agent.Tests</RootNamespace>
+    <!--
+      xUnit1051 asks every awaited call to take the test cancellation token. Each call here has a bounded client timeout and
+      runs against a loopback listener that the test disposes, so the token would add noise, not a stop that matters.
+    -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PostmanClone.Agent\PostmanClone.Agent.csproj" />
+    <ProjectReference Include="..\..\src\PostmanClone.Sending\PostmanClone.Sending.csproj" />
+    <ProjectReference Include="..\..\src\PostmanClone.ExecutionService\PostmanClone.ExecutionService.csproj" />
+    <ProjectReference Include="..\PostmanClone.TestKit\PostmanClone.TestKit.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+</Project>

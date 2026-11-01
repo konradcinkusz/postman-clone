@@ -58,6 +58,13 @@ namespace PostmanClone.ExecutionService.Migrations
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("server");
+
                     b.Property<int?>("StatusCode")
                         .HasColumnType("integer");
 

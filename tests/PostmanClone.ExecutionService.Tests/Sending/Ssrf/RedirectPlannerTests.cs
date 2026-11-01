@@ -1,5 +1,6 @@
+using PostmanClone.ExecutionService.Tests.Support;
 using PostmanClone.ExecutionService.Options;
-using PostmanClone.ExecutionService.Sending.Ssrf;
+using PostmanClone.Sending.Ssrf;
 using Xunit;
 
 namespace PostmanClone.ExecutionService.Tests.Sending.Ssrf;
@@ -83,7 +84,7 @@ public sealed class RedirectPlannerTests
     {
         var current = Target("http://example.com/a/b");
 
-        var step = new RedirectPlanner(new ExecutionOptions()).Plan(current, "GET", 301, "../up?q=1", 0);
+        var step = Senders.Planner(new ExecutionOptions()).Plan(current, "GET", 301, "../up?q=1", 0);
 
         Assert.Equal("http://example.com/up?q=1", step.Next!.Uri);
     }
@@ -93,7 +94,7 @@ public sealed class RedirectPlannerTests
     {
         var current = Target("https://example.com/secure");
 
-        var step = new RedirectPlanner(new ExecutionOptions()).Plan(current, "GET", 302, "http://example.com/plain", 0);
+        var step = Senders.Planner(new ExecutionOptions()).Plan(current, "GET", 302, "http://example.com/plain", 0);
 
         Assert.Equal(RedirectOutcome.Refuse, step.Outcome);
         Assert.Equal("ssrf_blocked_scheme", step.ErrorCode);
@@ -118,7 +119,7 @@ public sealed class RedirectPlannerTests
     [Fact]
     public void With_no_redirects_allowed_the_first_redirect_is_refused()
     {
-        var step = new RedirectPlanner(new ExecutionOptions { MaxRedirects = 0 })
+        var step = Senders.Planner(new ExecutionOptions { MaxRedirects = 0 })
             .Plan(Target(Start), "GET", 302, "/next", redirectsFollowed: 0);
 
         Assert.Equal("too_many_redirects", step.ErrorCode);
@@ -159,8 +160,8 @@ public sealed class RedirectPlannerTests
     }
 
     private static RedirectStep Plan(int status, string method, string? location, int redirectsFollowed) =>
-        new RedirectPlanner(new ExecutionOptions()).Plan(Target(Start), method, status, location, redirectsFollowed);
+        Senders.Planner(new ExecutionOptions()).Plan(Target(Start), method, status, location, redirectsFollowed);
 
     private static SsrfTarget Target(string url) =>
-        new TargetValidator(new ExecutionOptions()).Validate(url).Target!;
+        Senders.Validator(new ExecutionOptions()).Validate(url).Target!;
 }

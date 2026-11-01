@@ -166,7 +166,23 @@ public static class EnvironmentEndpoints
         CancellationToken cancellationToken)
     {
         var actor = Actor.From(user);
-        var environment = await LoadAsync(db, actor.WorkspaceId, id, cancellationToken);
+        return await ResolveForAsync(actor.WorkspaceId, id, actor.UserId, db, protector, audit, cancellationToken);
+    }
+
+    /// <summary>
+    /// The resolution both senders use: the enabled variables, secrets decrypted, for one environment of one workspace.
+    /// An environment of another workspace is absent, so 404. Shared with the agent-only route (CONTRACTS A2.4).
+    /// </summary>
+    internal static async Task<IResult> ResolveForAsync(
+        Guid workspaceId,
+        Guid id,
+        string actorUserId,
+        EnvironmentsDbContext db,
+        ISecretProtector protector,
+        ILogger<EnvironmentAudit> audit,
+        CancellationToken cancellationToken)
+    {
+        var environment = await LoadAsync(db, workspaceId, id, cancellationToken);
         if (environment is null)
         {
             return NotFound();
@@ -202,17 +218,17 @@ public static class EnvironmentEndpoints
             }
         }
 
-        EnvironmentAudit.Resolved(audit, environment.Id, actor.UserId, resolved.Count);
+        EnvironmentAudit.Resolved(audit, environment.Id, actorUserId, resolved.Count);
         return Results.Ok(new ResolvedEnvironment(environment.Id, resolved));
     }
 
     /// <summary>Loads the environment with its variables, but only from the given workspace: absent and foreign are the same answer.</summary>
-    private static Task<Environment?> LoadAsync(EnvironmentsDbContext db, Guid workspaceId, Guid id, CancellationToken cancellationToken) =>
+    internal static Task<Environment?> LoadAsync(EnvironmentsDbContext db, Guid workspaceId, Guid id, CancellationToken cancellationToken) =>
         db.Environments
             .Include(environment => environment.Variables)
             .FirstOrDefaultAsync(environment => environment.Id == id && environment.WorkspaceId == workspaceId, cancellationToken);
 
-    private static IResult NotFound() =>
+    internal static IResult NotFound() =>
         Results.Problem(title: "The environment was not found.", statusCode: StatusCodes.Status404NotFound);
 
     private static IResult Forbidden() =>
@@ -221,7 +237,7 @@ public static class EnvironmentEndpoints
     private static IResult Conflict(string title) =>
         Results.Problem(title: title, statusCode: StatusCodes.Status409Conflict);
 
-    private static IResult SecretsUnavailable() =>
+    internal static IResult SecretsUnavailable() =>
         Results.Problem(
             title: "Secret variables are unavailable: the encryption key is not configured.",
             statusCode: StatusCodes.Status503ServiceUnavailable,

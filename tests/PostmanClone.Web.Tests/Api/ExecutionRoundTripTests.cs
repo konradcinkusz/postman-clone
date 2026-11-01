@@ -1,11 +1,13 @@
 extern alias execution;
+extern alias sending;
 
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using PostmanClone.Web.Api;
 using Service = execution::PostmanClone.ExecutionService.Api;
-using ServiceAssembly = execution::PostmanClone.ExecutionService.Sending.Assembly;
+using ServiceContracts = sending::PostmanClone.Sending.Contracts;
+using ServiceAssembly = sending::PostmanClone.Sending.Assembly;
 
 namespace PostmanClone.Web.Tests.Api;
 
@@ -24,19 +26,19 @@ public sealed class ExecutionRoundTripTests
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 
-    private static Service.ExecutionResult ServiceResult() => new(
-        Service.ExecutionOutcome.Completed,
+    private static ServiceContracts.ExecutionResult ServiceResult() => new(
+        ServiceContracts.ExecutionOutcome.Completed,
         null,
         null,
-        new Service.ResponseDto(
+        new ServiceContracts.ResponseDto(
             200,
             "OK",
             "HTTP/1.1",
             [new ServiceAssembly.HeaderLine("Content-Type", "application/json")],
-            new Service.ResponseBodyDto("utf8", "{\"ok\":true}", 11, false, "application/json")),
-        new Service.ExecutionTiming(42, 3, 5, 20, 14),
+            new ServiceContracts.ResponseBodyDto("utf8", "{\"ok\":true}", 11, false, "application/json")),
+        new ServiceContracts.ExecutionTiming(42, 3, 5, 20, 14),
         "https://api.example.test/items?page=2",
-        [new Service.RedirectHop(302, "https://api.example.test/next")],
+        [new ServiceContracts.RedirectHop(302, "https://api.example.test/next")],
         ["token"],
         Guid.NewGuid());
 
@@ -70,7 +72,7 @@ public sealed class ExecutionRoundTripTests
             7,
             false);
 
-        var sent = JsonSerializer.Deserialize<Service.ExecuteRequest>(JsonSerializer.Serialize(body, WebOptions), ServiceOptions);
+        var sent = JsonSerializer.Deserialize<ServiceContracts.ExecuteRequest>(JsonSerializer.Serialize(body, WebOptions), ServiceOptions);
 
         Assert.NotNull(sent);
         Assert.Equal(body.EnvironmentId, sent.EnvironmentId);

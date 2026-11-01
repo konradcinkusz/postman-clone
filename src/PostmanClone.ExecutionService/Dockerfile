@@ -10,6 +10,7 @@ WORKDIR /src
 # Build settings and the central package versions first, so the restore layer is reused when only code changes.
 COPY global.json Directory.Build.props Directory.Packages.props ./
 COPY src/PostmanClone.ServiceDefaults/ src/PostmanClone.ServiceDefaults/
+COPY src/PostmanClone.Sending/ src/PostmanClone.Sending/
 COPY src/PostmanClone.ExecutionService/ src/PostmanClone.ExecutionService/
 RUN dotnet restore src/PostmanClone.ExecutionService/PostmanClone.ExecutionService.csproj
 RUN dotnet publish src/PostmanClone.ExecutionService/PostmanClone.ExecutionService.csproj \

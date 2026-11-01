@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The shared sending code (CONTRACTS §4, CONTRACTS A2.6, ADR-0026, ADR-0027): the request assembler, the masking and the
+    caps, the outbound executor and the URL and address rules. ExecutionService and the local agent both reference it, so
+    both give the same result for the same request. It holds no database, no endpoint and no secret store.
+  -->
+  <PropertyGroup>
+    <Description>Shared request sending: assembly, masking, caps, and the outbound executor with its destination rules.</Description>
+    <RootNamespace>PostmanClone.Sending</RootNamespace>
+    <AssemblyName>PostmanClone.Sending</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PostmanClone.ServiceDefaults\PostmanClone.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>

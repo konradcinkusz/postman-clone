@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using PostmanClone.ExecutionService.Api;
-using PostmanClone.ExecutionService.Sending.Assembly;
-using PostmanClone.ExecutionService.Sending.Execution;
+using PostmanClone.Sending.Contracts;
+using PostmanClone.Sending.Assembly;
+using PostmanClone.ExecutionService.History;
+using PostmanClone.Sending.Execution;
 
 namespace PostmanClone.ExecutionService.Tests.Support;
 

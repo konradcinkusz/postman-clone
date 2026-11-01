@@ -2,8 +2,9 @@ using System.IO.Compression;
 using System.Text;
 using System.Net.Http.Headers;
 using PostmanClone.ExecutionService.Api;
-using PostmanClone.ExecutionService.Sending.Assembly;
-using PostmanClone.ExecutionService.Sending.Execution;
+using PostmanClone.Sending.Contracts;
+using PostmanClone.Sending.Assembly;
+using PostmanClone.Sending.Execution;
 using Xunit;
 
 namespace PostmanClone.ExecutionService.Tests.Sending.Execution;
