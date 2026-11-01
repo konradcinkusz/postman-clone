@@ -4,9 +4,9 @@ How the system is configured, started, checked, and what degrades when a part is
 below was read from the code or the scripts on `main`; the file named in each row is the one to change.
 
 Deployment was out of scope when §8 was written ([ADR-0007](decisions/0007-deployment-out-of-scope.md)). That decision is superseded for
-this product by [ADR-0026](decisions/0026-local-agent-and-fly-estate.md): the shared estate is planned for Fly.io with a manual workflow (WP33),
-and sends to local targets move to a local agent (WP30). Until WP33 lands, nothing in the repository deploys. §8 describes the state on `main`
-today.
+this product by [ADR-0026](decisions/0026-local-agent-and-fly-estate.md): the shared estate runs on Fly.io, configured in `flyio/` and
+deployed by hand with the manual workflow (WP33, [ADR-0029](decisions/0029-fly-topology-and-manual-deployment.md),
+[FLY_DEPLOYMENT.md](FLY_DEPLOYMENT.md)). Sends to local targets move to a local agent (WP30). Nothing deploys by itself.
 
 ## 1. Single source of truth
 
@@ -32,7 +32,7 @@ Keys use .NET configuration syntax. In the environment, `:` becomes `__`.
 | `ConnectionStrings__DefaultConnection` | none (required) | AppHost, script (authservice) | authservice's `authdb`. |
 | `Auth__MetadataAddress` | none (required) | AppHost, script | Discovery document of authservice, for the JWKS. Local value: `http://localhost:5300/.well-known/openid-configuration`. |
 | `Auth__Issuer` / `Auth__Audience` | none (required) | AppHost, script | Both `PostmanClone`. A token from another product is refused. |
-| `Auth__RequireHttpsMetadata` | `true` | AppHost sets `false` (containers on HTTP); script sets `false` | Must stay `true` anywhere that is not the loopback stack. |
+| `Auth__RequireHttpsMetadata` | `true` | AppHost sets `false` (containers on HTTP); script sets `false` | Must stay `true` anywhere that is not the loopback stack or the Fly estate. The Fly estate sets `false` on its private network (ADR-0029, DEVIATIONS.md). |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | operator | Exports traces, metrics and logs over OTLP when set. Unset means no export. Not exercised by any test (OI-18). |
 | `AllowedOrigins` | empty | operator | Origins other than the service's own that the origin guard accepts. Array. `ServiceDefaults/Security/OriginGuardMiddleware.cs` |
 | `Proxy:TrustForwardedFor` | `false` | operator | When `true`, the rate limiter reads the client address from `X-Forwarded-For`. Only behind one trusted proxy. Before deployment, see OPEN-ITEMS §0 (OI-26). |
@@ -247,12 +247,14 @@ first, and nothing warns. Collections are the same for their fields, but saved r
 | Web | 5310 (the script, or `dotnet run`) | 5310 (fixed) |
 | PostgreSQL | 5432 | container |
 
-## 8. What an owner would have to add before any deployment
+## 8. What an owner adds to deploy, and what is still open
 
-None of this exists in the repository on `main` (ADR-0007; the planned items are in ADR-0026 and WP33):
+The hosting target and the deploy workflow are in the repository (WP33). The steps, the secrets and the settings are in
+[FLY_DEPLOYMENT.md](FLY_DEPLOYMENT.md) and [flyio/SECRETS.md](../flyio/SECRETS.md). What is left for the owner:
 
-- A hosting target and a deploy workflow. Tags are not used.
-- Production values for `Auth__*`, the authservice key, the encryption key, and the Web's `AllowedOrigins` and forwarded-header settings.
+- The owner's values: the Fly organisation, the GitHub environment `fly`, `FLY_API_TOKEN`, the authservice key, the encryption key,
+  the database passwords, and a custom domain if there is one (`FLY_DEPLOYMENT.md` §1 to §5).
+- The client-address decision (OI-26, `FLY_DEPLOYMENT.md` §9).
 - TLS at the edge, and the forwarded-header configuration that goes with it.
 - A network egress policy for ExecutionService. The SSRF guard in this repository is not the only control
   (ADR-0011 names the network policy as the backstop).

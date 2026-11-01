@@ -1,0 +1,50 @@
+# Fly.io configuration for CollectionsService (ADR-0003, ADR-0029). Private: reached only over 6PN.
+#
+# Deployed by .github/workflows/flyio.yml (workflow_dispatch only) or by hand:
+#   flyctl deploy --remote-only -c flyio/collections-service.fly.toml
+# Build context: the repository root (see web.fly.toml).
+
+app = "postmanclone-collections"
+primary_region = "fra"
+
+[build]
+  dockerfile = "../src/PostmanClone.CollectionsService/Dockerfile"
+  context = ".."
+
+[env]
+  ASPNETCORE_ENVIRONMENT = "Production"
+  ASPNETCORE_URLS = "http://+:8080"
+
+  Auth__Issuer = "PostmanClone"
+  Auth__Audience = "PostmanClone"
+  Auth__MetadataAddress = "http://postmanclone-authservice.flycast/.well-known/openid-configuration"
+  # DEVIATION (ADR-0029, DEVIATIONS.md): the metadata is read over 6PN without TLS. See web.fly.toml.
+  Auth__RequireHttpsMetadata = "false"
+
+  # The connection string (collectionsdb) is the Fly secret ConnectionStrings__collectionsdb (flyio/SECRETS.md).
+
+[http_service]
+  internal_port = 8080
+  # Off: internal address over HTTP only (see authservice.fly.toml).
+  force_https = false
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  # Every collections call from the Web waits for this machine, and the Web's own sign-in path verifies tokens against
+  # authservice, so this one stays up as well (FLY_DEPLOYMENT §8).
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "90s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

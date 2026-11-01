@@ -1,0 +1,71 @@
+# Fly.io configuration for the Web (WP33, ADR-0029). The only public app of the estate.
+#
+# Deployed by .github/workflows/flyio.yml (workflow_dispatch only) or by hand, from the repository root:
+#   flyctl deploy --remote-only -c flyio/web.fly.toml
+# Build context: the repository root, because the project references ServiceDefaults and the solution-wide files
+# live there (the same context as the CI docker-build job).
+#
+# Every value below that is not a secret is public (it ends up in `flyctl config show`). Secrets: flyio/SECRETS.md.
+
+app = "postmanclone-web"
+primary_region = "fra"                     # owner decision: the region. Change it here and in every other app's toml.
+
+[build]
+  dockerfile = "../src/PostmanClone.Web/Dockerfile"
+  context = ".."
+
+[env]
+  ASPNETCORE_ENVIRONMENT = "Production"
+  ASPNETCORE_URLS = "http://+:8080"
+
+  # Token validation (ADR-0004, docs/AUTH.md). The issuer and audience are authservice's Jwt:Issuer and Jwt:Audience.
+  Auth__Issuer = "PostmanClone"
+  Auth__Audience = "PostmanClone"
+  # DEVIATION (ADR-0029, DEVIATIONS.md): the discovery document is read over 6PN (http://…flycast, WireGuard-encrypted),
+  # which has no TLS certificate. The default (true) would refuse it. Set to true again when authservice is served over HTTPS.
+  Auth__RequireHttpsMetadata = "false"
+
+  # Service discovery. The Web names its backends by these logical names (Web/Api/BackendServices.cs). Each value is the
+  # backend's private address; `.flycast` is reached through the Fly proxy, which starts a stopped machine on the first call.
+  services__authservice__http__0 = "http://postmanclone-authservice.flycast"
+  services__collections-service__http__0 = "http://postmanclone-collections.flycast"
+  services__environments-service__http__0 = "http://postmanclone-environments.flycast"
+  services__execution-service__http__0 = "http://postmanclone-execution.flycast"
+
+  # The origin the browser uses. The origin guard accepts it besides the Web's own host (CONTRACTS §0, BLAZOR-WEB-APP §8).
+  AllowedOrigins__0 = "https://postmanclone-web.fly.dev"
+
+  # Client-address trust for the sign-in windows (OI-26, OPERATIONS §2). "false" is the safe default: the forms then share
+  # one window per address, which is the Fly edge for every user. Set "true" only after the owner has confirmed how the
+  # Fly proxy writes X-Forwarded-For (docs/FLY_DEPLOYMENT.md §9). Do not set it while the header can come from a client.
+  Proxy__TrustForwardedFor = "false"
+
+# One machine. Sessions live in this process's memory (ADR-0008), so a second machine would split them, and a
+# deploy stops the old machine before it starts the new one ("immediate"): users sign in again after a deploy.
+[deploy]
+  strategy = "immediate"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  # Entered from a browser, and a Blazor circuit is a live WebSocket. min_machines_running = 1 keeps one machine warm,
+  # so the first page after a quiet period is not a cold start. Cost: one always-on machine (FLY_DEPLOYMENT §8).
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "60s"
+    method = "GET"
+    path = "/health"                       # the Web's readiness (liveness is /alive); it answers without a session
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"                           # the Blazor circuits are in memory; 512 MB is too little to measure against (size it after a load run)
