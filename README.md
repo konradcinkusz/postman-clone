@@ -6,7 +6,10 @@ service ([`authservice`](https://github.com/konradcinkusz/authservice), pinned t
 protection, and an Aspire AppHost for development. It is built to
 [`architecture-standards`](https://github.com/konradcinkusz/architecture-standards).
 
-Deployment is deliberately absent ([ADR-0007](docs/decisions/0007-deployment-out-of-scope.md)).
+**Planned change ([ADR-0026](docs/decisions/0026-local-agent-and-fly-estate.md), 2026-11-01, supersedes [ADR-0007](docs/decisions/0007-deployment-out-of-scope.md) for this product):**
+requests to local and private targets are sent by a **local agent** on the user's computer, and the shared estate (Web, CollectionsService,
+EnvironmentsService, ExecutionService, authservice, PostgreSQL) is to be deployed to Fly.io by a **manual** workflow only. Neither is built
+yet: they are WP29 (decided here), WP30–WP33. Until WP33 lands, nothing in the repository deploys.
 
 ## Status
 
@@ -24,6 +27,8 @@ This page describes `main` after WP28, the final review (`docs/SECURITY_REVIEW.m
 | History API (masked, 200 entries per user and workspace) | Built (WP15) |
 | Workspace shell, collection tree, request builder, response viewer | Built (WP18, WP18b, WP19, WP20) |
 | Environments page, history page | Built (WP21, WP22). |
+| Local agent (pairing, local sending, Send chooses agent or server) | Planned: decided in WP29 (ADR-0026, CONTRACTS A2); built in WP30–WP32 |
+| Fly.io deployment of the shared estate (manual workflow) | Planned: WP33 |
 | About page | Placeholder |
 | Legal pages (`/legal/privacy`, `/legal/terms`) | Placeholders (OI-04) |
 | Browser end-to-end tests | Built (WP26): `tests/PostmanClone.Web.E2E`, 18 journeys over the protected flows, run by the `e2e` CI job; ADR-0018 |
@@ -144,7 +149,8 @@ The kernel holds no domain (rule R1), and no service references another (R2); bo
 | [0004](docs/decisions/0004-authservice-identity-and-workspace.md) | authservice is the only IdP; a workspace is one organization |
 | [0005](docs/decisions/0005-bff-session.md) | Backend-for-frontend session: opaque HttpOnly cookie, tokens on the server |
 | [0006](docs/decisions/0006-secret-variables.md) | Secret variables: encrypted at rest, referenced by name, masked everywhere |
-| [0007](docs/decisions/0007-deployment-out-of-scope.md) | Deployment is out of scope for this build |
+| [0007](docs/decisions/0007-deployment-out-of-scope.md) | Deployment is out of scope for this build (superseded for this product by 0026) |
+| [0026](docs/decisions/0026-local-agent-and-fly-estate.md) | Local agent sends requests; Fly hosts the shared estate (planned) |
 | [0008](docs/decisions/0008-single-instance-web.md) | The Web keeps sessions in server memory and runs as one instance |
 | [0009](docs/decisions/0009-dependency-budget.md) | Dependency budget |
 | [0010](docs/decisions/0010-authservice-pin-and-local-run.md) | authservice pinned to v0.3.4; run from its tagged source when there is no Docker |

@@ -13,7 +13,7 @@ This directory is the single source of truth for the build:
 | `README.md` (this file) | Product scope, architecture, decisions, wave plan, risks |
 | [`CONTRACTS.md`](CONTRACTS.md) | Frozen HTTP contracts, claims, limits, error codes |
 | [`PROTOCOL.md`](PROTOCOL.md) | The rules every sub-session follows (environment, git, CI, merge, final message) |
-| [`WORK-PACKAGES.md`](WORK-PACKAGES.md) | WP00–WP28: scope, dependencies, acceptance criteria, reserved ADR numbers |
+| [`WORK-PACKAGES.md`](WORK-PACKAGES.md) | WP00–WP33: scope, dependencies, acceptance criteria, reserved ADR numbers (WP29–WP33 are the local agent and the Fly estate, ADR-0026) |
 
 The build is run by a **supervisor session** (planning, spawning, checking, archiving only — it
 writes no product code) and **autonomous Haiku 5.5 sub-sessions**, one per work package. Each
@@ -32,7 +32,7 @@ sub-session opens its own PR, waits for CI, and squash-merges it.
 | Collections | Collections → nested folders (max depth 8) → saved requests; create / rename / move / duplicate / delete |
 | Request builder | Method, URL, query params, headers (each row enable/disable), body (none, raw json/text/xml/html/javascript, form-urlencoded, form-data **text fields**), auth helpers (none, bearer, basic, API key in header or query) |
 | Environments | Named variable sets per workspace, `{{name}}` interpolation, **secret variables** (encrypted at rest, masked in UI, history and logs) |
-| Sender | Requests executed **server-side** by ExecutionService with SSRF protection, size and time limits |
+| Sender | Requests executed **server-side** by ExecutionService with SSRF protection, size and time limits (public URLs). *Superseded in part by ADR-0026:* requests to local and private targets are sent by the user's **local agent** (planned WP30–WP32), with the same masking and caps |
 | Response viewer | Status, time, size, headers, body (pretty JSON / raw / "binary, N bytes"), truncation notice, timing breakdown, redirect chain |
 | History | Per-user request history (secrets masked), re-open into the builder, delete, clear, bounded retention |
 | Import / export | Import Postman Collection v2.1 JSON and cURL commands; export a collection as Postman v2.1 JSON and a request as cURL |
@@ -46,7 +46,7 @@ file upload in form-data, cookies jar, proxy settings, client certificates, OAut
 collaboration cursors / live co-editing, per-collection variables and global variables
 (environment variables only), per-resource ACLs or viewer roles (authservice has only
 Owner / Admin / Member), two-factor sign-in (authservice supports it; the Web shows "not
-supported yet"), keyboard shortcuts that need JS interop, **deployment** (ADR-0007), billing.
+supported yet"), keyboard shortcuts that need JS interop, billing. **Deployment** was out of scope under ADR-0007; that is superseded for this product by ADR-0026 (a manual Fly.io workflow, WP33). The local agent is in scope (WP29–WP32).
 
 ## 2. Architecture
 
@@ -65,6 +65,11 @@ flowchart LR
   A --> ADB[(authdb)]
   C & E & X -.JWKS.-> A
 ```
+
+**Planned change (ADR-0026, 2026-11-01):** the diagram above shows the server path, which stays for public URLs. Requests to local and
+private targets go from the browser to a **local agent** on the user's computer (`127.0.0.1` only, checked Origin, Host and pairing token),
+and the agent takes its resolved values straight from EnvironmentsService (agent routes, CONTRACTS A2). The shared estate is to be deployed
+to Fly.io by a manual workflow (WP33).
 
 Everything is declared in `PostmanClone.AppHost` (P1). One PostgreSQL server, **five logical
 databases** (one per owner, P3). Services and Web all call `AddServiceDefaults()` (P2a).
@@ -92,7 +97,8 @@ No event bus (reference architecture §4). All cross-service calls are synchrono
 | 0004 | authservice is the only IdP. Workspace = the single `organization` claim. 0 organizations → onboarding (create via authservice `POST /api/v1/organizations`, then refresh to get the claim); ≥2 → **fail closed** with an explanation page. No workspace switcher exists (authservice issues no organization-scoped token). Limitations documented in `docs/AUTH.md` |
 | 0005 | BFF session: HttpOnly `SameSite=Strict` cookie holds only a random session id; ticket and token pair live in a server-side store; refresh is serialized per session (rotating single-use refresh tokens); circuits revalidated every 5 minutes |
 | 0006 | Secrets: environment secrets AES-256-GCM at rest (AAD binds workspace, environment, key); auth-helper secret fields accept `{{variable}}` references only; secrets masked in UI/history/logs; `resolve` is not a confidentiality boundary against workspace members (same as Postman) |
-| 0007 | Deployment out of scope (no Fly.io artifacts, no tags, no repo settings) |
+| 0007 | Deployment out of scope (no Fly.io artifacts, no tags, no repo settings) — superseded for this product by 0026 |
+| 0026 | Local agent sends requests to local and private targets; Fly hosts the shared estate; opaque agent credentials; secrets reach the agent (accepted); deployment by hand only |
 | 0008 | Web keeps sessions and open tabs in server memory, runs as a single instance; restart = sign in again |
 | 0009 | Dependency budget: ASP.NET Core shared framework only in Web; no component/chart library, no JS interop packages, no CSS framework |
 
@@ -167,6 +173,10 @@ and green on `main` and fewer than 4 sessions are running.**
 | 10 | WP21, WP22 |
 | 11 | WP26, WP27 |
 | 12 | WP28 (architecture-review + security-review, fixes) |
+| 13 | WP29 (local agent and Fly decided: ADR-0026, CONTRACTS A2) |
+| 14 | WP30 (agent program and the server routes it needs), WP33 (Fly, manual deploy) |
+| 15 | WP31 (Web: pairing, status, Send choice, one script) |
+| 16 | WP32 (E2E with the real agent and its refusals) |
 
 Dependency graph: see the table in [WORK-PACKAGES.md](WORK-PACKAGES.md#dependency-table).
 
@@ -194,5 +204,5 @@ Dependency graph: see the table in [WORK-PACKAGES.md](WORK-PACKAGES.md#dependenc
 
 Branch protection / required checks on `main`, enabling CodeQL and Dependabot alerts, GitHub
 secret-scanning push protection, deleting merged `wp/*` branches (sessions cannot), reviewing
-`CODEOWNERS`, supplying production secrets and a deployment decision (ADR-0007), registering
+`CODEOWNERS`, supplying production secrets and the Fly token (`FLY_API_TOKEN`, ADR-0026), registering
 SendGrid/OAuth in authservice if wanted.

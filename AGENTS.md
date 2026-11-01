@@ -120,8 +120,13 @@ live only in `Directory.Packages.props`; projects reference packages without a v
   width; no JavaScript interop and no JavaScript or CSS library ([ADR-0009](docs/decisions/0009-dependency-budget.md)).
 - **Single instance.** The Web runs as one instance, and sessions live in its memory
   ([ADR-0008](docs/decisions/0008-single-instance-web.md)).
-- **Deployment is out of scope** ([ADR-0007](docs/decisions/0007-deployment-out-of-scope.md)). No
-  deploy workflow, no registry push, no tags, no Fly.io or cloud configuration.
+- **Deployment** ([ADR-0007](docs/decisions/0007-deployment-out-of-scope.md) is superseded for this product by
+  [ADR-0026](docs/decisions/0026-local-agent-and-fly-estate.md)). Until WP33 lands there is no Fly configuration in the tree. From WP33, the
+  only deploy path is `.github/workflows/flyio.yml`, which has `workflow_dispatch` as its only trigger; `scripts/check-flyio-trigger.sh` enforces
+  it. No tag trigger, no push trigger, no registry push outside that workflow, and no other cloud configuration.
+- **The local agent** sends requests to local and private targets from the user's computer (ADR-0026). It is the only place a resolved
+  secret value may be held outside the service, and only in memory for one send. Its local listener is `127.0.0.1` only, and it checks `Origin`,
+  `Host` and the pairing token on every request (CONTRACTS A2.6).
 
 ## Workflow
 

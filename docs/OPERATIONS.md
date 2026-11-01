@@ -3,8 +3,10 @@
 How the system is configured, started, checked, and what degrades when a part is missing. Every value
 below was read from the code or the scripts on `main`; the file named in each row is the one to change.
 
-Deployment is out of scope ([ADR-0007](decisions/0007-deployment-out-of-scope.md)). Nothing here describes a
-production environment, and nothing in the repository deploys.
+Deployment was out of scope when §8 was written ([ADR-0007](decisions/0007-deployment-out-of-scope.md)). That decision is superseded for
+this product by [ADR-0026](decisions/0026-local-agent-and-fly-estate.md): the shared estate is planned for Fly.io with a manual workflow (WP33),
+and sends to local targets move to a local agent (WP30). Until WP33 lands, nothing in the repository deploys. §8 describes the state on `main`
+today.
 
 ## 1. Single source of truth
 
@@ -247,7 +249,7 @@ first, and nothing warns. Collections are the same for their fields, but saved r
 
 ## 8. What an owner would have to add before any deployment
 
-None of this exists in the repository, by decision (ADR-0007):
+None of this exists in the repository on `main` (ADR-0007; the planned items are in ADR-0026 and WP33):
 
 - A hosting target and a deploy workflow. Tags are not used.
 - Production values for `Auth__*`, the authservice key, the encryption key, and the Web's `AllowedOrigins` and forwarded-header settings.
