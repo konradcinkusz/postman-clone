@@ -20,8 +20,11 @@ public static class AgentEndpoints
     /// <summary>The largest run record the route reads: the 1 MB body cap, the framing, and the 64 KB result cut (A2.5).</summary>
     public const int MaximumRunBytes = 2 * 1024 * 1024;
 
-    /// <summary>The header the page sends the antiforgery token in (the framework's default name).</summary>
-    public const string AntiforgeryHeader = "X-CSRF-TOKEN";
+    /// <summary>
+    /// The header the page sends the antiforgery token in: the framework's default (<c>AntiforgeryOptions.HeaderName</c>), which
+    /// the validation reads. AgentAntiforgeryHeaderTests pins it to that default.
+    /// </summary>
+    public const string AntiforgeryHeader = "RequestVerificationToken";
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 

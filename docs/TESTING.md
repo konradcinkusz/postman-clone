@@ -15,7 +15,7 @@ results are from the WP28 session on the final branch (2026-10-31, .NET SDK 10.0
 | Browser-facing host | `Web.Tests` (`WebApplicationFactory`) | the origin guard, the security headers, the CSP and the interactive render mode | cross-site POST refused; `Referrer-Policy` set |
 | Contract smoke against a real authservice | `scripts/smoke-auth.sh` | the authservice endpoints and claims the services rely on, against v0.3.4 | register, login, organization, refresh, logout |
 | Repository checks | `scripts/check-doc-links.sh`, `scripts/check-kernel-size.sh`, `scripts/hooks/pre-commit` | links resolve; the kernel stays at most 800 lines; no secret in a staged change | |
-| End to end (browser) | `Web.E2E` (Playwright, Chromium) against the no-Docker estate | 18 journeys: sign-up and sign-in through the form, collections and requests, sending to a local target, the rendering of a response, environments and secrets, import and export, isolation between workspaces, 390 px and the dark theme. Protected flows and non-goals: [ADR-0018](decisions/0018-e2e-scope-and-charter.md) | `scripts/run-local-stack.sh up`, then the two runs in §4 |
+| End to end (browser) | `Web.E2E` (Playwright, Chromium) against the no-Docker estate | The protected flows: sign-up and sign-in through the form, collections and requests, sending to a local target, the rendering of a response, environments and secrets, import and export, isolation between workspaces, 390 px and the dark theme (ADR-0018). Since WP32, also the local agent: pairing, a send through it with a secret masked everywhere, the strict refusal, revoke, the listener's refusals, and a member's shared collection (§9). The run totals are in §3. Non-goals: [ADR-0018](decisions/0018-e2e-scope-and-charter.md) | `scripts/run-local-stack.sh up agent`, then the two runs in §4 |
 
 Tests assert behaviour, not presence: there are no `Assert.True(true)` placeholders and no `Thread.Sleep` in
 `tests/` (checked by search). The one `Task.Delay` in `ExecuteSecurityTests` is a slow target that waits for the
@@ -57,6 +57,13 @@ covers it*. The PostgreSQL run of the same assertion passes.
 | `scripts/run-local-stack.sh up` (no Docker), then `scripts/smoke-auth.sh` | authservice contract PASS |
 | E2E strict set (`Mode!=loopback`), stack with `WEB_AUTH_PERMITS_PER_MINUTE=18` | 15 total, 15 passed, 0 failed |
 | E2E loopback set (`E2E_SENDER_LOOPBACK=1`, `Mode!=strict`) | 20 total, 20 passed, 0 failed |
+| **WP32, final head.** `dotnet build PostmanClone.sln` (Debug) | 0 warnings, 0 errors |
+| **WP32, final head.** `dotnet test --solution PostmanClone.sln` with `TEST_POSTGRES` set | 2232 total, 2229 passed, 3 skipped, 0 failed. The skips are the two `AgentScopingTests` marked `Skip` with their reasons (WP29) and one `CollectionSearchTests` case |
+| **WP32, final head.** E2E loopback set: `up agent` with `E2E_SENDER_LOOPBACK=1 AUTHSERVICE_ENVIRONMENT=Development WEB_AUTH_PERMITS_PER_MINUTE=18`, then `--filter "Mode!=strict"` | **33 of 33 passed**, serial, `POSTMANCLONE_E2E_REQUIRED=1`. The agent journeys, the listener's nine tests and the sharing journey are in it |
+| **WP32, final head.** E2E strict set: `up agent` without the loopback flag, then `--filter "Mode!=loopback"` | **26 of 26 passed**. The strict agent journey (the agent reaches a loopback target, the server refuses it) is in it |
+| **WP32.** Listener tests alone (`--filter FullyQualifiedName~AgentListenerJourneys`), against the real agent process | 9 of 9 passed |
+| **WP32.** `bash scripts/check-doc-links.sh` · `bash scripts/check-kernel-size.sh` · the workflow parsed as YAML | 202 links resolve · kernel 766 of 800 lines · parsed |
+| **WP32.** Defects the journeys found and that were fixed on this branch (see OPEN-ITEMS OI-29, OI-30) | the run record never reached the history (antiforgery header), and a record with a variable in its URL was refused. Each was red before its fix and green after |
 | `dotnet test --project tests/PostmanClone.ServiceDefaults.Tests -c Release --filter FullyQualifiedName~Requests_are_traced` (three runs) | 3 of 3 passed (OI-06 fixed in WP28) |
 | `dotnet list PostmanClone.sln package --vulnerable --include-transitive` | no vulnerable packages in any of the 12 projects |
 | `scripts/check-kernel-size.sh` | 766 of 800 lines |
@@ -95,7 +102,7 @@ Two findings from the runs, both recorded in OPERATIONS and the open-items regis
 | `docker-build` | `docker build --file <Dockerfile> .` for each of the four Dockerfiles, no push | never run in a session (no Docker daemon); CI is the first real build |
 | `kernel-size` | `scripts/check-kernel-size.sh` | |
 | `auth-smoke` | `scripts/run-local-stack.sh up`, `scripts/smoke-auth.sh`, `down` | PostgreSQL 16 service; authservice built from its tag |
-| `e2e` | `scripts/run-local-stack.sh up` with `E2E_SENDER_LOOPBACK=1`, the loopback set; `down`; `up` without the flag, the strict set; `down`. Chromium installed by `playwright.ps1 install --with-deps chromium`. `POSTMANCLONE_E2E_REQUIRED=1`. Logs uploaded on failure | PostgreSQL 16 service; runs when `src/`, `tests/`, `scripts/` or this workflow changed on a pull request |
+| `e2e` | `scripts/run-local-stack.sh up agent` with `E2E_SENDER_LOOPBACK=1`, the loopback set; `down`; `up agent` without the flag, the strict set; `down`. `AUTHSERVICE_ENVIRONMENT=Development` for the whole job (the invitation token, WP32). Chromium installed by `playwright.ps1 install --with-deps chromium`. `POSTMANCLONE_E2E_REQUIRED=1`. Logs (including `agent.log`) uploaded on failure | PostgreSQL 16 service; runs when `src/`, `tests/`, `scripts/` or this workflow changed on a pull request |
 | `docs-links` | `scripts/check-doc-links.sh` | |
 | `pr-validation` | aggregate of the above | the one required status check (owner action) |
 
@@ -127,6 +134,8 @@ No job runs the AppHost.
 | The AppHost (`dotnet run --project src/PostmanClone.AppHost`) | no Docker daemon in sessions | a machine with Docker, once per release |
 | `docker build` of any of the four Dockerfiles, here | no Docker daemon | CI's `docker-build` job (not yet seen green for this head at the time of writing) |
 | The `e2e` job on a GitHub runner | the journeys ran on the sandbox only; the job's result is on the pull request | the job's first green run on the pull request head |
+| The agent journeys from an HTTPS page, and the Private Network Access / Local Network Access prompt of Chrome | the stack and the Web are on `http://localhost:5310`; a headless Chromium does not show the prompt | a manual check on a desktop Chrome and on an HTTPS origin, once a public origin exists (WP32, §9) |
+| The agent in Safari and Firefox | the journeys run Chromium only (ADR-0018) | a manual check in each browser (WP32, §9) |
 | The OTLP exporter against a collector | no collector; no test covers the branch | an integration test with a stub collector (OI-18) |
 | Real internet egress from the sender | the SSRF tests use loopback targets and scripted resolvers; no public host was contacted | a manual check against one public host with the default settings |
 | Browsers other than Chromium, and the 390 px check on a real phone | the suite uses Chromium with a 390 px viewport | a manual check on a device (not automated) |
@@ -161,3 +170,30 @@ from disk), and `AgentClientTests` (the routes, the bearers, the outcomes).
 `http://localhost:5310`, the Web on that origin, and a stand-in server for the pairing route. The page script probed, paired, sent to a local
 target through the agent, and received the response with `Set-Cookie` masked; a wrong pairing token got its 401. An origin that the CSP does not
 name was refused by the browser. Not run: an HTTPS page, Firefox, Safari, and the Local Network Access prompt (ADR-0028, "Not verified").
+
+## 9. The local agent in the browser journeys (WP32, ADR-0026, ADR-0028)
+
+These run in the E2E project against the whole estate on this machine: the real authservice, EnvironmentsService and
+ExecutionService, the Web, and the agent built and started by `scripts/run-local-stack.sh up agent` on `127.0.0.1:47631`.
+Chromium only. Each check reads the page, the server history, or the agent's log (`.local-stack/logs/agent.log`, its stdout and
+stderr), so a secret that reached any of them fails the journey.
+
+| Journey | What it shows |
+|---|---|
+| `Pairing_from_the_agent_page_shows_Connected_in_the_top_bar` | A code is created on `/agent` and paired from the page; the top bar reads Connected and the page lists one installation |
+| `Send_through_the_agent_uses_the_environment_and_shows_the_secret_masked_everywhere` | The environment's variable and its secret are used. The target receives the real secret (`TargetServer.LastAuthorization`); the panel says the agent sent it and shows `Authorization=Bearer ••••••`; the run record is posted (201) and listed in the server history with source `agent` and the masked template; the history page and the agent's log hold no secret |
+| `With_the_agent_connected_the_agent_reaches_a_loopback_target_and_the_server_path_refuses_it` (strict set) | The agent sends to the loopback target while the server's choice refuses it with `ssrf_blocked_address`; the top bar still reads Connected |
+| `Revoking_the_installation_makes_the_next_agent_send_ask_for_a_new_pairing` | After the revoke, the top bar reads Pair again, and a send through the agent says so |
+| `AgentListenerJourneys` (nine tests, raw HTTP, no browser) | A foreign Origin is refused with 403 and no allow header; no Origin is refused; a rebinding Host gets 421; a send without the pairing token gets 401, and with a wrong one 401; `text/plain` gets 415; the Private Network Access preflight from the Web's origin gets 204 with that exact origin and the private-network header; a foreign preflight gets no allow header; a second listener on the same port exits 1 with "in use" |
+| `SharedCollectionJourneys` | The owner invites a member (WP24); the invitation token is read from `authservice.log` (Development only); the member accepts and is redirected to `/workspace?notice=joined`; the member's tree shows the owner's collection |
+
+**Found by these journeys and fixed in WP32** (OPEN-ITEMS OI-29, OI-30): the agent's run record was never stored, because the page
+sent the antiforgery token in a header the framework does not read; and a record with a variable in its URL or secret was refused
+by the send rules, so a send through an environment never reached the history.
+
+**What the journeys do not do.** Collections have no variables, so the "collection variable" of the plan is an environment variable
+here (OI-28). Each pairing adds an agent row and a reload needs a new code (OI-31). Neither is changed here.
+
+**Not verified:** the agent journeys on a GitHub runner (the `e2e` job's first run on the pull request), an HTTPS origin calling
+`http://127.0.0.1`, the Private and Local Network Access prompts (headless Chromium does not show them), and browsers other than
+Chromium. §6 lists them.

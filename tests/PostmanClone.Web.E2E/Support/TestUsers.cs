@@ -24,7 +24,7 @@ public static class TestUsers
     public static async Task<TestUser> CreateAsync(int organizations = 1)
     {
         var (terms, privacy) = await ConsentVersionsAsync();
-        string email = string.Empty, password = string.Empty, accessToken = string.Empty;
+        string email = string.Empty, password = string.Empty, accessToken = string.Empty, refreshToken = string.Empty;
         for (var attempt = 1; ; attempt++)
         {
             email = $"e2e-{Guid.NewGuid():N}@example.test";
@@ -42,6 +42,7 @@ public static class TestUsers
                 register.EnsureSuccessStatusCode();
                 var tokens = await register.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
                 accessToken = tokens.GetProperty("accessToken").GetString()!;
+                refreshToken = tokens.GetProperty("refreshToken").GetString()!;
                 break;
             }
             catch (Exception exception) when (attempt < Attempts && exception is HttpRequestException or TaskCanceledException)
@@ -62,6 +63,17 @@ public static class TestUsers
             request.Headers.Authorization = new("Bearer", accessToken);
             using var created = await Http.SendAsync(request, TestContext.Current.CancellationToken);
             created.EnsureSuccessStatusCode();
+        }
+
+        // The register token has no organization claim, so the workspace API refuses it (403). When the user has an organization,
+        // the token is refreshed (docs/AUTH.md, step 5), and the refreshed access token is the one returned.
+        if (organizations > 0)
+        {
+            await AuthBudget.AcquireAsync(TestContext.Current.CancellationToken);
+            using var refresh = await Http.PostAsJsonAsync("/api/v1/auth/refresh", new { refreshToken }, TestContext.Current.CancellationToken);
+            refresh.EnsureSuccessStatusCode();
+            var pair = await refresh.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+            accessToken = pair.GetProperty("accessToken").GetString()!;
         }
 
         return new TestUser(email, password, accessToken);

@@ -15,6 +15,9 @@ public static class E2ESettings
     /// <summary>CollectionsService, called directly to set up data for isolation checks.</summary>
     public static Uri CollectionsBaseUrl { get; } = new(Environment.GetEnvironmentVariable("E2E_COLLECTIONS_URL") ?? "http://localhost:5301");
 
+    /// <summary>ExecutionService, called directly to read a user's history (the source of each entry, which the UI does not show).</summary>
+    public static Uri ExecutionBaseUrl { get; } = new(Environment.GetEnvironmentVariable("E2E_EXECUTION_URL") ?? "http://localhost:5303");
+
     /// <summary>
     /// When "1", a missing prerequisite (no stack, no browser) FAILS the run instead of skipping the journeys. CI sets it, so
     /// a broken job cannot pass by skipping. Locally it is unset, and a missing prerequisite skips with the reason.

@@ -27,7 +27,7 @@ public sealed class EnvironmentJourneys : Journey
         var environment = $"E2E Env {Guid.NewGuid():N}";
         var secret = $"sek-{Guid.NewGuid():N}";
         await Ui.OpenAsync(page, "/environments");
-        await CreateEnvironmentWithSecretAsync(page, environment, secret);
+        await EnvironmentSteps.CreateWithSecretAsync(page, environment, secret);
 
         // Typed (not yet saved), saved, and loaded again: the secret text is in none of them.
         await Expect(page.GetByTestId("env-notice")).ToBeVisibleAsync();
@@ -54,7 +54,7 @@ public sealed class EnvironmentJourneys : Journey
         var environment = $"E2E Auth {Guid.NewGuid():N}";
         var secret = $"tok-{Guid.NewGuid():N}";
         await Ui.OpenAsync(page, "/environments");
-        await CreateEnvironmentWithSecretAsync(page, environment, secret, baseUrl: target.BaseAddress.ToString().TrimEnd('/'));
+        await EnvironmentSteps.CreateWithSecretAsync(page, environment, secret, baseUrl: target.BaseAddress.ToString().TrimEnd('/'));
 
         await Ui.OpenAsync(page, "/");
         await Workspace.NewRequestInNewCollectionAsync(page);
@@ -77,25 +77,4 @@ public sealed class EnvironmentJourneys : Journey
         Assert.DoesNotContain(secret, await page.ContentAsync());
     }
 
-    /// <summary>Creates an environment with a plain variable `base` and a secret `token`, and saves it.</summary>
-    private static async Task CreateEnvironmentWithSecretAsync(IPage page, string name, string secret, string baseUrl = "http://example.test")
-    {
-        await page.GetByTestId("env-new-name").FillAsync(name);
-        await page.GetByTestId("env-create").ClickAsync();
-        await Expect(page.GetByTestId("env-name")).ToHaveValueAsync(name);
-
-        await page.GetByTestId("env-var-add").ClickAsync();
-        await page.GetByTestId("env-var-key-0").FillAsync("base");
-        await page.GetByTestId("env-var-value-0").FillAsync(baseUrl);
-
-        await page.GetByTestId("env-var-add").ClickAsync();
-        await page.GetByTestId("env-var-key-1").FillAsync("token");
-        await page.GetByTestId("env-var-secret-1").CheckAsync();
-        await page.GetByTestId("env-var-secret-value-1").FillAsync(secret);
-        await Expect(page.GetByTestId("env-var-typed-1")).ToBeVisibleAsync();
-        Assert.DoesNotContain(secret, await page.ContentAsync());
-
-        await page.GetByTestId("env-save").ClickAsync();
-        await Expect(page.GetByTestId("env-dirty")).ToBeHiddenAsync();
-    }
 }

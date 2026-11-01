@@ -70,8 +70,10 @@ The deployment's own open values: the region, the app names, `AllowedOrigins__0`
 
 - **HTTPS page calling the loopback agent is not verified** in Safari or Firefox, and no HTTPS origin ran in WP31. Chromium was run on `http://localhost`.
   Local Network Access and Private Network Access prompts were not observed (headless). Check on a real desktop before the first user.
-- **Pairing is per page visit, and each pairing adds an agent row.** The page holds its token in memory, so a reload needs a new code, and the
-  workspace's list grows until old rows are revoked. Reusing the agent's row for a new pairing is a follow-up.
+- **Pairing is per page visit, and each pairing adds an agent row (OI-31, owner decision).** The page holds its token in memory, so a reload needs
+  a new code, and the workspace's list grows until old rows are revoked. WP32 evaluated the fix: the server must reuse one installation for a
+  new pairing of the same agent, and that changes EnvironmentsService's pairing contract (CONTRACTS A2.3). Not changed in WP32. The journeys
+  pin the current behaviour (one row per fresh pairing; a revoked installation makes the page show Pair again).
 - **Pairing tickets are held in the Web's process memory** (ADR-0028). Correct for one instance (ADR-0008); a second instance needs shared storage.
 
 **Still open after WP30:**
@@ -116,6 +118,8 @@ The deployment's own open values: the region, the app names, `AllowedOrigins__0`
 | OI-17 | P4 | OPEN | test totals | The solution run reports 2067 tests on the branch. The per-project discovery total was not re-measured in WP28. | Re-measure and reconcile in TESTING.md §2. |
 | OI-23 | P4 | OPEN | `docs/AUTH.md` | The invitation "already a member" branch was never observed live (authservice allows one open invitation). | Covered by a fake only. |
 | SR-15 | P3 | OPEN (consider) | `Web/Components/Pages/Environments.razor` and `EnvironmentRules` | Environments have no version: the last write wins (SR-15). Documented in OPERATIONS.md; no contract change made. | Decide whether a version is wanted (a contract amendment, separately). |
+| OI-28 | P3 | OPEN (product) | collections, the builder | Collections have no variables. The only `{{name}}` source is the environment, so the WP32 journeys use an environment variable where the plan said "collection variable". | Decide whether collections get variables (scope, masking) or the environment-only model is kept and documented. |
+| OI-31 | P3 | OPEN (owner) | `EnvironmentsService` agent pairing (CONTRACTS A2.3), the Agent page | Each pairing adds an agent row; a page reload needs a new code (the WP31 follow-up, evaluated in WP32). | Reuse the installation for the same agent (a contract amendment), or keep one row per pairing and document it. |
 
 ## 3. Accepted residual risks
 
@@ -134,6 +138,8 @@ The deployment's own open values: the region, the app names, `AllowedOrigins__0`
   and stopped as documented in OPERATIONS.md §4.5 (see the PR body for the exact commands and results).
 - `scripts/smoke-auth.sh` against authservice in this session (see the PR body).
 - The OTLP exporter against a collector (OI-18).
+- The agent journeys on a GitHub runner, from an HTTPS origin, and in browsers other than Chromium (WP32, TESTING.md §6). The agent's
+  listener is driven by raw HTTP here, so a browser-only check of the Private Network Access prompt is not in the suite.
 
 ## 5. Closed (history)
 
@@ -155,6 +161,8 @@ The deployment's own open values: the region, the app names, `AllowedOrigins__0`
 | OI-27 | Web answered empty static files when started from the wrong folder | WP28: `08f584a` (startup manifest check). The empty response was not reproduced; the check covers the symptom. |
 | — | SR-01 (SSRF relaxations allowed outside Production) | WP28: `aa29143`. Now refused outside Development. |
 | — | SR-02 (sender targets traced) | WP28: `2908fc3`. Deviation recorded (P15). |
+| OI-29 | The agent's run record was never stored: the page sent `X-CSRF-TOKEN` and the framework validates `RequestVerificationToken`, so every run record got 400 and no agent send reached the history (WP31) | WP32: `agent-client.js` and `AgentEndpoints.AntiforgeryHeader` use the framework's name; `AgentAntiforgeryHeaderTests`; the agent journeys assert the 201 and the history row. |
+| OI-30 | A run record whose URL or secret was a reference (`{{base}}/items`) was refused (`invalid_url`), so an agent send through an environment never reached the history (WP15, WP30) | WP32: `OutboundSender.CheckTemplate` checks the record's shape and the secret-literal rule without resolving references (`AuthApplier.CheckSecretFields`); `HistoryRecordTests`. A literal secret is still refused. |
 | — | SR-04 (body cut mid-character sent as base64 unmasked) | WP28: `df4b7b9`. |
 | — | SR-07 (Teredo and 6to4 relay not blocked) | WP28: `df4b7b9`. |
 | — | Register page did not show authservice's password rule | WP28: `aa29143`. |

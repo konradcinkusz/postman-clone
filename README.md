@@ -34,7 +34,7 @@ This page describes `main` after WP28, the final review (`docs/SECURITY_REVIEW.m
 | User guide for non-developers | [docs/USER_GUIDE.md](docs/USER_GUIDE.md), including the agent (sections 4 to 8) |
 | About page | Placeholder |
 | Legal pages (`/legal/privacy`, `/legal/terms`) | Placeholders (OI-04) |
-| Browser end-to-end tests | Built (WP26): `tests/PostmanClone.Web.E2E`, 18 journeys over the protected flows, run by the `e2e` CI job; ADR-0018 |
+| Browser end-to-end tests | Built (WP26, WP32): `tests/PostmanClone.Web.E2E`, the protected flows and the local agent (pairing, a send through the agent with the secret masked, revoke, the listener's refusals), run by the `e2e` CI job; ADR-0018. Totals in docs/TESTING.md §3 |
 | Final review | Done (WP28): [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md), [`docs/ARCHITECTURE_REVIEW.md`](docs/ARCHITECTURE_REVIEW.md), ADR-0019. No open blocking finding in the code. |
 
 Known open items, with their evidence, are in [`docs/architecture/OPEN-ITEMS.md`](docs/architecture/OPEN-ITEMS.md).

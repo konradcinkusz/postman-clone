@@ -81,14 +81,48 @@ public static partial class AuthApplier
             return null;
         }
 
+        RequireReference(field, fieldName);
+
+        return variables.Expand(field.Trim());
+    }
+
+    /// <summary>
+    /// Checks the secret fields of an auth helper hold a reference and never a literal, with no variable value needed. A record
+    /// that is stored without a send uses this (OutboundSender.CheckTemplate), so a literal secret is never kept.
+    /// </summary>
+    public static void CheckSecretFields(RequestAuth auth)
+    {
+        switch (auth.Type)
+        {
+            case AuthType.Bearer:
+                CheckReference(auth.BearerToken, "bearerToken");
+                break;
+            case AuthType.Basic:
+                CheckReference(auth.Password, "password");
+                break;
+            case AuthType.ApiKey when !string.IsNullOrEmpty(auth.ApiKeyName):
+                CheckReference(auth.ApiKeyValue, "apiKeyValue");
+                break;
+        }
+    }
+
+    private static void CheckReference(string? field, string fieldName)
+    {
+        if (!string.IsNullOrEmpty(field))
+        {
+            RequireReference(field, fieldName);
+        }
+    }
+
+    /// <summary>A secret field must be exactly one reference. Anything else is refused, and the text of the field is never echoed.</summary>
+    private static void RequireReference(string field, string fieldName)
+    {
         if (!WholeReference().IsMatch(field))
         {
             throw new RequestAssemblyException(
                 RequestAssemblyException.SecretLiteralNotAllowed,
                 $"The {fieldName} field must be a variable reference, not a literal value.");
         }
-
-        return variables.Expand(field.Trim());
     }
 
     private static void SetHeader(List<HeaderLine> headers, HeaderLine line, List<AssemblyWarning> warnings)

@@ -4,8 +4,13 @@
 #
 #   scripts/run-local-stack.sh up       start, in order: authservice (AUTH_PORT, default 5300), CollectionsService
 #                                       (5301), EnvironmentsService (5302), ExecutionService (5303), the Web (5310)
+#   scripts/run-local-stack.sh up agent the same, then the local agent on 127.0.0.1:AGENT_PORT (default 47631), set up
+#                                       for the Web's origin and EnvironmentsService (WP32, ADR-0026, ADR-0028)
 #   scripts/run-local-stack.sh down     stop the processes this script started (databases and .local-stack/ are kept)
 #   scripts/run-local-stack.sh status   whether each one runs and whether its health answers
+#
+# The agent's configuration lives in .local-stack/agent (POSTMANCLONE_AGENT_HOME), so it never touches the user's own
+# agent settings. Its pairing is made in a browser (the Agent page); nothing here pairs it.
 #
 # Flags (environment variables, read by `up`):
 #   E2E_SENDER_LOOPBACK=1   the sender may reach loopback addresses (Execution:Ssrf:AllowLoopback=true). This is the
@@ -35,6 +40,8 @@ COLLECTIONS_PORT="${COLLECTIONS_PORT:-5301}"
 ENVIRONMENTS_PORT="${ENVIRONMENTS_PORT:-5302}"
 EXEC_PORT="${EXEC_PORT:-5303}"
 WEB_PORT="${WEB_PORT:-5310}"
+# The agent's loopback port. The same number as the Web's Agent:Port default (LocalProtocol.DefaultPort).
+AGENT_PORT="${AGENT_PORT:-47631}"
 # gitleaks:allow — the default is a local development server, not a credential.
 PG_CONNECTION="${PG_CONNECTION:-Host=localhost;Username=postgres;Password=postgres}"
 SERVICE_DATABASES=(authdb collectionsdb environmentsdb executiondb)
@@ -51,7 +58,10 @@ COLLECTIONS_BIN_DIR="${STACK_DIR}/collections-bin"
 ENVIRONMENTS_BIN_DIR="${STACK_DIR}/environments-bin"
 EXEC_BIN_DIR="${STACK_DIR}/execution-bin"
 WEB_BIN_DIR="${STACK_DIR}/web-bin"
+AGENT_BIN_DIR="${STACK_DIR}/agent-bin"
+AGENT_HOME_DIR="${STACK_DIR}/agent"
 
+SRC_AGENT="${REPO_ROOT}/src/PostmanClone.Agent/PostmanClone.Agent.csproj"
 SRC_COLLECTIONS="${REPO_ROOT}/src/PostmanClone.CollectionsService/PostmanClone.CollectionsService.csproj"
 SRC_ENVIRONMENTS="${REPO_ROOT}/src/PostmanClone.EnvironmentsService/PostmanClone.EnvironmentsService.csproj"
 SRC_EXEC="${REPO_ROOT}/src/PostmanClone.ExecutionService/PostmanClone.ExecutionService.csproj"
@@ -191,6 +201,9 @@ up() {
   up_environments
   up_execution
   up_web
+  if [ "${1:-}" = "agent" ]; then
+    up_agent
+  fi
 }
 
 up_authservice() {
@@ -261,6 +274,8 @@ up_environments() {
     export DATABASE_PROVIDER=PostgreSQL
     export ConnectionStrings__environmentsdb="Host=${PG_HOST};Port=${PG_PORT};Username=${PG_USER};Password=${PG_PASSWORD};Database=environmentsdb"
     export Secrets__EncryptionKey="${SECRETS_ENCRYPTION_KEY}"
+    # The only page origin the agent may be paired for (CONTRACTS A2.6). The agent copies this list when it pairs.
+    export Agent__AllowedWebOrigins__0="http://localhost:${WEB_PORT}"
     start_detached environments "${LOG_DIR}/environments.log" dotnet "${ENVIRONMENTS_BIN_DIR}/PostmanClone.EnvironmentsService.dll"
   )
   wait_healthy environments "EnvironmentsService" "http://localhost:${ENVIRONMENTS_PORT}/health" "${LOG_DIR}/environments.log"
@@ -323,6 +338,47 @@ up_web() {
   wait_healthy web "Web" "http://localhost:${WEB_PORT}/health" "${LOG_DIR}/web.log"
 }
 
+# The local agent (ADR-0026, ADR-0028). Its setup names the Web's origin, the one page origin it accepts, and the
+# EnvironmentsService URL it pairs with. Its listener is 127.0.0.1 only. Started only by `up agent`.
+up_agent() {
+  if is_running agent; then
+    echo "Agent already running (pid $(cat "$(pid_file agent)")) on port ${AGENT_PORT}."
+    return 0
+  fi
+  build_into agent dotnet publish "${SRC_AGENT}" -c Release -o "${AGENT_BIN_DIR}"
+
+  (
+    export POSTMANCLONE_AGENT_HOME="${AGENT_HOME_DIR}"
+    "${AGENT_BIN_DIR}/postmanclone-agent" setup \
+      --server "http://localhost:${ENVIRONMENTS_PORT}" \
+      --web-origin "http://localhost:${WEB_PORT}" \
+      --allow-private true > "${LOG_DIR}/agent-setup.log" 2>&1
+    start_detached agent "${LOG_DIR}/agent.log" "${AGENT_BIN_DIR}/postmanclone-agent" run --port "${AGENT_PORT}"
+  )
+  wait_agent
+}
+
+# The agent answers /v1/status only for an allowed Origin (the guard refuses a request with no Origin), so the health
+# check sends the Web's origin, as the browser would.
+wait_agent() {
+  local attempt code
+  for attempt in $(seq 1 45); do
+    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 -H "Origin: http://localhost:${WEB_PORT}" "http://127.0.0.1:${AGENT_PORT}/v1/status" || true)"
+    if [ "${code}" = "200" ]; then
+      echo "Agent is ready at http://127.0.0.1:${AGENT_PORT} (pid $(cat "$(pid_file agent)"))."
+      return 0
+    fi
+    if ! is_running agent; then
+      echo "Agent exited during start; see ${LOG_DIR}/agent.log" >&2
+      tail -n 40 "${LOG_DIR}/agent.log" >&2 || true
+      exit 1
+    fi
+    sleep 2
+  done
+  echo "Agent did not become ready within 90 s; see ${LOG_DIR}/agent.log" >&2
+  exit 1
+}
+
 stop_one() {
   local name="$1" label="$2"
   if is_running "${name}"; then
@@ -335,6 +391,7 @@ stop_one() {
 }
 
 down() {
+  stop_one agent "Agent"
   stop_one web "Web"
   stop_one execution "ExecutionService"
   stop_one environments "EnvironmentsService"
@@ -368,10 +425,15 @@ status() {
   else
     echo "Web not running."
   fi
+  if is_running agent; then
+    echo "Agent running (pid $(cat "$(pid_file agent)")); /v1/status -> $(curl -s -o /dev/null -w '%{http_code}' --max-time 3 -H "Origin: http://localhost:${WEB_PORT}" "http://127.0.0.1:${AGENT_PORT}/v1/status" || true)"
+  else
+    echo "Agent not running."
+  fi
 }
 
 case "${1:-}" in
-  up) up ;;
+  up) up "${2:-}" ;;
   down) down ;;
   status) status ;;
   *) echo "usage: $0 up|down|status" >&2; exit 2 ;;
