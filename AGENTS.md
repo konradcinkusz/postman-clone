@@ -42,6 +42,8 @@ The build plan is the source of truth for scope and contracts:
 | `src/PostmanClone.Web/Response`, `Components/Response/ResponsePanel.razor`, `Api/ExecutionClient.cs`, `Api/ExecutionDtos.cs` | The sender client and the response viewer (WP20, ADR-0023): `ExecutionClient` (`POST /api/v1/execute`, the copies of its types round-trip-tested against the service), `SendCoordinator` (one send per circuit; a superseded answer is dropped; cancelling stops the call), `ResponseView` and `BodyView` (pure: outcome words, status family, sizes, body lines), `JsonPretty` (an iterative JSON scanner that never recurses), `ResponsePanel` (every value written as encoded text; Preview disabled). The per-client timeouts are `HttpClientTimeouts` in the kernel (`Resilience/`) |
 | `src/PostmanClone.Web/Environments`, `Components/Environments`, `Components/Pages/Environments.razor`, `Api/EnvironmentsClient.cs`, `Api/EnvironmentsDtos.cs`, `Response/EnvironmentSelection.cs` | The environments UI (WP21, ADR-0025): `/environments` (list, create, rename, delete, variables), the top-bar `EnvironmentSelector` that chooses the environment for the sends, and the typed client for EnvironmentsService. A secret's value is write-only: `VariableRow` holds only "a value is stored" and what was typed since, and the input has no value attribute. `EnvironmentRules` mirrors the service's limits and patterns, and a parity test runs the service's own attributes on the same inputs |
 | `src/PostmanClone.Web/History`, `Components/Pages/History.razor`, `Components/Shell/HistoryPanel.razor`, `Api/HistoryClient.cs`, `Api/HistoryDtos.cs` | The request history (WP22, ADR-0024): `/history` (the caller's entries, paged, filtered on the masked URL, detail through `ResponsePanel`, delete one and clear all with a two-step confirm), the workspace shell's history panel, and *Open in builder* (`/?reopen=<id>`), which opens an unsaved draft that cannot be saved by id and is refused by send and save while it still holds the mask. `HistoryPaging`, `RelativeTime` and `HistoryReopen` are the pure rules; `HistoryChangeSignal` (`IHistoryChanged`) reloads the panel after a recorded send |
+| `flyio/`, `.github/workflows/flyio.yml`, `docs/FLY_DEPLOYMENT.md`, `flyio/SECRETS.md` | The Fly estate (WP33, ADR-0029): six `*.fly.toml` files (the Web public, the others private), the manual deploy-only workflow with its token check, and the owner's procedure and secret list. Nothing here has been deployed |
+| `scripts/check-flyio-trigger.sh`, `scripts/check-flyio-config.py`, `scripts/flyio-preflight.sh` | The Fly checks (run by `pr-validation` as `flyio-config`), and the per-app preflight the workflow calls before a deploy. `docs/USER_GUIDE.md` is the user's guide |
 
 Still a placeholder: the Web's `/about` page. The plan's README, §3 lists the target layout.
 
@@ -121,9 +123,10 @@ live only in `Directory.Packages.props`; projects reference packages without a v
 - **Single instance.** The Web runs as one instance, and sessions live in its memory
   ([ADR-0008](docs/decisions/0008-single-instance-web.md)).
 - **Deployment** ([ADR-0007](docs/decisions/0007-deployment-out-of-scope.md) is superseded for this product by
-  [ADR-0026](docs/decisions/0026-local-agent-and-fly-estate.md)). Until WP33 lands there is no Fly configuration in the tree. From WP33, the
-  only deploy path is `.github/workflows/flyio.yml`, which has `workflow_dispatch` as its only trigger; `scripts/check-flyio-trigger.sh` enforces
-  it. No tag trigger, no push trigger, no registry push outside that workflow, and no other cloud configuration.
+  [ADR-0026](docs/decisions/0026-local-agent-and-fly-estate.md); [ADR-0029](docs/decisions/0029-fly-topology-and-manual-deployment.md)). The Fly
+  configuration is `flyio/`. The only deploy path is `.github/workflows/flyio.yml`, which has `workflow_dispatch` as its only trigger;
+  `scripts/check-flyio-trigger.sh` enforces it, and `scripts/check-flyio-config.py` checks the configs without a Fly account. The steps are in
+  `docs/FLY_DEPLOYMENT.md`. No tag trigger, no push trigger, no registry push outside that workflow, and no other cloud configuration.
 - **The local agent** sends requests to local and private targets from the user's computer (ADR-0026). It is the only place a resolved
   secret value may be held outside the service, and only in memory for one send. Its local listener is `127.0.0.1` only, and it checks `Origin`,
   `Host` and the pairing token on every request (CONTRACTS A2.6).

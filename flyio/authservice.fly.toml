@@ -1,0 +1,59 @@
+# Fly.io configuration for authservice, pinned at v0.3.4 (ADR-0004, ADR-0010, ADR-0029). Consumed, never copied.
+#
+# The image is the pinned tag built by the authservice project. Add its digest here once it is known
+# (image = "ghcr.io/konradcinkusz/authservice@sha256:…"); the CI check (scripts/check-flyio-config.py) accepts the tag form.
+# If the GHCR package is private, the owner grants Fly pull access (FLY_DEPLOYMENT §1).
+#
+# Private only: no public listener. Other apps reach it at http://postmanclone-authservice.flycast. Its discovery
+# document and JWKS are served on that address, so every service fetches its keys from here.
+
+app = "postmanclone-authservice"
+primary_region = "fra"
+
+[build]
+  image = "ghcr.io/konradcinkusz/authservice:v0.3.4"
+
+[env]
+  ASPNETCORE_ENVIRONMENT = "Production"
+  ASPNETCORE_URLS = "http://+:8080"
+
+  # Must match the Auth settings of every consumer (CONTRACTS §6, docs/AUTH.md).
+  Jwt__Issuer = "PostmanClone"
+  Jwt__Audience = "PostmanClone"
+  # The key the JWKS is published under. This is the address the consumers fetch, so it is the flycast name, not a public URL.
+  Jwt__PublicBaseUrl = "http://postmanclone-authservice.flycast"
+  # Invitation links point at the Web (WP24). Public: a browser follows them.
+  FrontendBaseUrl = "https://postmanclone-web.fly.dev"
+
+  # Schema is applied by authservice itself at start, after the listener is up (AppHost, docs/AUTH.md).
+  Database__SchemaMode = "Migrate"
+  Database__MigrationsAssembly = "AuthService.Migrations.PostgreSQL"
+
+  # NEVER set AUTHSERVICE_ENVIRONMENT=Development here: it makes authservice write invitation tokens to its log (WP24).
+
+[http_service]
+  internal_port = 8080
+  # Off: this app is reached only at its .flycast address over HTTP. force_https would redirect those calls to an HTTPS
+  # listener this app does not serve. Owner check on the first deploy (FLY_DEPLOYMENT §8): the calls succeed, not 3xx.
+  force_https = false
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  # Every service's first call and every JWKS refresh goes here, and the Web's sign-in too. A stopped machine would
+  # turn a send into a failure, so one machine stays running (FLY_DEPLOYMENT §8).
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "120s"                  # the schema migration runs after the listener starts (AppHost: /health/ready is 503 until then)
+    method = "GET"
+    path = "/health/ready"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -1,0 +1,69 @@
+# Fly.io configuration for the estate's PostgreSQL 16 (ADR-0003, ADR-0029, FLY_DEPLOYMENT §4). Private.
+#
+# Bootstrapped BY HAND, once, and not redeployed by .github/workflows/flyio.yml (the workflow only checks that this app
+# exists). The steps are in docs/FLY_DEPLOYMENT.md §4.
+#   flyctl deploy --remote-only -c flyio/postgres.fly.toml
+#
+# No [http_service] and no [[services]]: no public listener and no proxy health check. Reached only at
+#   postmanclone-postgres.internal:5432   (over 6PN, WireGuard-encrypted)
+#
+# One instance, one volume: a second machine would get an empty volume, not a replica, so this app is never scaled out.
+#
+# Init script: the official image runs /docker-entrypoint-initdb.d/*.sh ONCE, when the data directory is empty. It creates
+# one role and one database per service, owned by that role, and revokes CONNECT from PUBLIC. A service's credentials
+# open its own database only. The passwords come from Fly secrets (flyio/SECRETS.md); the script refuses to run without them.
+
+app = "postmanclone-postgres"
+primary_region = "fra"
+
+[build]
+  # A pinned major, not `latest`, and the vanilla image: Fly's managed postgres-flex image needs `fly postgres create`
+  # (see architecture-standards FLY-IO-DEPLOYMENT §14). Bump the major deliberately, with a dump and restore.
+  image = "postgres:16-alpine"
+
+[env]
+  POSTGRES_USER = "postgres"
+  POSTGRES_DB = "postgres"
+  # A SUBDIRECTORY of the mount: the volume root holds lost+found and initdb refuses a non-empty directory.
+  PGDATA = "/var/lib/postgresql/data/pgdata"
+  POSTGRES_INITDB_ARGS = "--encoding=UTF8 --locale=C"
+
+[[mounts]]
+  source = "postmanclone_pgdata"           # created by hand before the first deploy (FLY_DEPLOYMENT §4)
+  destination = "/var/lib/postgresql/data"
+  initial_size = "10gb"                    # grows later; cannot shrink
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+
+[[files]]
+  guest_path = "/docker-entrypoint-initdb.d/01-create-service-databases.sh"
+  raw_value = """#!/bin/bash
+set -euo pipefail
+
+# Fail before anything is created when a password secret is missing: the first start then stops with a clear message,
+# and the empty volume can be destroyed and bootstrapped again (FLY_DEPLOYMENT §4).
+for name in PG_AUTH_PASSWORD PG_COLLECTIONS_PASSWORD PG_ENVIRONMENTS_PASSWORD PG_EXECUTION_PASSWORD; do
+  if [ -z "${!name:-}" ]; then
+    echo "postgres bootstrap: the secret ${name} is not set. Set it with flyctl secrets set, then start again (FLY_DEPLOYMENT §4)." >&2
+    exit 1
+  fi
+done
+
+create_service_database() {
+  local role="$1" database="$2" password="$3"
+  # The password is generated hex (openssl rand -hex 24), so it cannot end a SQL literal early.
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
+    CREATE ROLE ${role} LOGIN PASSWORD '${password}';
+    CREATE DATABASE ${database} OWNER ${role};
+    REVOKE CONNECT ON DATABASE ${database} FROM PUBLIC;
+EOSQL
+  echo "created role ${role} and database ${database}"
+}
+
+create_service_database auth_svc         authdb          "$PG_AUTH_PASSWORD"
+create_service_database collections_svc  collectionsdb   "$PG_COLLECTIONS_PASSWORD"
+create_service_database environments_svc environmentsdb  "$PG_ENVIRONMENTS_PASSWORD"
+create_service_database execution_svc    executiondb     "$PG_EXECUTION_PASSWORD"
+"""

@@ -1,0 +1,55 @@
+# Fly.io configuration for EnvironmentsService (ADR-0006, ADR-0026, ADR-0029). Private: reached only over 6PN.
+#
+# Deployed by .github/workflows/flyio.yml (workflow_dispatch only) or by hand:
+#   flyctl deploy --remote-only -c flyio/environments-service.fly.toml
+# Build context: the repository root (see web.fly.toml).
+
+app = "postmanclone-environments"
+primary_region = "fra"
+
+[build]
+  dockerfile = "../src/PostmanClone.EnvironmentsService/Dockerfile"
+  context = ".."
+
+[env]
+  ASPNETCORE_ENVIRONMENT = "Production"
+  ASPNETCORE_URLS = "http://+:8080"
+
+  Auth__Issuer = "PostmanClone"
+  Auth__Audience = "PostmanClone"
+  Auth__MetadataAddress = "http://postmanclone-authservice.flycast/.well-known/openid-configuration"
+  # DEVIATION (ADR-0029, DEVIATIONS.md): the metadata is read over 6PN without TLS. See web.fly.toml.
+  Auth__RequireHttpsMetadata = "false"
+
+  # ExecutionService resolves environments through this name (ExecutionService Clients/EnvironmentsClientOptions.cs).
+  # The agent resolves through this service too (ADR-0026 Decision 4), from WP30 on.
+  # Agent:AllowedWebOrigins is set here from WP30 (the Web's origin: https://postmanclone-web.fly.dev).
+
+  # The encryption key is a Fly secret: Secrets__EncryptionKey (flyio/SECRETS.md). Without it the service starts and
+  # secret writes answer 503 secrets_unavailable (OPERATIONS §2).
+
+[http_service]
+  internal_port = 8080
+  # Off: internal address over HTTP only (see authservice.fly.toml).
+  force_https = false
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  # Synchronous path: a send through the agent calls resolve here (ADR-0026 Decision 4), and ExecutionService calls it for
+  # every server send. A stopped machine would stall the send, so one machine stays running (FLY_DEPLOYMENT §8).
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "90s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
