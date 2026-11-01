@@ -108,7 +108,6 @@ internal sealed class RunningAgent : IAsyncDisposable
 
     public static async Task<RunningAgent> StartAsync(string directory, FakeServer? server = null, bool paired = false, bool allowPrivate = true)
     {
-        var port = FreePort();
         var store = new AgentConfigStore(directory);
         var config = new AgentConfig { ServerBaseUrl = Sentinels.ServerBase, AllowedWebOrigins = [Sentinels.Origin], AllowPrivate = allowPrivate };
         if (paired)
@@ -122,9 +121,23 @@ internal sealed class RunningAgent : IAsyncDisposable
         store.Save(config);
         var fake = server ?? new FakeServer();
         var logs = new CapturingLoggerProvider();
-        var app = AgentHost.Build(new AgentHostOptions(port, store, fake, [logs]));
-        await app.StartAsync();
-        return new RunningAgent(app, port, store, fake, logs);
+
+        // FreePort releases the port before Kestrel binds it, so a parallel test can take it in between (WP32 CI: "address
+        // already in use"). The start is retried on a new port; a different failure is not retried.
+        for (var attempt = 1; ; attempt++)
+        {
+            var port = FreePort();
+            var app = AgentHost.Build(new AgentHostOptions(port, store, fake, [logs]));
+            try
+            {
+                await app.StartAsync();
+                return new RunningAgent(app, port, store, fake, logs);
+            }
+            catch (IOException) when (attempt < 5)
+            {
+                await app.DisposeAsync();
+            }
+        }
     }
 
     /// <summary>The pairing token the tests use when the agent is started paired. The agent keeps only its hash.</summary>
