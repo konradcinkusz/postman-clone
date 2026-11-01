@@ -21,7 +21,7 @@ The build plan is the source of truth for scope and contracts:
 | `scripts/check-doc-links.sh` | Every relative Markdown link resolves (run in CI) |
 | `scripts/check-kernel-size.sh` | The shared kernel stays within 800 non-blank, non-comment lines (run in CI) |
 | `scripts/run-local-stack.sh`, `scripts/gen-dev-secrets.sh` | the whole estate without Docker, against a local PostgreSQL: authservice at its pinned tag (5300), CollectionsService (5301), EnvironmentsService (5302), ExecutionService (5303) and the Web (5310); the gitignored `.local-stack/` secrets (WP03, WP04, WP06, WP26). `E2E_SENDER_LOOPBACK=1` is the test-only switch that lets the sender reach loopback (ADR-0018). `AUTHSERVICE_ENVIRONMENT=Development` makes authservice log invitation tokens locally (WP24) |
-| `tests/PostmanClone.Web.E2E` | The browser journeys (WP26, ADR-0018): Playwright for .NET on Chromium, 18 journeys over the protected flows. Not in `PostmanClone.sln`; they run against the local stack, one at a time, and skip with the reason when the stack or the browser is missing (they fail in CI). See docs/TESTING.md §1 and OPERATIONS §4.5 |
+| `tests/PostmanClone.Web.E2E` | The browser journeys (WP26, WP32, ADR-0018): Playwright for .NET on Chromium, the protected flows and the local agent (`Journeys/Agent*.cs`, `SharedCollectionJourneys.cs`). Not in `PostmanClone.sln`; they run against the local stack, one at a time, and skip with the reason when the stack, the agent or the browser is missing (they fail in CI). See docs/TESTING.md §1 and §9, and OPERATIONS §4.5 |
 | `scripts/smoke-auth.sh` | The authservice contract the services rely on: register, login, organization, refresh, claims (run in CI as `auth-smoke`) |
 | `docs/AUTH.md` | How sign-in works through authservice v0.3.4: the flow, the claims, the endpoints read from source, the differences from CONTRACTS §6 |
 | `.github/workflows/` | `pr-validation.yml` (the required check), `secret-scan.yml` |
@@ -70,15 +70,17 @@ bash scripts/check-kernel-size.sh # the kernel stays within 800 lines
 scripts/install-hooks.sh          # once per clone: the pre-commit secret scan
 scripts/gen-dev-secrets.sh        # once per clone: .local-stack/secrets.env (never printed)
 scripts/run-local-stack.sh up     # the estate on :5300-:5303 and the Web on :5310, local PostgreSQL (no Docker)
+scripts/run-local-stack.sh up agent   # as up, plus the local agent on 127.0.0.1:47631 (the agent journeys need it)
 scripts/smoke-auth.sh             # against the running authservice: the sign-in contract
 scripts/run-local-stack.sh down
 dotnet run --project src/PostmanClone.Web   # the Web on http://localhost:5310; backends not running show as unreachable
 
-# The browser journeys (ADR-0018). Two runs, because the sender's loopback switch is part of the local stack:
-E2E_SENDER_LOOPBACK=1 scripts/run-local-stack.sh up
+# The browser journeys (ADR-0018, WP32). Two runs, because the sender's loopback switch is part of the local stack. The agent
+# and AUTHSERVICE_ENVIRONMENT=Development (the invitation token in the log) are set for both, as CI does:
+E2E_SENDER_LOOPBACK=1 AUTHSERVICE_ENVIRONMENT=Development scripts/run-local-stack.sh up agent
 dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj -c Release --filter "Mode!=strict"
 scripts/run-local-stack.sh down
-scripts/run-local-stack.sh up
+AUTHSERVICE_ENVIRONMENT=Development scripts/run-local-stack.sh up agent
 dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj -c Release --filter "Mode!=loopback"
 scripts/run-local-stack.sh down
 ```

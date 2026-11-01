@@ -93,6 +93,7 @@ and `scripts/run-local-stack.sh`: `Jwt__PrivateKeyPem` (RS256 PKCS#8 key), `Jwt_
 | Variable | Default | Used by |
 |---|---|---|
 | `AUTH_PORT` / `COLLECTIONS_PORT` / `ENVIRONMENTS_PORT` / `EXEC_PORT` / `WEB_PORT` | 5300 / 5301 / 5302 / 5303 / 5310 | `run-local-stack.sh` |
+| `AGENT_PORT` | 47631 | `run-local-stack.sh up agent`. The agent's loopback port; the Web's `Agent:Port` default (WP32) |
 | `E2E_SENDER_LOOPBACK` | unset (refuses loopback) | `run-local-stack.sh`. `1` allows the sender to reach loopback: local tests only (§4.2, ADR-0018) |
 | `E2E_WEB_URL` / `E2E_AUTH_URL` / `E2E_COLLECTIONS_URL` | `http://localhost:5310` / `…:5300` / `…:5301` | the browser journeys |
 | `E2E_CHROMIUM_PATH` | unset (search, §4.5) | the browser journeys |
@@ -135,13 +136,15 @@ scripts/install-hooks.sh                  # once per clone
 scripts/run-local-stack.sh up             # generates the dev secrets if missing, clones authservice v0.3.4, builds it, then
                                           # starts authservice (5300), CollectionsService (5301), EnvironmentsService (5302),
                                           # ExecutionService (5303) and the Web (5310); waits for each /health
+scripts/run-local-stack.sh up agent      # the same, then the local agent on 127.0.0.1:47631 (AGENT_PORT), set up for the Web's
+                                          # origin and EnvironmentsService (WP32). Its configuration is .local-stack/agent
 scripts/run-local-stack.sh status
 scripts/smoke-auth.sh                     # the authservice contract the services rely on
-scripts/run-local-stack.sh down           # stops the processes it started; databases and .local-stack/ are kept
+scripts/run-local-stack.sh down           # stops the processes it started (the agent too); databases and .local-stack/ are kept
 ```
 
-Logs: `.local-stack/logs/` (`authservice.log`, `collections.log`, `environments.log`, `execution.log`, `web.log`, and the
-build logs next to them). The Web runs from its publish folder, `.local-stack/web-bin`: started from another folder it finds
+Logs: `.local-stack/logs/` (`authservice.log`, `collections.log`, `environments.log`, `execution.log`, `web.log`, `agent.log`
+with the agent's output, and the build logs next to them). The Web runs from its publish folder, `.local-stack/web-bin`: started from another folder it finds
 no `wwwroot`. Since WP28 the Web checks its publish manifest against the files on disk before it serves anything, and refuses
 to start when a listed file is missing or the wrong size, naming the file (OI-27). The check reads only publish manifests.
 
@@ -193,13 +196,18 @@ in a development session**, because sessions have no Docker daemon (see [TESTING
 ### 4.5 The browser journeys (`tests/PostmanClone.Web.E2E`, ADR-0018)
 
 ```bash
-E2E_SENDER_LOOPBACK=1 scripts/run-local-stack.sh up
+E2E_SENDER_LOOPBACK=1 AUTHSERVICE_ENVIRONMENT=Development scripts/run-local-stack.sh up agent
 dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj -c Release --filter "Mode!=strict"
 scripts/run-local-stack.sh down
-scripts/run-local-stack.sh up                       # no loopback flag: the default configuration
+AUTHSERVICE_ENVIRONMENT=Development scripts/run-local-stack.sh up agent   # no loopback flag: the default configuration
 dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj -c Release --filter "Mode!=loopback"
 scripts/run-local-stack.sh down
 ```
+
+The agent journeys (WP32) need the agent (`up agent`); they pair it from the Agent page, send to a loopback target through it, and
+check the masked history, the revoke and the listener's refusals (raw HTTP). The sharing journey needs
+`AUTHSERVICE_ENVIRONMENT=Development`: it reads the invitation token from `authservice.log`, which holds it only in Development.
+CI sets both in the `e2e` job (`.github/workflows/pr-validation.yml`). Production never logs a token.
 
 The journeys need Chromium: `E2E_CHROMIUM_PATH` names one, otherwise the suite looks under `/opt/pw-browsers` and
 Playwright's cache (`playwright install chromium` puts one there). It never downloads one. Without the stack or the browser a
