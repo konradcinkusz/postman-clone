@@ -68,6 +68,17 @@ public sealed class OutboundSender
         return new PreparedSend(definition, timeout, request.FollowRedirects ?? true, started);
     }
 
+    /// <summary>
+    /// Checks a request template the way a send would, but with no variable values and no send: the shape, the caps, and the
+    /// rule that a secret field holds a reference and never a literal (CONTRACTS §1). Used when a result is recorded without
+    /// being sent here (CONTRACTS A2.5). Throws <see cref="ExecuteFailure"/> with the same codes a send gives.
+    /// </summary>
+    public void CheckTemplate(ExecuteRequest request)
+    {
+        var definition = Shape(request);
+        Assemble(definition, new Dictionary<string, ResolvedValue>(StringComparer.Ordinal));
+    }
+
     /// <summary>Assembles the prepared request with the given variables and sends it. Never throws for a refused target or a failed send.</summary>
     /// <param name="prepared">The result of <see cref="Prepare"/>.</param>
     /// <param name="variables">The enabled variables of the environment, or none. The host has already checked the caller may see them.</param>

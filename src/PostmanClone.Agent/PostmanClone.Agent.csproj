@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    The local agent (ADR-0026, ADR-0027, CONTRACTS A2.6): a program on the user's computer that sends requests to local and
+    private targets. It listens on 127.0.0.1 only. It packs as the dotnet tool postmanclone-agent and publishes as a
+    self-contained single file (CI, workflow artifacts only: no release, no tag).
+  -->
+  <PropertyGroup>
+    <Description>The PostmanClone local agent: sends requests from the user's computer on behalf of the Web.</Description>
+    <RootNamespace>PostmanClone.Agent</RootNamespace>
+    <AssemblyName>postmanclone-agent</AssemblyName>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>postmanclone-agent</ToolCommandName>
+    <PackageId>PostmanClone.Agent</PackageId>
+    <PackageDescription>Local agent for PostmanClone: sends requests to localhost and private addresses from your computer.</PackageDescription>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PostmanClone.Sending\PostmanClone.Sending.csproj" />
+  </ItemGroup>
+</Project>

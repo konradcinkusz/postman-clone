@@ -15,7 +15,9 @@ public sealed record HistoryDraft(
     Guid? EnvironmentId,
     RequestDefinition Request,
     SecretMasker Masker,
-    ExecutionResult Result);
+    ExecutionResult Result,
+    /// <summary>Who sent it: <c>server</c> for a send through this service, <c>agent</c> for a run recorded from an agent (CONTRACTS A2.5).</summary>
+    string Source = "server");
 
 /// <summary>Records one execution in the caller's history and returns the new entry's id. A failure is caught by the caller, which then reports no id.</summary>
 public interface IHistoryRecorder

@@ -1,11 +1,13 @@
 extern alias execution;
+extern alias sending;
 
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using PostmanClone.Web.Api;
 using Service = execution::PostmanClone.ExecutionService.Api;
-using ServiceAssembly = execution::PostmanClone.Sending.Assembly;
+using ServiceContracts = sending::PostmanClone.Sending.Contracts;
+using ServiceAssembly = sending::PostmanClone.Sending.Assembly;
 
 namespace PostmanClone.Web.Tests.Api;
 
@@ -59,19 +61,19 @@ public sealed class HistoryRoundTripTests
             [new ServiceAssembly.KeyValueRow("Authorization", "••••••")],
             new ServiceAssembly.RequestBody(ServiceAssembly.BodyType.Raw, ServiceAssembly.RawLanguage.Json, "{\"a\":1}", []),
             new ServiceAssembly.RequestAuth(ServiceAssembly.AuthType.Bearer, null, null, null, null, null, null));
-        var result = new Service.ExecutionResult(
-            Service.ExecutionOutcome.Completed,
+        var result = new ServiceContracts.ExecutionResult(
+            ServiceContracts.ExecutionOutcome.Completed,
             null,
             null,
-            new Service.ResponseDto(
+            new ServiceContracts.ResponseDto(
                 200,
                 "OK",
                 "HTTP/1.1",
                 [new ServiceAssembly.HeaderLine("Content-Type", "application/json")],
-                new Service.ResponseBodyDto("utf8", "{\"ok\":true}", 11, true, "application/json")),
-            new Service.ExecutionTiming(42, 3, 5, 20, 14),
+                new ServiceContracts.ResponseBodyDto("utf8", "{\"ok\":true}", 11, true, "application/json")),
+            new ServiceContracts.ExecutionTiming(42, 3, 5, 20, 14),
             "https://api.example.test/items/7",
-            [new Service.RedirectHop(302, "https://api.example.test/next")],
+            [new ServiceContracts.RedirectHop(302, "https://api.example.test/next")],
             ["itemId"],
             id);
         return new Service.HistoryEntry(id, DateTimeOffset.UnixEpoch.AddDays(1), null, null, request, result);

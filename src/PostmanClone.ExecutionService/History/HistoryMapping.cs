@@ -38,6 +38,7 @@ public static class HistoryMapping
             EnvironmentId = draft.EnvironmentId,
             RequestJson = JsonSerializer.Serialize(template, Json),
             ResultJson = JsonSerializer.Serialize(stored, Json),
+            Source = draft.Source,
         };
     }
 
@@ -47,7 +48,7 @@ public static class HistoryMapping
             ?? throw new InvalidOperationException("A stored history request is empty.");
         var result = JsonSerializer.Deserialize<ExecutionResult>(row.ResultJson, Json)
             ?? throw new InvalidOperationException("A stored history result is empty.");
-        return new HistoryEntry(row.Id, row.ExecutedAt, row.SavedRequestId, row.EnvironmentId, request, result with { HistoryId = row.Id });
+        return new HistoryEntry(row.Id, row.ExecutedAt, row.SavedRequestId, row.EnvironmentId, request, result with { HistoryId = row.Id }, row.Source);
     }
 
     public static string OutcomeName(ExecutionOutcome outcome) => JsonNamingPolicy.CamelCase.ConvertName(outcome.ToString());

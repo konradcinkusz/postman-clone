@@ -13,7 +13,8 @@ public sealed record HistorySummaryDto(
     int? StatusCode,
     string Outcome,
     int TotalMs,
-    long SizeBytes);
+    long SizeBytes,
+    string Source = "server");
 
 /// <summary>
 /// One history entry. The request is the masked template with its <c>{{name}}</c> references; the result was masked by the sender
@@ -25,4 +26,5 @@ public sealed record HistoryEntryDto(
     Guid? SavedRequestId,
     Guid? EnvironmentId,
     RequestDefinition Request,
-    ExecutionResultDto Result);
+    ExecutionResultDto Result,
+    string Source = "server");

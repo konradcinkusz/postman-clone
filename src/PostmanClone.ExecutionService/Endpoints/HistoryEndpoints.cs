@@ -6,6 +6,9 @@ using PostmanClone.ExecutionService.Api;
 using PostmanClone.Sending.Contracts;
 using PostmanClone.ExecutionService.Data;
 using PostmanClone.ExecutionService.History;
+using PostmanClone.ExecutionService.Sending;
+using PostmanClone.Sending.Assembly;
+using PostmanClone.Sending.Execution;
 using PostmanClone.ServiceDefaults.Authentication;
 using PostmanClone.ServiceDefaults.Paging;
 using PostmanClone.ServiceDefaults.Problems;
@@ -21,6 +24,7 @@ public static class HistoryEndpoints
 {
     private const string Route = "/api/v1/history";
     private const string SubjectClaim = "sub";
+    private const string AgentSource = "agent";
 
     public static WebApplication MapHistoryEndpoints(this WebApplication app)
     {
@@ -30,6 +34,7 @@ public static class HistoryEndpoints
             .RequireRateLimiting(RateLimitPolicies.Api);
 
         history.MapGet("", ListAsync);
+        history.MapPost("/records", RecordAsync).RequireRateLimiting(RateLimitPolicies.Api);
         history.MapGet("/{id:guid}", GetAsync);
         history.MapDelete("/{id:guid}", DeleteOneAsync);
         history.MapDelete("", ClearAsync);
@@ -61,10 +66,83 @@ public static class HistoryEndpoints
             .Skip((int)Math.Min(paging.Skip, int.MaxValue))
             .Take(paging.PageSize)
             .Select(entry => new HistorySummary(
-                entry.Id, entry.ExecutedAt, entry.Method, entry.Url, entry.StatusCode, entry.Outcome, entry.TotalMs, entry.SizeBytes))
+                entry.Id, entry.ExecutedAt, entry.Method, entry.Url, entry.StatusCode, entry.Outcome, entry.TotalMs, entry.SizeBytes, entry.Source))
             .ToListAsync(cancellationToken);
 
         return Results.Ok(new Page<HistorySummary>(items, paging.Page, paging.PageSize, total));
+    }
+
+    /// <summary>
+    /// Records a run that an agent sent (CONTRACTS A2.5, ADR-0026 Decision 7). Nothing is sent or resolved here. The template is
+    /// checked with the rules of a send, so a literal secret in an auth field is refused. The name-based masking applies to the
+    /// stored headers, query and URL, and the body is cut to the history limit. The entry is owned by the caller's user and
+    /// workspace and kept under the same retention as a server send.
+    /// </summary>
+    private static async Task<IResult> RecordAsync(
+        HistoryRecordWrite write,
+        ClaimsPrincipal user,
+        ExecutionDbContext db,
+        OutboundSender sender,
+        IHistoryRecorder recorder,
+        CancellationToken cancellationToken)
+    {
+        var caller = Caller.From(user);
+        if (caller is null)
+        {
+            return Forbidden();
+        }
+
+        if (write.Source != AgentSource)
+        {
+            return Problem(StatusCodes.Status400BadRequest, "validation_failed", "The source of a recorded run must be agent.");
+        }
+
+        if (write.Request is null || write.Result is null)
+        {
+            return Problem(StatusCodes.Status400BadRequest, "validation_failed", "The request and the result are required.");
+        }
+
+        try
+        {
+            sender.CheckTemplate(new ExecuteRequest(write.Request, write.EnvironmentId, write.SavedRequestId, null, null));
+        }
+        catch (ExecuteFailure failure)
+        {
+            return Problem(failure.StatusCode, failure.Code, failure.Message);
+        }
+
+        // No secret value is known here, so the masker holds only the name-based rules. The agent masked the values already.
+        var masker = SecretMasker.For([]);
+        var result = MaskResult(write.Result, masker) with { HistoryId = null };
+        var draft = new HistoryDraft(
+            caller.WorkspaceId,
+            caller.UserId.ToString(),
+            write.SavedRequestId,
+            write.EnvironmentId,
+            write.Request,
+            masker,
+            result,
+            AgentSource);
+
+        var id = await recorder.RecordAsync(draft, cancellationToken);
+        var row = id is null ? null : await db.HistoryEntries.AsNoTracking().FirstOrDefaultAsync(entry => entry.Id == id, cancellationToken);
+        return row is null
+            ? Problem(StatusCodes.Status500InternalServerError, "internal_error", "The run could not be recorded.")
+            : Results.Created($"{Route}/{row.Id}", HistoryMapping.ToEntry(row));
+    }
+
+    /// <summary>The name-based masking of the stored result: response headers and the URLs in it (CONTRACTS §4).</summary>
+    private static ExecutionResult MaskResult(ExecutionResult result, SecretMasker masker)
+    {
+        var response = result.Response is null
+            ? null
+            : result.Response with { Headers = masker.MaskHeaders(result.Response.Headers).ToList() };
+        return result with
+        {
+            FinalUrl = masker.MaskUrl(result.FinalUrl),
+            Redirects = result.Redirects.Select(hop => hop with { Location = masker.MaskUrl(hop.Location) }).ToList(),
+            Response = response,
+        };
     }
 
     private static async Task<IResult> GetAsync(Guid id, ClaimsPrincipal user, ExecutionDbContext db, CancellationToken cancellationToken)

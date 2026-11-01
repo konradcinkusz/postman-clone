@@ -15,6 +15,7 @@ var app = builder.Build();
 app.UseProblemDetailsDefaults();
 app.UseSecurityDefaults();
 app.MapEnvironmentEndpoints();
+app.MapAgentEndpoints();
 app.MapDefaultEndpoints();
 
 app.Run();

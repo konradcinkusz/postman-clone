@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using PostmanClone.EnvironmentsService.Agent;
 using PostmanClone.EnvironmentsService.Data;
 using PostmanClone.EnvironmentsService.Secrets;
 using PostmanClone.ServiceDefaults.Authentication;
@@ -28,6 +31,14 @@ public static class ServiceCollectionExtensions
         builder.Services.AddOptionalIntegration<SecretsIntegration>();
 
         builder.Services.AddJwtAuthentication(builder.Configuration);
+        // The agent-only scheme (CONTRACTS A2.4). The default scheme stays the JWT one, so agent tokens are unknown elsewhere.
+        builder.Services.AddAuthentication()
+            .AddScheme<AuthenticationSchemeOptions, AgentTokenAuthenticationHandler>(AgentTokenAuthenticationDefaults.Scheme, _ => { });
+        builder.Services.AddOptions<AgentOptions>()
+            .Bind(builder.Configuration.GetSection(AgentOptions.SectionName))
+            .Validate(options => AgentOptionsValidator.Problems(options.AllowedWebOrigins).Count == 0,
+                "Agent:AllowedWebOrigins holds an entry that is not an exact origin such as https://app.example.")
+            .ValidateOnStart();
         builder.Services.AddRateLimitingDefaults(builder.Configuration);
         // Timestamps come from the injected clock (CONTRACTS §0); tests replace it with a fake.
         builder.Services.TryAddSingleton(TimeProvider.System);
