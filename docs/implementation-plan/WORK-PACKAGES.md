@@ -37,13 +37,21 @@ read. IDs, names and shapes come from [CONTRACTS.md](CONTRACTS.md); do not inven
 | 26 | e2e | 20, 21, 22, 23 | L |
 | 27 | docs-final | 24, 25 | M |
 | 28 | final-review | 26, 27 | L |
+| 29 | agent-contracts | 28 | M |
+| 30 | agent-program | 29 | L |
+| 31 | web-agent | 30 | L |
+| 32 | e2e-agent | 30, 31 | M |
+| 33 | fly-deploy | 29 | L |
 
 ## ADR number reservations
 
 `docs/decisions/NNNN-title.md` (Context · Decision · Consequences · Status/date). WP00 writes 0001–0009 (outlines in README §2).
 Later: WP03→0010 (authservice pin & local run), WP10→0011 (sender threat model), WP11→0012 (variable semantics),
 WP12→0013 (circuit lifetime & session store), WP14→0014 (execution limits & redirects), WP15→0015 (history retention & masking),
-WP16→0016 (import threat model), WP19→0017 (builder state model), WP26→0018 (E2E scope & charter), WP28→0019 (review outcomes). Spare: 0020–0029.
+WP16→0016 (import threat model), WP19→0017 (builder state model), WP26→0018 (E2E scope & charter), WP28→0019 (review outcomes).
+Local agent and Fly (added 2026-11-01, supersedes ADR-0007 for this product): WP29→0026 (local agent sends; Fly hosts the shared estate),
+WP30→0027 (agent threat model and sending rules), WP31→0028 (the Web's agent client and its one JavaScript file), WP33→0029 (Fly topology and
+manual deployment). WP32 writes no ADR. 0020–0025 are used (see the ADR index in `docs/decisions/README.md`); 0026–0029 are now all assigned.
 
 ---
 
@@ -232,3 +240,66 @@ CI: job `e2e` in `pr-validation.yml` (PostgreSQL service, `dotnet build`, `scrip
 **Goal.** Independent review of the whole tree; fix blocking findings.
 **Deliver.** Run the `security-review` skill and the architecture review (`architecture-core` plugin skills for REVIEW mode — PLAYBOOK.md in architecture-standards; if skills are unavailable follow `docs/guides/SECURITY-REVIEW.md` and PLAYBOOK REVIEW mode by hand). Produce `docs/architecture/REVIEW-<n>.md` (findings in the standard format: id, severity, location, attack scenario, fix, status) covering: the compliance checklist of the reference architecture (every box with evidence), endpoint × role matrix, secret-handling trace (create → store → resolve → send → mask → history → logs), SSRF test-evidence mapping, import threat cases, cookie/session review, headers/CSP, dependency audit (`dotnet list package --vulnerable --include-transitive`), authservice contract drift. **Fix every blocking (Critical/High and every "before deploy") finding in this PR** (or in small follow-up commits on the same branch), record non-blocking ones with owner decisions in DEVIATIONS.md. ADR-0019.
 **Acceptance.** Review document committed; zero open blocking findings; build/test/e2e green; `main` CI green after merge; final list of owner actions and stale `wp/*` branches in the final message.
+
+---
+
+## WP29 — agent-contracts (`wp/29-agent-contracts`)
+
+**Goal.** Decide and record the local-agent design and the Fly estate before any code is written (ADR-0026, CONTRACTS amendment A2).
+**Standards.** P5 (one signing key, configuration, secrets through the platform), P7 and P12 as departures (DEVIATIONS), SECURITY-REVIEW (threat model), SERVICE-API-PATTERNS (routes and error shape).
+**Deliver.** (1) `docs/decisions/0026-local-agent-and-fly-estate.md`: decision, options (server-only sender, browser-direct fetch and why CORS rejects it, tunnels, extension, JWT agent tokens, Web-held secrets), the secrets trade-off (d), the localhost-listener threat model (Origin allow-list, pairing token, exact CORS with no wildcard, `127.0.0.1` only, Private Network Access preflight, `Host` check against DNS rebinding), and what ExecutionService keeps. (2) CONTRACTS amendment **A2**: the agent-only routes and their audience rule, pairing, the local protocol, the history record endpoint and the new error codes. (3) This section, WP30–WP33. (4) Minimal updates so the docs stay true: ADR-0007 gets a *superseded for this product* note (its text stays), `docs/decisions/README.md`, README, AGENTS (the deployment rule), OPEN-ITEMS §0, DEVIATIONS (the planned departures from P7, P12, P6, ADR-0009 and P2, each recorded before the code, as the register requires), OPERATIONS §8. (5) No product code, no workflow, no Fly file.
+**Acceptance.** ADR and amendment A2 merged; every CONTRACTS route in A2 has an owner (a WP) and a scoping test name where it takes an id; `scripts/check-doc-links.sh` and `scripts/check-kernel-size.sh` pass; `dotnet build PostmanClone.sln` and `dotnet test PostmanClone.sln` still pass (unchanged code); the PR states that the `aurelius-promptus` Companion pattern was not read (attachment denied) and that the owner should compare it.
+
+## WP30 — agent-program (`wp/30-agent-program`)
+
+**Goal.** The local agent, the server half it needs (EnvironmentsService agent routes, ExecutionService history records), and the shared sending code (CONTRACTS A2, ADR-0026, ADR-0027).
+**Standards.** P2 (a second shared library is a DEVIATION; the kernel stays ≤ 800 lines), P3 (the agent has no database), P5 (configuration and the 0600 token file), P9, P13, SECURITY-REVIEW, SERVICE-API-PATTERNS (routes, problem+json), TESTING-STRATEGY.
+**Deliver.**
+- `src/PostmanClone.Sending` (a class library): the assembler, executor, masking and caps moved out of `ExecutionService/Sending/`. ExecutionService references it. The SSRF guard stays in ExecutionService and is injected as an option, so the agent can run without it. ExecutionService's behaviour does not change: its existing tests pass unchanged.
+- `src/PostmanClone.Agent` (`postmanclone-agent`): Kestrel bound to `127.0.0.1:47631` only; the local protocol of CONTRACTS A2.6 (Host, Origin, CORS and preflight, PNA, `pairingToken` as a hash, the 2 MB body limit, `application/json` required); the commands `run` (listen), `pair <code>` (for a terminal), `status`, `forget`; the 0600 config file (the agent token, the hash of the pairing token, the origins); outbound HTTP with no ambient proxy and no cookies; `Agent:Targets:AllowPrivate` (default `true`); the refusals of ADR-0027 (scheme, user info, the agent's own listener); logging of method, host, status, sizes and durations only.
+- EnvironmentsService: the routes of A2.2 (`/agent/pairing-codes`, `/agent/installations`, revoke), A2.3 (`/agent/pair`) and A2.4 (`/agent/me`, `/agent/environments/{id}/resolve`), with two tables (`agent_pairing_codes`, `agent_tokens`, hashed), an EF migration, `TimeProvider`, and the audience rule (agent-only routes accept an agent token only; agent tokens refused elsewhere).
+- ExecutionService: `POST /history/records` (A2.5), the `source` field on history rows (migration), retention unchanged.
+- Architecture tests (WP25 rules extended): every agent-only route is marked and refuses user tokens; every other route refuses agent tokens; the matrix includes the two new id routes (`Scoping_DELETE_agent_installations_id`, `Scoping_POST_agent_environments_id_resolve`).
+- Packaging: `dotnet pack` for the global tool (`postmanclone-agent`); a CI job `agent-artifacts` that runs `dotnet publish -r win-x64|linux-x64|osx-arm64 -p:PublishSingleFile=true --self-contained` and uploads zips as **workflow artifacts only** (no release, no tag, no push).
+- `docs/AGENT.md` (operator's view) and `docs/decisions/0027-agent-threat-model.md`.
+**Tests.** At least: Origin absent, `null`, foreign and a prefix-of-allowed origin refused; `Host: evil.example:47631` → 421; `text/plain` → 415; missing and wrong `X-Agent-Pairing-Token` → 401 (constant-time comparison); preflight with PNA returns the header only for the allowed origin; no response in the suite contains `Access-Control-Allow-Origin: *` (enumerates every route); the listener's endpoint is loopback (a test reads the bound address); a second start on the same port exits non-zero; a code is single-use (two concurrent exchanges, one wins); an expired code and a used code give the same `400`; an agent token on a user route → 401; a user token on `/agent/environments/{id}/resolve` → 401; another workspace's environment → 404; resolved secret values appear in the sent request but in no response, log line or error (log-capture test using a sentinel secret marked `gitleaks:allow`); the self-target is refused; `AllowPrivate=false` refuses `127.0.0.1` with `ssrf_blocked_address`; a real loopback listener proves the default sends to it; the model has no pending migration changes; ExecutionService's existing sender tests pass without edits.
+**Acceptance.** `dotnet build` clean (warnings are errors); `dotnet test` green with `TEST_POSTGRES` set; the sending library is referenced by ExecutionService and the agent and nothing else; the kernel-size check passes; `docs/AGENT.md` and ADR-0027 written; the pack and the three publishes are attempted and their result written in the PR (a runtime pack download through the proxy may fail: say so under "Not verified").
+
+## WP31 — web-agent (`wp/31-web-agent`)
+
+**Goal.** The Web side of the agent: pairing and install page, connection status, the Send choice, and the one JavaScript file (ADR-0026 Decision 9, ADR-0028).
+**Standards.** BLAZOR-WEB-APP (interactive server; components; no persisted state of secrets), FRONTEND-BFF (the token never leaves the server; the browser holds only the local pairing token), SECURITY-REVIEW (CSP, origin guard, antiforgery), P8.
+**Deliver.**
+- `/agent` page: create a pairing code (A2.2, session bearer on the server), show it with its five-minute expiry, the install commands (`dotnet tool install …`, the artifact links, the "forget" command), and the installation list with a revoke button (A2.2). Form posts with antiforgery; `data-testid` values `agent-pair-code`, `agent-status`, `agent-installation-<id>`.
+- Top-bar connection status (`agent-status`): *Connected*, *Not running*, *Not paired*, *Pair again*. The status comes from the browser's probe of `GET /v1/status`.
+- The **Send** control chooses agent or server (`builder-send-target`). Default: agent when the page holds a pairing token and the probe answered; otherwise server. The response panel shows which sender answered.
+- `wwwroot/agent-client.js`: one hand-written file, no library, loaded by the page. It probes the agent, forwards a pairing code to `POST /v1/pair`, sends `POST /v1/send` with the local token, and posts the masked result to `POST /agent/runs`. Blazor receives the results through `IJSRuntime` and `[JSInvokable]` callbacks. This is the only script the Web loads; `script-src 'self'` is unchanged.
+- The local pairing token is held in the circuit's memory only. The agent components are interactive-server only (no prerender), so the token is never serialized into the page or into persisted component state.
+- The CSP `connect-src` gains exactly `http://127.0.0.1:47631` and `http://localhost:47631`, read from configuration (`Agent:ConnectOrigins`, `Agent:Port`), with no wildcard.
+- The BFF `POST /agent/runs` (A2.7): antiforgery, the origin guard, the Web's name-based masking, then `POST /api/v1/history/records` with the session bearer.
+- Layout at 390 px, both themes, colours only from tokens (UI-STYLE.md).
+**Tests.** bUnit with a fake `IJSRuntime`: each status state; the pairing token and a sentinel secret never appear in the rendered markup after pairing, sending, or a failed send; the send target defaults as stated; the server path is unchanged; the BFF refuses an anonymous or cross-origin post; a `WebApplicationFactory` test reads the CSP header and asserts `connect-src` contains exactly the two agent origins and `script-src` only `'self'`; a test lists the Web's script files and asserts there is exactly one, `agent-client.js`; no NuGet package or JavaScript library added (the dependency test of ADR-0009).
+**Acceptance.** bUnit and xUnit green; no JavaScript library in `wwwroot`; the page works at 390 px (checked in the browser by WP32, or recorded as not verified); ADR-0028 written, recording the JavaScript exception, its one file and its limits; DEVIATIONS updated (ADR-0009).
+
+## WP32 — e2e-agent (`wp/32-e2e-agent`)
+
+**Goal.** Prove the whole path with the real agent and a real local target, and prove that the refusals hold in a browser-like client (ADR-0018 charter).
+**Standards.** E2E-ACCEPTANCE-TESTING (roles and test ids, no fixed sleeps), TESTING-STRATEGY (the E2E layer), SECURITY-REVIEW.
+**Deliver.** Extend `tests/PostmanClone.Web.E2E` and `scripts/run-local-stack.sh` (an `agent` start option that builds and runs the agent on `:47631` with `Agent:AllowedWebOrigins` set to the local Web origin). Journeys: (1) pair from `/agent` with the code, the top bar shows *Connected*; (2) send to a local target that the test starts on `127.0.0.1` with a random port: the target sees the resolved secret, the page and `/history` show `••••••`; (3) the history entry has `source: "agent"`; (4) revoke the installation; the next send shows *Pair again*; (5) with the server option, a local target is refused with `ssrf_blocked_address`. Negative tests (raw HTTP with explicit headers from the test's request context): foreign `Origin` → 403, no allow headers; missing token → 401; `Host: evil.example:47631` → 421; `text/plain` body → 415; a second listener on the same port is refused.
+**Acceptance.** The journeys pass against the local stack in CI (`e2e` job, both the loopback and the default runs of ADR-0018 where they apply); the sentinel secret is found in no HTML, history response, or agent output (the test captures the agent's stdout and stderr); no fixed sleeps.
+**Not verified (expected).** Safari's handling of an HTTPS page calling `http://127.0.0.1`; the Chrome Local Network Access prompt (headless runs may not show it); the 390 px layout on a real device. Each is written under "Not verified" in the PR.
+
+## WP33 — fly-deploy (`wp/33-fly-deploy`)
+
+**Goal.** The shared estate can be deployed to Fly.io by hand, with the order, secrets and cost written down (ADR-0026 Decision 2 and 10, ADR-0029, P7; the manual trigger is a DEVIATION from P12).
+**Standards.** P5 (secrets through `fly secrets`), P6 (the Dockerfiles, built by the workflow), P7 (`fly.toml` shape, `min_machines_running`, volumes with `PGDATA`, private networking), P8, FLY-IO-DEPLOYMENT §2–§11 (the rules; the tag-driven pipeline is replaced by a manual one).
+**Deliver.**
+- `flyio/`: `web.fly.toml`, `collections-service.fly.toml`, `environments-service.fly.toml`, `execution-service.fly.toml`, `authservice.fly.toml` (image pinned to `ghcr.io/konradcinkusz/authservice:v0.3.4`, by digest once known), `postgres.fly.toml` (no `[http_service]`, no `[[services]]`, a volume with a `PGDATA` subdirectory), `SECRETS.md` (every secret, its owner app, where it is set, and what happens if it is missing). Each `fly.toml` annotates its non-obvious fields. Cost reasoning per app in `docs/FLY_DEPLOYMENT.md`.
+- `min_machines_running = 1` for the apps on the synchronous path (Web, EnvironmentsService because the agent resolves through it, CollectionsService, authservice); the cost is written next to the setting.
+- `.github/workflows/flyio.yml`: `on: workflow_dispatch` **only**, with inputs `apps` (a choice: `all` or one app) and `confirm` (must equal the app name for a single-app run). Jobs in the order postgres (manual bootstrap, not redeployed here) → authservice → environments-service → collections-service → execution-service → web. Each job runs `flyctl deploy --remote-only -c flyio/<app>.fly.toml` with `FLY_API_TOKEN` from the GitHub environment secret. `concurrency` so two runs cannot deploy at once. No `push`, `tags`, `pull_request`, `schedule` or `workflow_call` trigger.
+- `scripts/check-flyio-trigger.sh` (run by `pr-validation` as a job): fails if `flyio.yml` has any trigger other than `workflow_dispatch`, or if any tag or branch filter appears.
+- `docs/FLY_DEPLOYMENT.md`: step by step: create the organization and apps, the private network, PostgreSQL and its four databases, the secrets (`SECRETS.md`), the order of the first deploy, the Web's public origin and `Agent:AllowedWebOrigins`, HTTPS, health checks, rollback, and what is not done (no custom domain, no backup policy beyond Fly's volume snapshots: owner decision).
+- `docs/USER_GUIDE.md`, written for a person who is not a developer: sign in; install the agent (one command per system, no code); pair it from the Web's *Agent* page; send a request to `localhost`; share a collection with the team; what the agent can see and what is stored where. It says plainly that environment secrets reach the user's computer during a send, and that the agent's token is a credential.
+- The OPERATIONS and README pointers updated to name the manual workflow.
+**Acceptance.** `flyctl config validate` (or the offline equivalent the CLI supports) passes for each file, recorded under "What I ran" or "Not verified" (no Fly token and no Docker here); `scripts/check-flyio-trigger.sh` passes on the workflow and fails on a fixture with a `push` trigger (both shown); the workflow file has no trigger other than `workflow_dispatch`; no secret value is in the tree (the secret scan and gitleaks pass); the documents are link-checked.
+**Owner actions (listed in the PR, not done by the session).** Create the Fly organization and the GitHub environment `fly`; add `FLY_API_TOKEN`; supply the production values in `SECRETS.md`; grant pull access to the authservice image if it is private; choose the region and the custom domain.
