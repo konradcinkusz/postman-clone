@@ -50,7 +50,8 @@
         <h2 id="pair-heading">Pair this page</h2>
         <p>
             A pairing code works once and for five minutes. Create one, then choose <em>Pair this page</em>. The code is exchanged
-            with the server, and this page receives a token that only this computer's agent accepts.
+            with the server, and this page receives a token that only this computer's agent accepts. The token is kept in this
+            page's memory: after you reload the page, pair again.
         </p>
 
         @if (_pairingCode is null)
@@ -67,7 +68,7 @@
             <div class="cluster">
                 <button type="button" class="btn btn-primary" data-testid="agent-pair" disabled="@_pairing" @onclick="PairAsync">Pair this page</button>
             </div>
-            <p>In a terminal instead, run <code>postmanclone-agent pair @_pairingCode</code>. The page then needs its own pairing: choose <em>Check again</em>.</p>
+            <p>Use this code here. Do not use it in a terminal: a code works once, and the page needs the pairing it makes.</p>
         }
 
         @if (_pairMessage is not null)
@@ -92,7 +93,7 @@
                 Start it, and keep it running while you use PostmanClone:
                 <pre><code>postmanclone-agent run</code></pre>
             </li>
-            <li>Pair this page, above. Then choose <em>Check again</em>; the top bar shows <strong>Connected</strong>.</li>
+            <li>Pair this page, above. The top bar then shows <strong>Connected</strong>.</li>
         </ol>
         <p>
             To remove the agent from a computer, run <code>postmanclone-agent forget</code> there, then revoke it in the list below.

@@ -443,3 +443,66 @@ pre {
     font-size: var(--text-sm);
     color: var(--text-muted);
 }
+
+/* The local agent (WP31, ADR-0028): the top-bar status, the pairing code, the installation list and the sender choice.
+   Colours are the tokens above, in both themes, as the rest of the stylesheet. */
+.agent-status {
+    display: inline-block;
+    padding: 0.125rem 0.625rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.agent-status[data-state="connected"] {
+    color: var(--success);
+    background: var(--success-soft);
+    border-color: var(--success);
+}
+
+.agent-status[data-state="not-paired"],
+.agent-status[data-state="pair-again"] {
+    color: var(--warning);
+    background: var(--warning-soft);
+}
+
+.agent-status[data-state="not-running"] {
+    color: var(--danger);
+    background: var(--danger-soft);
+}
+
+.agent-code {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    font-size: 1.25rem;
+    letter-spacing: 0.15em;
+}
+
+.agent-installations li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.inline-form {
+    display: inline;
+    margin: 0;
+}
+
+.field-hint {
+    display: block;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+}
+
+.send-target-field {
+    max-width: 22rem;
+}

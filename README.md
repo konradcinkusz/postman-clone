@@ -29,9 +29,9 @@ This page describes `main` after WP28, the final review (`docs/SECURITY_REVIEW.m
 | History API (masked, 200 entries per user and workspace) | Built (WP15) |
 | Workspace shell, collection tree, request builder, response viewer | Built (WP18, WP18b, WP19, WP20) |
 | Environments page, history page | Built (WP21, WP22). |
-| Local agent (pairing, local sending, Send chooses agent or server) | Planned: decided in WP29 (ADR-0026, CONTRACTS A2); built in WP30–WP32 |
+| Local agent (pairing, local sending, Send chooses agent or server) | Built in WP30 and WP31 (ADR-0026, ADR-0027, ADR-0028). The browser journeys with a real agent are WP32 |
 | Fly.io deployment of the shared estate (manual workflow, `flyio/`) | Built (WP33): not deployed. The owner adds `FLY_API_TOKEN` and runs it ([FLY_DEPLOYMENT.md](docs/FLY_DEPLOYMENT.md)) |
-| User guide for non-developers | [docs/USER_GUIDE.md](docs/USER_GUIDE.md); its agent steps wait for WP30–WP31 |
+| User guide for non-developers | [docs/USER_GUIDE.md](docs/USER_GUIDE.md), including the agent (sections 4 to 8) |
 | About page | Placeholder |
 | Legal pages (`/legal/privacy`, `/legal/terms`) | Placeholders (OI-04) |
 | Browser end-to-end tests | Built (WP26): `tests/PostmanClone.Web.E2E`, 18 journeys over the protected flows, run by the `e2e` CI job; ADR-0018 |
@@ -153,7 +153,8 @@ The kernel holds no domain (rule R1), and no service references another (R2); bo
 | [0005](docs/decisions/0005-bff-session.md) | Backend-for-frontend session: opaque HttpOnly cookie, tokens on the server |
 | [0006](docs/decisions/0006-secret-variables.md) | Secret variables: encrypted at rest, referenced by name, masked everywhere |
 | [0007](docs/decisions/0007-deployment-out-of-scope.md) | Deployment is out of scope for this build (superseded for this product by 0026) |
-| [0026](docs/decisions/0026-local-agent-and-fly-estate.md) | Local agent sends requests; Fly hosts the shared estate (planned) |
+| [0026](docs/decisions/0026-local-agent-and-fly-estate.md) | Local agent sends requests; Fly hosts the shared estate |
+| [0028](docs/decisions/0028-web-agent-client.md) | The Web's agent client: one hand-written script, pairing in the circuit, the browser's limits |
 | [0029](docs/decisions/0029-fly-topology-and-manual-deployment.md) | Fly topology and manual deployment: private apps, the Web public, plain HTTP for the JWKS on 6PN (a deviation), a deploy-only workflow |
 | [0008](docs/decisions/0008-single-instance-web.md) | The Web keeps sessions in server memory and runs as one instance |
 | [0009](docs/decisions/0009-dependency-budget.md) | Dependency budget |

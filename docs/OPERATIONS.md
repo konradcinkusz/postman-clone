@@ -78,6 +78,8 @@ Each field is a limit of CONTRACTS §4 and can be overridden with `Execution__<F
 | `services__authservice__http__0` | unset | Service-discovery address of authservice. Needed to run the Web outside the AppHost (see §4). |
 | `services__collections-service__http__0` | unset | Service-discovery address of CollectionsService. Same reason. |
 | `ASPNETCORE_ENVIRONMENT` | `Production` (or `Development` from `launchSettings.json`) | Development allows the session cookie over plain HTTP (ADR-0013). |
+| `Agent:Port` | `47631` | The port of the user's local agent (ADR-0026). The page's CSP and its probe use it. Must match the agent's `run --port`. Values outside 1 to 65535 stop the Web at startup. |
+| `Agent:ConnectOrigins` | `http://127.0.0.1:<port>` and `http://localhost:<port>` | The origins the page may connect to, added to `connect-src`. Each must be exactly the loopback address over `http` on `Agent:Port`. Anything else (a wildcard, a public host, another port, a path) stops the Web at startup (ADR-0028). |
 
 ### authservice (pinned v0.3.4, set by AppHost or the script)
 
@@ -245,6 +247,7 @@ first, and nothing warns. Collections are the same for their fields, but saved r
 | EnvironmentsService | 5302 | floats |
 | ExecutionService | 5303 | floats |
 | Web | 5310 (the script, or `dotnet run`) | 5310 (fixed) |
+| Local agent (on the user's computer, not in the estate) | 47631 on `127.0.0.1` | `Agent:Port`, `run --port` (ADR-0026) |
 | PostgreSQL | 5432 | container |
 
 ## 8. What an owner adds to deploy, and what is still open

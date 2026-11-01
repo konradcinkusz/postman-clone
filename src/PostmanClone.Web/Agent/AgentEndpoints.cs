@@ -29,9 +29,8 @@ public static class AgentEndpoints
     {
         app.MapPost("/agent/pairing-codes", CreatePairingCodeAsync).RequireAuthorization().RequireRateLimiting(RateLimitPolicies.Api);
         app.MapPost("/agent/installations/{id:guid}/revoke", RevokeAsync).RequireAuthorization().RequireRateLimiting(RateLimitPolicies.Api);
-        // AllowAnonymous, not RequireAuthorization: the handler checks the session itself and answers 401. A challenge would
-        // redirect a JSON caller to the sign-in page, which the page cannot read as a refusal.
-        app.MapPost("/agent/runs", RecordRunAsync).AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Api);
+        // A JSON caller that is not signed in gets 401 from the session scheme, not a redirect (SessionAuthenticationHandler).
+        app.MapPost("/agent/runs", RecordRunAsync).RequireAuthorization().RequireRateLimiting(RateLimitPolicies.Api);
         return app;
     }
 

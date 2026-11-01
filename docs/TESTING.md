@@ -150,3 +150,14 @@ So none of the four situations requires a scheduled human pass. The manual check
    Done once live in WP24; repeat after any change to the flow.
 3. **Layout at 390 px and in dark mode**, on the home page and the members page.
 4. **The pre-commit hook** on each developer machine: a staged dummy secret must be refused.
+
+## 8. The Web's agent client (WP31, ADR-0028)
+
+**In CI (`dotnet test --solution`):** `Agent/` in `tests/PostmanClone.Web.Tests` (bUnit with a fake browser and the real
+`AgentConnection`; the Agent page with a fake client; the run route and the CSP through `WebHostFactory`; the boundary rules read
+from disk), and `AgentClientTests` (the routes, the bearers, the outcomes).
+
+**Run by hand in WP31 (Chromium, not in CI):** the built agent on `127.0.0.1:47631` configured with the Web's origin
+`http://localhost:5310`, the Web on that origin, and a stand-in server for the pairing route. The page script probed, paired, sent to a local
+target through the agent, and received the response with `Set-Cookie` masked; a wrong pairing token got its 401. An origin that the CSP does not
+name was refused by the browser. Not run: an HTTPS page, Firefox, Safari, and the Local Network Access prompt (ADR-0028, "Not verified").
