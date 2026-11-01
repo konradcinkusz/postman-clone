@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.SignalR;
 using PostmanClone.ServiceDefaults.RateLimiting;
 using PostmanClone.ServiceDefaults.Security;
+using PostmanClone.Web.Agent;
 using PostmanClone.Web.Api;
 using PostmanClone.Web.Auth;
 using PostmanClone.Web.Collections;
@@ -77,6 +78,7 @@ public static class WebHostExtensions
         app.MapAuthEndpoints();
         app.MapMembershipEndpoints();
         app.MapCollectionDownloadEndpoints();
+        app.MapAgentEndpoints();
         app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
         return app;
     }

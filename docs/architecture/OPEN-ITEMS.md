@@ -66,6 +66,14 @@ The deployment's own open values: the region, the app names, `AllowedOrigins__0`
 - **Distribution is through CI artifacts for now** (`agent-artifacts` in `pr-validation.yml`: the dotnet tool package and single-file zips for
   win-x64, linux-x64 and osx-arm64). No release and no tag. A release channel for non-developers is still undecided.
 
+**Web agent client (ADR-0028), WP31:**
+
+- **HTTPS page calling the loopback agent is not verified** in Safari or Firefox, and no HTTPS origin ran in WP31. Chromium was run on `http://localhost`.
+  Local Network Access and Private Network Access prompts were not observed (headless). Check on a real desktop before the first user.
+- **Pairing is per page visit, and each pairing adds an agent row.** The page holds its token in memory, so a reload needs a new code, and the
+  workspace's list grows until old rows are revoked. Reusing the agent's row for a new pairing is a follow-up.
+- **Pairing tickets are held in the Web's process memory** (ADR-0028). Correct for one instance (ADR-0008); a second instance needs shared storage.
+
 **Still open after WP30:**
 
 - **Companion pattern not compared.** The `aurelius-promptus` repository could not be attached in WP30 (the access request was denied). Compare

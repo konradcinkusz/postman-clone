@@ -1,3 +1,4 @@
+using PostmanClone.Web.Agent;
 using PostmanClone.Web.Api;
 
 namespace PostmanClone.Web.Response;
@@ -12,8 +13,19 @@ public enum SendPhase
     Failed,
 }
 
-/// <summary>The state the response panel draws. <see cref="RequestId"/> says which request the send was for.</summary>
-public sealed record SendView(SendPhase Phase, Guid? RequestId, ResponseView? Response, string? Failure)
+/// <summary>Which sender answered a send (WP31): the server, the user's local agent, or none yet.</summary>
+public enum SendSender
+{
+    None,
+    Server,
+    Agent,
+}
+
+/// <summary>
+/// The state the response panel draws. <see cref="RequestId"/> says which request the send was for; <see cref="Sender"/> says which
+/// sender the send went through, so the panel can name it.
+/// </summary>
+public sealed record SendView(SendPhase Phase, Guid? RequestId, ResponseView? Response, string? Failure, SendSender Sender = SendSender.None)
 {
     public static readonly SendView Idle = new(SendPhase.Idle, null, null, null);
 }
@@ -25,12 +37,13 @@ public interface IExecutionGateway
 }
 
 /// <summary>
-/// Runs the circuit's sends (WP20, ADR-0023). One send is in flight at a time per circuit: a new send cancels the one before it,
+/// Runs the circuit's sends (WP20, ADR-0023; WP31 adds the agent). When the send target is the agent, the send goes through
+/// <see cref="IAgentRunner"/>; otherwise it goes through the server gateway, unchanged. One send is in flight at a time per circuit: a new send cancels the one before it,
 /// and a result that arrives for a send that was superseded is dropped, so an old answer never overwrites a newer one. Cancelling
 /// cancels the HTTP call, and leaves the page idle with no exception to observe. The page subscribes to <see cref="Changed"/>
 /// and re-renders through <c>InvokeAsync</c>.
 /// </summary>
-public sealed class SendCoordinator(IExecutionGateway gateway, EnvironmentSelection environment) : IDisposable
+public sealed class SendCoordinator(IExecutionGateway gateway, EnvironmentSelection environment, AgentConnection? agent = null, IAgentRunner? runner = null) : IDisposable
 {
     private CancellationTokenSource? _inFlight;
     private long _sequence;
@@ -58,8 +71,24 @@ public sealed class SendCoordinator(IExecutionGateway gateway, EnvironmentSelect
         Show(new SendView(SendPhase.Sending, requestId, null, null));
 
         var body = new ExecuteBody(request, environment.EnvironmentId, savedRequestId, null, null);
+        var viaAgent = agent is not null && runner is not null && agent.EffectiveTarget == SendTarget.Agent;
+        var sender = viaAgent ? SendSender.Agent : SendSender.Server;
         try
         {
+            if (viaAgent)
+            {
+                var run = await runner!.SendAsync(body, cancellation.Token);
+                if (sequence != _sequence)
+                {
+                    return;
+                }
+
+                Show(run.Result is { } agentResult
+                    ? new SendView(SendPhase.Shown, requestId, ResponseView.From(agentResult), null, sender)
+                    : new SendView(SendPhase.Failed, requestId, null, run.Failure, sender));
+                return;
+            }
+
             var answer = await gateway.ExecuteAsync(body, cancellation.Token);
             if (sequence != _sequence)
             {
@@ -67,14 +96,14 @@ public sealed class SendCoordinator(IExecutionGateway gateway, EnvironmentSelect
             }
 
             Show(answer.Value is { } result
-                ? new SendView(SendPhase.Shown, requestId, ResponseView.From(result), null)
-                : new SendView(SendPhase.Failed, requestId, null, ResponseMessages.ForFailure(answer.Outcome, answer.Code)));
+                ? new SendView(SendPhase.Shown, requestId, ResponseView.From(result), null, sender)
+                : new SendView(SendPhase.Failed, requestId, null, ResponseMessages.ForFailure(answer.Outcome, answer.Code), sender));
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
             if (sequence == _sequence)
             {
-                Show(new SendView(SendPhase.Cancelled, requestId, null, ResponseMessages.Cancelled));
+                Show(new SendView(SendPhase.Cancelled, requestId, null, ResponseMessages.Cancelled, sender));
             }
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -82,7 +111,7 @@ public sealed class SendCoordinator(IExecutionGateway gateway, EnvironmentSelect
             // An unexpected failure is shown as an unavailable sender, with no exception text on the page.
             if (sequence == _sequence)
             {
-                Show(new SendView(SendPhase.Failed, requestId, null, ResponseMessages.ForFailure(CollectionOutcome.Unavailable, null)));
+                Show(new SendView(SendPhase.Failed, requestId, null, ResponseMessages.ForFailure(CollectionOutcome.Unavailable, null), sender));
             }
         }
         finally

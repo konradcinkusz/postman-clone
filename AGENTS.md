@@ -44,6 +44,7 @@ The build plan is the source of truth for scope and contracts:
 | `src/PostmanClone.Web/Response`, `Components/Response/ResponsePanel.razor`, `Api/ExecutionClient.cs`, `Api/ExecutionDtos.cs` | The sender client and the response viewer (WP20, ADR-0023): `ExecutionClient` (`POST /api/v1/execute`, the copies of its types round-trip-tested against the service), `SendCoordinator` (one send per circuit; a superseded answer is dropped; cancelling stops the call), `ResponseView` and `BodyView` (pure: outcome words, status family, sizes, body lines), `JsonPretty` (an iterative JSON scanner that never recurses), `ResponsePanel` (every value written as encoded text; Preview disabled). The per-client timeouts are `HttpClientTimeouts` in the kernel (`Resilience/`) |
 | `src/PostmanClone.Web/Environments`, `Components/Environments`, `Components/Pages/Environments.razor`, `Api/EnvironmentsClient.cs`, `Api/EnvironmentsDtos.cs`, `Response/EnvironmentSelection.cs` | The environments UI (WP21, ADR-0025): `/environments` (list, create, rename, delete, variables), the top-bar `EnvironmentSelector` that chooses the environment for the sends, and the typed client for EnvironmentsService. A secret's value is write-only: `VariableRow` holds only "a value is stored" and what was typed since, and the input has no value attribute. `EnvironmentRules` mirrors the service's limits and patterns, and a parity test runs the service's own attributes on the same inputs |
 | `src/PostmanClone.Web/History`, `Components/Pages/History.razor`, `Components/Shell/HistoryPanel.razor`, `Api/HistoryClient.cs`, `Api/HistoryDtos.cs` | The request history (WP22, ADR-0024): `/history` (the caller's entries, paged, filtered on the masked URL, detail through `ResponsePanel`, delete one and clear all with a two-step confirm), the workspace shell's history panel, and *Open in builder* (`/?reopen=<id>`), which opens an unsaved draft that cannot be saved by id and is refused by send and save while it still holds the mask. `HistoryPaging`, `RelativeTime` and `HistoryReopen` are the pure rules; `HistoryChangeSignal` (`IHistoryChanged`) reloads the panel after a recorded send |
+| `src/PostmanClone.Web/Agent`, `Components/Agent`, `Components/Pages/AgentPage.razor`, `Api/AgentClient.cs`, `Api/AgentDtos.cs`, `wwwroot/agent-client.js` | The Web's agent client (WP31, ADR-0028): the pairing page at `/agent`, the top-bar status, the sender choice in the builder, the one hand-written script (the only script of the Web's own), the run record `POST /agent/runs` (antiforgery, the name-based mask, the session bearer), and the CSP `connect-src` with exactly the loopback origins of `Agent:Port` and `Agent:ConnectOrigins`. The pairing token lives in the circuit only |
 | `flyio/`, `.github/workflows/flyio.yml`, `docs/FLY_DEPLOYMENT.md`, `flyio/SECRETS.md` | The Fly estate (WP33, ADR-0029): six `*.fly.toml` files (the Web public, the others private), the manual deploy-only workflow with its token check, and the owner's procedure and secret list. Nothing here has been deployed |
 | `scripts/check-flyio-trigger.sh`, `scripts/check-flyio-config.py`, `scripts/flyio-preflight.sh` | The Fly checks (run by `pr-validation` as `flyio-config`), and the per-app preflight the workflow calls before a deploy. `docs/USER_GUIDE.md` is the user's guide |
 
@@ -97,6 +98,9 @@ live only in `Directory.Packages.props`; projects reference packages without a v
 - **Tokens never reach browser JavaScript**, component fields the framework persists, logs, URLs or error
   messages. The browser holds an HttpOnly session cookie; the Web keeps the token pair on the server
   ([ADR-0005](docs/decisions/0005-bff-session.md)). Antiforgery protects form posts.
+  One exception, by design: the agent's **pairing token** (not the session token) is passed to `agent-client.js` for each call to the
+  user's own agent on loopback. It is held in the circuit, never stored in the browser, never rendered and never in a URL
+  ([ADR-0026](docs/decisions/0026-local-agent-and-fly-estate.md), [ADR-0028](docs/decisions/0028-web-agent-client.md)).
 - **Secrets never enter the tree.** Secret variables are encrypted at rest and never returned by a
   `GET`; the only plaintext is the `resolve` call for ExecutionService
   ([ADR-0006](docs/decisions/0006-secret-variables.md)). Local secrets come from
@@ -121,7 +125,7 @@ live only in `Directory.Packages.props`; projects reference packages without a v
 - **The kernel stays small.** `PostmanClone.ServiceDefaults` is at most 800 lines, with no entities,
   DTOs, enums or user-facing strings in it.
 - **Web.** Interactive server render mode; colours only through CSS tokens; both themes; works at 390 px
-  width; no JavaScript interop and no JavaScript or CSS library ([ADR-0009](docs/decisions/0009-dependency-budget.md)).
+  width; no JavaScript interop and no JavaScript or CSS library ([ADR-0009](docs/decisions/0009-dependency-budget.md)), except the one hand-written script `agent-client.js` that calls the user's local agent ([ADR-0028](docs/decisions/0028-web-agent-client.md)).
 - **Single instance.** The Web runs as one instance, and sessions live in its memory
   ([ADR-0008](docs/decisions/0008-single-instance-web.md)).
 - **Deployment** ([ADR-0007](docs/decisions/0007-deployment-out-of-scope.md) is superseded for this product by

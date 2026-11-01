@@ -1,0 +1,51 @@
+@namespace PostmanClone.Web.Components.Agent
+@using PostmanClone.Web.Agent
+@implements IDisposable
+@inject AgentConnection Connection
+
+@* The top bar's agent status (WP31, ADR-0028): Connected, Not running, Not paired or Pair again. It reads the circuit's connection
+   state only; no value of the page's pairing token is written here. It links to the Agent page, where the user acts on it. *@
+
+<a class="agent-status" href="/agent" data-testid="agent-status" data-state="@AgentStatusRules.Key(_status)"
+   title="The local agent on this computer">@AgentStatusRules.Label(_status)</a>
+
+@code {
+    private AgentStatus _status = AgentStatus.Checking;
+    private bool _disposed;
+
+    protected override void OnInitialized()
+    {
+        Connection.Changed += OnChanged;
+        _status = Connection.Status;
+    }
+
+    /// <summary>
+    /// Starts the probe loop once, after the first interactive render (never during prerendering). The loop runs until the circuit
+    /// closes, so it is not awaited here: awaiting it would hold this component's lifecycle for the whole visit.
+    /// </summary>
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && !_disposed)
+        {
+            _ = Connection.WatchAsync();
+        }
+    }
+
+    private void OnChanged()
+    {
+        if (!_disposed)
+        {
+            _ = InvokeAsync(() =>
+            {
+                _status = Connection.Status;
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Connection.Changed -= OnChanged;
+    }
+}

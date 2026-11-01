@@ -55,6 +55,8 @@ internal static class CollectionsPageHarness
         var selection = new EnvironmentSelection();
         context.Services.AddSingleton(selection);
         context.Services.AddSingleton(new SendCoordinator(sender, selection));
+        // The agent's status and target choice (WP31) are part of every page's circuit, as the host registers them.
+        PostmanClone.Web.Tests.Agent.AgentTestRig.AddAgentServices(context);
         // The workspace home shows the history panel (WP22), so the history services are part of every home page's circuit.
         HistoryPageHarness.AddHistoryServices(context, state, session, history ?? new FakeHistoryClient(), clock ?? new FakeTimeProvider());
         return context;

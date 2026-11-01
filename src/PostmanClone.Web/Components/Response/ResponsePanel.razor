@@ -38,6 +38,10 @@ else if (View.Phase == SendPhase.Shown && View.Response is { } response)
                 <span class="num" data-testid="response-size">@response.SizeText</span>
             </div>
         </div>
+        @if (View.Sender != SendSender.None)
+        {
+            <p class="response-detail" data-testid="response-sender">Sent by @(View.Sender == SendSender.Agent ? "your agent on this computer" : "the server").</p>
+        }
 
         @if (response.Outcome != OutcomeKind.Completed)
         {

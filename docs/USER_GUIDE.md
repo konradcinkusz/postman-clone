@@ -3,18 +3,17 @@
 This guide is for people who use Postman Clone to call web services and share their requests with a team. You do not need to
 know how it is built. Where a step needs a program on your computer, it says so, and what it does.
 
-> **Status.** Signing in, collections, environments and history are available on the Web. **The local agent is not built yet.**
-> Sections marked *(available after WP30 and WP31)* describe it: they become true when those two work packages are merged, and
-> until then the steps do not work. Nothing in this guide is a promise about dates.
+> **Status.** Signing in, collections, environments, history and the local agent are on the Web. The agent is a program you
+> install on your own computer; sections 4 to 6 describe it. Who gives you the agent's package is decided by your team's owner.
 
 **Contents**
 
 1. Open the app and sign in
 2. Make a collection and send a request
 3. Share a collection with your team
-4. Install the agent *(available after WP30 and WP31)*
-5. Pair the agent with your account *(available after WP30 and WP31)*
-6. Send a request to `localhost` *(available after WP30 and WP31)*
+4. Install the agent
+5. Pair the agent with your account
+6. Send a request to `localhost`
 7. What the agent can see, and what is stored where
 8. Stop using the agent
 9. Questions and problems
@@ -64,41 +63,70 @@ on the Web.
 To give a team a separate space, create a second workspace. Collections do not move between workspaces by themselves: export a
 collection from one (*Export as Postman*, a Postman v2.1 file) and import it into the other (*Import file*).
 
-## 4. Install the agent *(available after WP30 and WP31)*
+## 4. Install the agent
 
 The **agent** is a small program that runs on your computer. Some requests can only be sent from your computer: a request to
 `localhost`, to another machine on your network, or to a service that runs inside your office. The shared server cannot reach
 those, by design. The agent can.
 
-- You install it **once**. You do not write code.
-- The **Agent** page of the app shows the install command for your system (Windows, macOS or Linux), and the links to download it.
-  Copy the command and run it in a terminal.
-- To remove it later, the Agent page shows the command for that too.
+You install it **once**, and you do not write code. Your team provides the agent's package; the owner decides where it is
+published (it is not on the public NuGet feed). The **Agent** page of the app shows the install command. It is the same on
+Windows, macOS and Linux:
+
+```
+dotnet tool install --global postmanclone-agent --add-source <the folder that holds the package>
+```
+
+Then tell the agent two things, once, with the setup command the Agent page shows:
+
+- the **server address**: the address of the PostmanClone server, which your owner gives you;
+- the **page address**: the address of the page in your browser, which the Agent page fills in for you.
+
+```
+postmanclone-agent setup --server <the server address> --web-origin <the page address>
+```
+
+Start the agent and keep it running while you use PostmanClone:
+
+```
+postmanclone-agent run
+```
 
 The agent listens on your computer only (`127.0.0.1`, port `47631`). No other computer can reach it. It accepts requests only from
 the Postman Clone page in your browser, and only after you pair it.
 
-## 5. Pair the agent with your account *(available after WP30 and WP31)*
+To remove the agent later, run `postmanclone-agent forget` on that computer, then revoke it in the list on the Agent page.
 
-Pairing tells the agent which account it works for. You do it once per computer.
+## 5. Pair the agent with your account
+
+Pairing tells the agent which account it works for. You do it once per computer, and again after you reload the page (see below).
 
 1. On the **Agent** page, choose *Create pairing code*. A code of ten characters appears with a five-minute timer.
-2. Enter the code on the page, or run `postmanclone-agent pair <code>` in a terminal, as the Agent page shows.
-3. The top bar shows **Connected** when the agent answers.
+2. Choose *Pair this page*. The page sends the code to the agent on your computer, the agent exchanges it with the server, and the
+   page receives a token that only your agent accepts. Use the code here; do not type it in a terminal, because a code works once.
+3. The top bar shows **Connected**. The Agent page lists the agent under *Your agents in this workspace*.
 
-The code works once and only for five minutes. If it expires, create a new one. If the top bar shows **Not running**, start the
-agent (the Agent page says how). If it shows **Not paired**, pair again.
+The code works once and only for five minutes. If it expires, create a new one.
 
-## 6. Send a request to `localhost` *(available after WP30 and WP31)*
+The top bar shows what the page can do:
+
+- **Connected**: the agent is running and this page is paired with it.
+- **Not running**: no agent answers on this computer. Start it (section 4), then choose *Check again* on the Agent page.
+- **Not paired**: the agent is running but has not been set up or paired for this page. Check the setup, then pair.
+- **Pair again**: the agent is paired, but this page does not hold its token. This happens after you reload the page or open it
+  again, because the page keeps its token in memory only and never stores it. Create a new code and pair this page.
+
+## 6. Send a request to `localhost`
 
 1. Start the program or service you want to call, on your computer, for example on `http://localhost:3000`.
 2. In the request builder, type the address, `http://localhost:3000/health`.
-3. Make sure the **Send** control says **agent**. When the agent is paired and connected, it is the default. Choose *server*
-   for a public address you want the shared server to send.
-4. Choose *Send*. The response panel says which sender answered: *agent* or *server*.
+3. Look at the **Send with** control. It says **Agent (this computer)** when this page is paired with the agent, which is the
+   default then. It says **Server** otherwise. You can choose either. Choose *Server* for a public address you want the shared
+   server to send.
+4. Choose *Send*. The response panel says which sender answered: *Sent by your agent on this computer*, or *Sent by the server*.
 
 A request to a public address (for example `https://api.example.com`) can also be sent by the server. A request to `localhost`
-from the server is refused, with the message *ssrf_blocked_address*. That is correct: the server refuses to call machines inside
+sent through the server is refused, with the code *ssrf_blocked_address*. That is correct: the server refuses to call machines inside
 its own network. Use the agent for those.
 
 **Check the address before you send.** A collection that a teammate shared can point at any address, including a machine on your
@@ -124,7 +152,7 @@ This section says what happens to your data. It is the plain account of the desi
   leave them.
 - The pairing token of the agent lives in the page's memory only. It is gone when you close the page.
 
-**On your computer, with the agent *(available after WP30 and WP31)*:**
+**On your computer, with the agent:**
 
 - The agent's configuration file, with the **agent token**. The file is readable by your user account only. This token is a
   credential: anyone who has the file can send requests as you, through your agent, until you revoke it.
@@ -137,7 +165,7 @@ who could read a secret on the Web could already read it, so the risk is the pla
 not want a secret on your computer, do not send that request through the agent; choose *server* for a public address, or do not
 use that environment on your computer.
 
-## 8. Stop using the agent *(available after WP30 and WP31)*
+## 8. Stop using the agent
 
 On the **Agent** page, choose *Revoke* next to the computer. The agent token stops working at once, and the next send shows
 **Pair again**. Then delete the agent's configuration file, or run the *forget* command the Agent page shows. Revoke an agent you

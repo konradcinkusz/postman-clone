@@ -27,7 +27,8 @@ target is `localhost`, a LAN address, or any other private address, which the se
 1. Run `setup` once with the Web's origin.
 2. Start `run` and keep it running.
 3. On the Web's Agent page, create a pairing code (valid five minutes, single use) and pair. The page exchanges it through
-   the agent's local `POST /v1/pair`.
+   the agent's local `POST /v1/pair`. The page keeps the token it receives in its memory only, so after a reload it must pair again
+   (ADR-0028). Each pairing adds an agent row on the Agent page; revoke the rows you no longer use.
 
 ## Where the credentials are
 

@@ -45,11 +45,18 @@ public sealed class SessionAuthenticationHandler(
 
     /// <summary>
     /// An anonymous request to a protected endpoint is redirected to sign in, with the requested path as the return path.
-    /// Without this, the framework answers 401 and the user sees a page with no way forward.
+    /// Without this, the framework answers 401 and the user sees a page with no way forward. A JSON request is the exception:
+    /// the page that sent it reads a redirect as a success it cannot use, so it gets the 401 (WP31, the agent's run record).
     /// </summary>
     protected override Task HandleChallengeAsync(AuthenticationProperties properties)
     {
         Response.Headers.CacheControl = "private, no-store";
+        if (Request.ContentType is { } contentType && contentType.StartsWith("application/json", StringComparison.OrdinalIgnoreCase))
+        {
+            Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        }
+
         Response.Redirect(ReturnUrlPolicy.SignInPath($"{Request.PathBase}{Request.Path}{Request.QueryString}"));
         return Task.CompletedTask;
     }
