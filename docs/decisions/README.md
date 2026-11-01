@@ -38,5 +38,6 @@ Numbers are reserved per work package in
 | [0019](0019-final-review-outcomes.md) | Final review outcomes: the sender's telemetry, SSRF relaxation only in Development, the rate limits, partial secrets at the read cap, the gitleaks version, the sender's retries | Accepted |
 
 | [0026](0026-local-agent-and-fly-estate.md) | Local agent sends requests; Fly hosts the shared estate: opaque agent credentials, secrets delivered to the agent (accepted), the localhost threat model, manual deployment only | Accepted; supersedes 0007 for this product |
+| [0029](0029-fly-topology-and-manual-deployment.md) | Fly topology and manual deployment: private apps reached at `.flycast`, the Web the only public app, plain HTTP for the JWKS on 6PN (a deviation), a hand-bootstrapped PostgreSQL, a deploy-only workflow with a token check | Accepted |
 
-Assigned (see WORK-PACKAGES.md): 0016 WP16, 0017 WP19, 0018 WP26, 0019 WP28, 0020 WP25, 0021 WP23, 0022 WP18b, 0023 WP20, 0024 WP22, 0025 WP21, 0026 WP29. 0027 WP30 (agent threat model and sending rules), 0028 WP31 (the Web's agent client and its one script), 0029 WP33 (Fly topology and manual deployment) are reserved; WP32 writes none.
+Assigned (see WORK-PACKAGES.md): 0016 WP16, 0017 WP19, 0018 WP26, 0019 WP28, 0020 WP25, 0021 WP23, 0022 WP18b, 0023 WP20, 0024 WP22, 0025 WP21, 0026 WP29. 0027 WP30 (agent threat model and sending rules) and 0028 WP31 (the Web's agent client and its one script) are reserved; 0029 WP33 (Fly topology and manual deployment) is written; WP32 writes none.

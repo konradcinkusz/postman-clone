@@ -48,8 +48,10 @@ Nothing in this list is done by a session. Each item says what the owner must do
 - **The AppHost, once, with Docker (OI-19):** run it and record the result here.
 
 **Deployment:** Fly.io deployment was intentionally **not** done, and no tags were pushed, for the build that ended at WP28 (ADR-0007). That
-decision is superseded for this product by ADR-0026 (WP29). Deployment is now planned (WP33) as a manual workflow with no tag or push trigger.
-Until WP33 lands, `flyio/` does not exist. The owner must add `FLY_API_TOKEN` and the production values; nothing is deployed without them.
+decision is superseded for this product by ADR-0026 (WP29). The manual workflow and the configs are written (WP33, ADR-0029). `flyio/` holds them.
+The owner must add `FLY_API_TOKEN` and the production values (docs/FLY_DEPLOYMENT.md §2 and §5); nothing is deployed without them.
+The deployment's own open values: the region, the app names, `AllowedOrigins__0` and `FrontendBaseUrl` after a custom domain, and
+`Agent:AllowedWebOrigins` from WP30.
 
 **Local agent (ADR-0026, WP29–WP32), owner decisions:**
 
