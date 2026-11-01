@@ -214,6 +214,7 @@ thing, the same rules apply (for example, the masking of §4).
 | `agent_not_paired` | 409 | Local `POST /v1/send` when no pairing exists or the agent token was revoked (the page says "pair again") |
 | `origin_not_allowed` | 403 | Local listener: `Origin` absent or not in the allow-list |
 | `host_not_allowed` | 421 | Local listener: `Host` is not the loopback name and port |
+| `unsupported_media_type` | 415 | Local listener: `POST /v1/send` or `/v1/pair` with a body that is not `application/json` (added by WP30, ADR-0027) |
 
 Every other error is as in §0. A user's token or an agent token on any other route answers the standard `401` with no code, as
 an unknown bearer does.

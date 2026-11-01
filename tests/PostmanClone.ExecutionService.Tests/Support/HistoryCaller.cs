@@ -64,6 +64,10 @@ public sealed class HistoryCaller
     public Task<HttpResponseMessage> ExecuteAsync(object body, CancellationToken cancellationToken) =>
         SendAsync(HttpMethod.Post, "/api/v1/execute", body, cancellationToken);
 
+    /// <summary>Records an agent run (CONTRACTS A2.5).</summary>
+    public Task<HttpResponseMessage> RecordAsync(object body, CancellationToken cancellationToken) =>
+        SendAsync(HttpMethod.Post, "/api/v1/history/records", body, cancellationToken);
+
     public async Task<Page<HistorySummary>> ListPageAsync(string query, CancellationToken cancellationToken) =>
         await ReadAsync<Page<HistorySummary>>(await ListAsync(query, cancellationToken));
 

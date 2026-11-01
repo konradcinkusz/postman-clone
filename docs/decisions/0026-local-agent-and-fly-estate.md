@@ -146,10 +146,23 @@ The listener is the new attack surface. Each row is a threat, the control, and w
   without a GitHub account. A release channel is an owner decision (open item). It needs a tag or a release step, which this ADR
   does not allow in the Fly workflow.
 
+## Decisions recorded by WP30 (2026-11-01)
+
+- **Origin list before pairing.** The first pairing request is itself a browser request, so the agent needs its allowed origins before it has
+  any pairing. They are set by `postmanclone-agent setup --web-origin …`, which the operator runs once. The server's `allowedWebOrigins` then
+  replaces them at pairing. Decision 5 said the list comes from the server at pairing; the first list necessarily comes from setup.
+- **Server URL.** The agent calls EnvironmentsService at a configured public URL (`setup --server`). Fly's private network does not reach a
+  user's computer; WP33 decides how the URL is published.
+- **Terminal pairing.** `postmanclone-agent pair <code>` exchanges the code like the page does, and prints a local pairing token once, for a
+  page that is linked by hand. The Web does not need it.
+- **Owner decisions** (OPEN-ITEMS §0): secrets in memory only; `AllowPrivate` default true; the agent token in a `0600` file; the OS keychain
+  later; membership-removal revocation deferred; distribution through CI artifacts for now.
+- **Sending library.** The sender moved to `src/PostmanClone.Sending`, shared with the agent. See DEVIATIONS (2026-11-01, P2).
+
 ## Not verified here
 
-- The `aurelius-promptus` **Companion** pattern (`docs/COMPANION_AND_WORKFLOWS.md`) was not read: the repository could not be
-  attached to this session. The pairing design above comes from P5, the estate's rules and this repository. The owner should compare
+- The `aurelius-promptus` **Companion** pattern (`docs/COMPANION_AND_WORKFLOWS.md`) was not read in WP29 or WP30: the repository
+  could not be attached (WP30: the access request was denied by the session's permission classifier). The pairing design above comes from P5, the estate's rules and this repository. The owner should compare
   it with the Companion pattern before WP30 starts.
 - Nothing in this ADR has been run. There is no Docker daemon here, no Fly account, and no browser test of the agent.
 
