@@ -15,6 +15,9 @@ name: PR validation
 #                     Chromium installed by Playwright, twice: once with the test-only loopback flag (the sender may send to the
 #                     local target) and once without it (the default refuses loopback). Runs when src/, tests/, scripts/ or this
 #                     workflow changed. POSTMANCLONE_E2E_REQUIRED=1, so a missing prerequisite fails the job, never skips it.
+#  • compose-e2e    — the container estate (compose.yaml): the pinned authservice image, the services built from their Dockerfiles, the demo
+#                     seed, and the Estate=compose journeys (seeded sign-in, shared collection) in Chromium (ADR-0030, ADR-0031).
+#  • aspire-apphost-probe — informational, not in the aggregate: does the real AppHost (DCP) start the estate on this runner (ADR-0031).
 #  • docs-links     — every relative link in the Markdown files resolves.
 #  • flyio-config   — the Fly workflow has no trigger but workflow_dispatch (scripts/check-flyio-trigger.sh), and the six Fly
 #                     configs, the workflow and flyio/SECRETS.md agree (scripts/check-flyio-config.py). No Fly account needed.
@@ -90,7 +93,7 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             e2e=false
             changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" || echo "unknown")
-            if [ "$changed" = "unknown" ] || echo "$changed" | grep -Eq '^(src/|tests/|scripts/|\.github/workflows/pr-validation\.yml|Directory\.Packages\.props|PostmanClone\.sln|global\.json)'; then
+            if [ "$changed" = "unknown" ] || echo "$changed" | grep -Eq '^(src/|tests/|scripts/|compose\.yaml|\.github/workflows/pr-validation\.yml|Directory\.Packages\.props|PostmanClone\.sln|global\.json)'; then
               e2e=true
             fi
           fi
@@ -286,6 +289,107 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  compose-e2e:
+    # ADR-0030, ADR-0031: the container estate. The pinned authservice image runs as a container with PostgreSQL and the services built from
+    # their Dockerfiles; the seed runs against it once; Chromium signs in as the seeded owner and member and the shared-collection journey
+    # runs against containers (Estate=compose). Only the journeys that need no loopback target and no local agent run here.
+    name: Compose estate (containers) and E2E
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.e2e == 'true' && needs.detect-changes.outputs.solution == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      POSTMANCLONE_E2E_REQUIRED: '1'
+      E2E_LOG_DIR: ${{ github.workspace }}/.local-stack/compose-logs
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Pull the pinned authservice image (the container path under test)
+        run: |
+          set -euo pipefail
+          image=$(grep -oP 'AUTHSERVICE_IMAGE:-\K[^}]+' compose.yaml)
+          echo "Pulling ${image}"
+          docker pull "${image}"
+          docker image inspect "${image}" --format 'authservice image id: {{.Id}}'
+
+      - name: Build the journeys
+        run: dotnet build tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj --configuration Release
+
+      - name: Install Chromium for Playwright
+        run: pwsh tests/PostmanClone.Web.E2E/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Build and start the estate, wait for the seed
+        run: scripts/compose-up.sh
+
+      - name: authservice health and a second seed run (idempotent)
+        run: |
+          set -euo pipefail
+          curl -fsS http://localhost:5300/health/ready; echo
+          curl -fsS http://localhost:5300/.well-known/jwks.json | python3 -c 'import json,sys; print("JWKS keys:", len(json.load(sys.stdin)["keys"]))'
+          scripts/compose-up.sh seed | tee second-seed.log
+          grep -q "done (0 item(s) created" second-seed.log
+
+      - name: Journeys against the containers (seeded sign-in, shared collection)
+        run: dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj --configuration Release --no-build --filter "Estate=compose"
+
+      - name: Container logs (on failure)
+        if: failure()
+        run: |
+          docker compose -f compose.yaml ps -a || true
+          docker compose -f compose.yaml logs --no-color --tail 200 || true
+        env:
+          JWT_PRIVATE_KEY_PEM: unused-for-logs
+          SECRETS_ENCRYPTION_KEY: unused-for-logs
+
+      - name: Stop and remove the estate
+        if: always()
+        run: scripts/compose-up.sh down -v
+
+      - name: Browser artifacts (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-e2e-logs
+          path: |
+            .local-stack/compose-logs/
+            tests/PostmanClone.Web.E2E/bin/Release/net10.0/TestResults/
+          if-no-files-found: warn
+          retention-days: 7
+
+  aspire-apphost-probe:
+    # ADR-0031: the experiment. Does the real AppHost (Aspire's orchestrator, DCP) start the estate on a GitHub runner? Informational: it is
+    # not part of the pr-validation aggregate, because the answer is a measurement, not a gate. Its log is the evidence the ADR cites.
+    name: Aspire AppHost probe (informational)
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.e2e == 'true' && needs.detect-changes.outputs.solution == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Start the AppHost and look for the seeded estate
+        env:
+          PROBE_TIMEOUT: '900'
+        run: scripts/aspire-probe.sh
+
+      - name: AppHost log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aspire-apphost-probe-log
+          path: .local-stack/logs/
+          if-no-files-found: warn
+          retention-days: 7
+
   agent-artifacts:
     # WP30: the local agent as a dotnet tool package and as self-contained single-file programs, uploaded as workflow
     # artifacts only. No release, no tag, no push (ADR-0026, ADR-0027). The publish is run for each platform so a
@@ -380,7 +484,7 @@ jobs:
 
   pr-validation:
     name: pr-validation
-    needs: [detect-changes, dotnet, docker-build, kernel-size, auth-smoke, e2e, docs-links, agent-artifacts, flyio-config]
+    needs: [detect-changes, dotnet, docker-build, kernel-size, auth-smoke, e2e, compose-e2e, docs-links, agent-artifacts, flyio-config]
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -393,6 +497,7 @@ jobs:
           KERNEL: ${{ needs.kernel-size.result }}
           AUTH: ${{ needs.auth-smoke.result }}
           E2E: ${{ needs.e2e.result }}
+          COMPOSE: ${{ needs.compose-e2e.result }}
           DOCS: ${{ needs.docs-links.result }}
           FLYIO: ${{ needs.flyio-config.result }}
           AGENT: ${{ needs.agent-artifacts.result }}
@@ -408,11 +513,12 @@ jobs:
             echo "| Kernel size | ${KERNEL} |"
             echo "| authservice smoke | ${AUTH} |"
             echo "| Browser journeys (E2E) | ${E2E} |"
+            echo "| Compose estate (containers) and E2E | ${COMPOSE} |"
             echo "| Markdown links | ${DOCS} |"
             echo "| Fly configuration | ${FLYIO} |"
             echo "| Agent packages | ${AGENT} |"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$DETECT" "$DOTNET" "$DOCKER" "$KERNEL" "$AUTH" "$E2E" "$DOCS" "$FLYIO" "$AGENT"; do
+          for result in "$DETECT" "$DOTNET" "$DOCKER" "$KERNEL" "$AUTH" "$E2E" "$COMPOSE" "$DOCS" "$FLYIO" "$AGENT"; do
             case "$result" in
               success|skipped) ;;
               *) echo "A validation job ended with: ${result}"; exit 1 ;;
