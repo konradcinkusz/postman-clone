@@ -7,11 +7,16 @@
     <Description>Aspire AppHost: composes PostgreSQL, authservice and the PostmanClone services for development.</Description>
     <OutputType>Exe</OutputType>
     <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>postmanclone-apphost</UserSecretsId>
     <!-- ASPIRE010: the Aspire CLI bundle is not used; the dashboard and the AppHost run without it. -->
     <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\PostmanClone.ExecutionService\PostmanClone.ExecutionService.csproj" />
+    <ProjectReference Include="..\PostmanClone.Seeder\PostmanClone.Seeder.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PostmanClone.AppHost.Tests" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" />

@@ -16,8 +16,13 @@ internal sealed class SeedRunner(SeedOptions options, ApiClient api, Action<stri
         await WaitForEstateAsync(ct);
 
         var owner = await EnsureAccountAsync(DemoData.OwnerEmail, ct);
-        var org = await EnsureOrganizationAsync(owner, ct);
-        owner = await owner.RefreshedAsync(this, ct);
+        var (org, orgCreated) = await EnsureOrganizationAsync(owner, ct);
+        // A token issued before the workspace existed has no organization claim. A run that finds the workspace already there signs in
+        // with a token that has it, so it needs no refresh (and spends nothing of authservice's sign-in window).
+        if (orgCreated)
+        {
+            owner = await RefreshAsync(owner, ct);
+        }
 
         var member = await EnsureAccountAsync(DemoData.MemberEmail, ct);
         member = await EnsureMemberAsync(owner, member, org, ct);
@@ -115,10 +120,7 @@ internal sealed class SeedRunner(SeedOptions options, ApiClient api, Action<stri
 
     // ── accounts ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-    internal sealed record Account(string Email, string Access, string Refresh)
-    {
-        public async Task<Account> RefreshedAsync(SeedRunner runner, CancellationToken ct) => await runner.RefreshAsync(this, ct);
-    }
+    internal sealed record Account(string Email, string Access, string Refresh);
 
     private async Task<Account?> TryLoginAsync(string email, CancellationToken ct)
     {
@@ -191,19 +193,19 @@ internal sealed class SeedRunner(SeedOptions options, ApiClient api, Action<stri
         return null;
     }
 
-    private async Task<Guid> EnsureOrganizationAsync(Account owner, CancellationToken ct)
+    private async Task<(Guid Id, bool Created)> EnsureOrganizationAsync(Account owner, CancellationToken ct)
     {
         var found = await FindDemoOrganizationAsync(owner, ct);
         if (found is { } existing)
         {
             log($"workspace '{DemoData.OrganizationName}': present");
-            return existing.Id;
+            return (existing.Id, false);
         }
 
         var created = await api.SendAsync(Post, options.AuthBaseUrl, "/api/v1/organizations",
             new JsonObject { ["name"] = DemoData.OrganizationName, ["description"] = "Demo data for a fresh start (seeded)." }, owner.Access, ct);
         log($"workspace '{DemoData.OrganizationName}': created");
-        return Guid.Parse(created!["id"]!.GetValue<string>());
+        return (Guid.Parse(created!["id"]!.GetValue<string>()), true);
     }
 
     private async Task<Account> EnsureMemberAsync(Account owner, Account member, Guid orgId, CancellationToken ct)

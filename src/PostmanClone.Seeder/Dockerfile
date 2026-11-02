@@ -10,6 +10,8 @@ RUN dotnet publish src/PostmanClone.Seeder/PostmanClone.Seeder.csproj --configur
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
+# A job, not a service: no port to EXPOSE (architecture rule R8 exempts this label from the port check only).
+LABEL postmanclone.kind="job"
 # The image's built-in non-root user.
 USER app
 ENTRYPOINT ["dotnet", "PostmanClone.Seeder.dll"]

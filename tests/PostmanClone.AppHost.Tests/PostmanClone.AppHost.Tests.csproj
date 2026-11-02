@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The AppHost's resource model against compose.yaml (ADR-0031). The AppHost is built in memory, never started: no container runtime and no
+    orchestrator are needed, so this runs wherever the unit tests run. Starting the AppHost needs DCP and Docker (ADR-0031 records
+    what was measured on a GitHub runner).
+  -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>PostmanClone.AppHost.Tests</RootNamespace>
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PostmanClone.AppHost\PostmanClone.AppHost.csproj" />
+    <ProjectReference Include="..\PostmanClone.TestKit\PostmanClone.TestKit.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Testing" />
+    <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+</Project>
