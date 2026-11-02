@@ -61,6 +61,22 @@ Every route, the limits and the error codes are in [`docs/implementation-plan/CO
 
 ## Run it locally
 
+### Demo data and the demo logins
+
+Every start path below ends by running a one-shot seed (`src/PostmanClone.Seeder`, [ADR-0030](docs/decisions/0030-demo-seed.md)), so a
+fresh start shows a populated product: one workspace `Demo Workspace` with two accounts, a collection `[demo] Getting started` (a GET to
+`https://example.com/` and a POST with a JSON body), and an environment `[demo] Local demo` with a plain variable and a secret whose value
+is a fake. The seed is Development only, idempotent, and keeps its data under the `[demo] ` name prefix.
+
+| Account | Email | Password (published, dev only) |
+|---|---|---|
+| Owner | `demo.owner@postmanclone.test` | `Demo-Passw0rd!` |
+| Member | `demo.member@postmanclone.test` | `Demo-Passw0rd!` |
+
+`scripts/run-local-stack.sh seed` runs it again; `scripts/run-local-stack.sh reset` (or `scripts/compose-up.sh reset`) removes the demo
+collections and environments and nothing else. `SEED_DEMO=0` (script), `SEED_ENABLED=false` (compose) and `Seed:Enabled=false` (AppHost)
+switch it off.
+
 ### Without Docker (the route the sessions use)
 
 Prerequisites: .NET SDK 10, PostgreSQL 16 at the default `PG_CONNECTION`, and `git`, `openssl`, `psql`, `curl`, `base64`.
@@ -84,15 +100,26 @@ The script starts EnvironmentsService (5302) and the Web (5310) too; `WEB_AUTH_P
 (default 10 a minute per address).
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md#4-running-locally) has the details, the logs, and the configuration reference.
 
+### As containers with docker compose (needs Docker)
+
+```bash
+scripts/compose-up.sh          # builds the services, pulls the pinned authservice image, starts, seeds, prints the demo logins
+scripts/compose-up.sh down -v  # stops and deletes the databases
+```
+
+[`compose.yaml`](compose.yaml) runs PostgreSQL, `ghcr.io/konradcinkusz/authservice:v0.3.4` as a container, the three services, the Web
+(`http://localhost:5310`) and the seed. It mirrors the AppHost (a test compares them, [ADR-0031](docs/decisions/0031-compose-estate-and-aspire-on-runners.md)).
+CI runs it as the `compose-e2e` job. The signing key and the encryption key are generated into the gitignored `.local-stack/`.
+
 ### With the AppHost (needs Docker)
 
 ```bash
 dotnet run --project src/PostmanClone.AppHost
 ```
 
-It starts PostgreSQL, the authservice container, the three services and the Web on port 5310. It needs the two AppHost
-parameters described in [OPERATIONS.md §3](docs/OPERATIONS.md#3-secrets-and-how-to-generate-them). **The AppHost has never
-been run in a development session**, because sessions have no Docker daemon.
+It starts PostgreSQL, the authservice container, the three services, the Web on port 5310 and the seed. The signing key and the
+encryption key are generated on the first run into this project's user secrets (outside the repository), so no parameter has to be typed.
+See [OPERATIONS.md §4.4](docs/OPERATIONS.md#44-the-apphost-srcpostmanclone-apphost-needs-docker) for what was and was not run.
 
 ## Test it
 

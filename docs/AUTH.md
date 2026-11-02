@@ -10,7 +10,7 @@ Web rely on, what the pinned version actually does, and where the two differ fro
 | | |
 |---|---|
 | Version | `v0.3.4`, one constant in `src/PostmanClone.AppHost/Resources/AuthServiceResource.cs` and one in `scripts/run-local-stack.sh` |
-| Container (AppHost) | `ghcr.io/konradcinkusz/authservice:v0.3.4`, port 8080 inside, own database `authdb`, `Database__SchemaMode=Migrate`, RS256 |
+| Container (AppHost, `compose.yaml`) | `ghcr.io/konradcinkusz/authservice:v0.3.4`, port 8080 inside, own database `authdb`, `Database__SchemaMode=Migrate`, RS256, PKCS#8 key from a secret, `ASPNETCORE_ENVIRONMENT=Development` while the seed is on, console copied to `/logs` (the invitation token), data-protection keys on a volume. A test compares the two ([ADR-0031](decisions/0031-compose-estate-and-aspire-on-runners.md)) |
 | Local, no Docker | `scripts/run-local-stack.sh up` clones the tag to `.local-stack/`, builds it, and listens on port 5300 |
 | Smoke test | `scripts/smoke-auth.sh` against a running authservice; CI job `auth-smoke` |
 | Source read | Every fact below was read from the v0.3.4 source (file and line given). Runtime values are listed under [Observed](#observed) |
@@ -49,6 +49,23 @@ is confirmed.
    `401` (`AuthController.cs`, line 273).
 6. **Sign out.** `POST /api/v1/auth/logout` needs a bearer token (`[Authorize]`, line 848). It revokes all of the
    user's refresh tokens, not only the current one.
+
+## Demo logins (seeded, development only)
+
+Every start path runs the seed ([ADR-0030](decisions/0030-demo-seed.md)), which creates two accounts in one organization, `Demo Workspace`.
+Their password is published on purpose and is not a credential: the accounts exist only in an estate whose seeder passed its
+Development gate. It meets authservice's rule (at least eight characters with a digit, a lowercase and an uppercase letter and a
+non-alphanumeric character).
+
+| Role in `Demo Workspace` | Email | Password |
+|---|---|---|
+| Owner (creates the organization) | `demo.owner@postmanclone.test` | `Demo-Passw0rd!` |
+| Member (invited by the owner, accepts) | `demo.member@postmanclone.test` | `Demo-Passw0rd!` |
+
+The seed does what a person does: login (or register on the first run), `POST /api/v1/organizations`, a refresh for the `organization`
+claim, `POST …/invite`, the invitee's `POST …/invitations/accept` and a refresh. It reads the member's invitation token from authservice's
+log, because v0.3.4 returns it only in an email (see Members and invitations). An account that already exists with another password stops
+the run with a message; the seed never changes a password.
 
 ## Endpoints the services use (read from v0.3.4)
 

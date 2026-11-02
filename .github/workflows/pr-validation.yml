@@ -260,7 +260,13 @@ jobs:
         run: scripts/run-local-stack.sh up agent
 
       - name: Journeys that send to the local target (loopback)
-        run: dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj --configuration Release --no-build --filter "Mode!=strict"
+        run: |
+          set -o pipefail
+          dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj --configuration Release --no-build --filter "Mode!=strict" 2>&1 | tee e2e-loopback.log
+
+      - name: Which journeys failed (loopback)
+        if: failure()
+        run: grep -n -E "^\s*failed |Assert\.|Expected|Actual|Timeout|outcome|errorCode|Code:" e2e-loopback.log | cut -c1-300 | head -60 || true
 
       - name: Stop the estate
         if: always()
@@ -272,7 +278,13 @@ jobs:
         run: scripts/run-local-stack.sh up agent
 
       - name: Journeys that expect the sender to refuse loopback (strict)
-        run: dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj --configuration Release --no-build --filter "Mode!=loopback"
+        run: |
+          set -o pipefail
+          dotnet test --project tests/PostmanClone.Web.E2E/PostmanClone.Web.E2E.csproj --configuration Release --no-build --filter "Mode!=loopback" 2>&1 | tee e2e-strict.log
+
+      - name: Which journeys failed (strict)
+        if: failure()
+        run: grep -n -E "^\s*failed |Assert\.|Expected|Actual|Timeout|outcome|errorCode|Code:" e2e-strict.log | cut -c1-300 | head -60 || true
 
       - name: Stop the estate
         if: always()

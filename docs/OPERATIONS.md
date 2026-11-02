@@ -109,6 +109,7 @@ and `scripts/run-local-stack.sh`: `Jwt__PrivateKeyPem` (RS256 PKCS#8 key), `Jwt_
 | authservice RS256 private key | `.local-stack/secrets.env` (`JWT_PRIVATE_KEY_PEM_B64`); AppHost parameter `authservice-jwt-private-key-pem` | `scripts/gen-dev-secrets.sh` (OpenSSL, RSA 2048 PKCS#8). Never printed. |
 | Environment encryption key | `.local-stack/secrets.env` (`SECRETS_ENCRYPTION_KEY`); AppHost parameter `environments-encryption-key` | `scripts/gen-dev-secrets.sh` (32 random bytes, base64). |
 | Development database password | `PG_CONNECTION` default | Not secret outside a developer's machine. |
+| Demo account password | README, AUTH.md, `src/PostmanClone.Seeder/DemoData.cs` | Published on purpose; the seeder refuses outside Development (ADR-0030). |
 
 Rules that apply to every secret (P5, [ADR-0006](decisions/0006-secret-variables.md)):
 
@@ -190,8 +191,30 @@ dotnet run --project src/PostmanClone.AppHost
 ```
 
 It starts PostgreSQL with four databases, the authservice container (`ghcr.io/konradcinkusz/authservice:v0.3.4`), the
-three services and the Web on port 5310. It needs Docker and the two AppHost parameters (§3). **It has never been run
-in a development session**, because sessions have no Docker daemon (see [TESTING.md](TESTING.md#4-what-has-never-run)).
+three services, the Web on port 5310 and the one-shot `seed` project (ADR-0030). The two secrets are generated on the first run into
+this project's user secrets (`~/.microsoft/usersecrets/postmanclone-apphost/secrets.json`, mode 0600): the signing key as a PKCS#8 RSA
+PEM and the 32-byte encryption key. A value in configuration (`Parameters:authservice-jwt-private-key-pem`,
+`Parameters:environments-encryption-key`) wins. `Seed:Enabled=false` leaves the seed out. authservice's console is copied to
+`.local-stack/aspire-logs/authservice.log`, where the seeder reads the invitation token.
+
+What was run and what was not: the AppHost's resource model is built in memory and compared with `compose.yaml` by
+`tests/PostmanClone.AppHost.Tests`. Whether DCP starts it on a GitHub runner was measured by the informational `aspire-apphost-probe` job
+(ADR-0031 has the result). It has not been started on a developer machine in a session, because sessions have no working
+orchestrator.
+
+### 4.4a Containers with docker compose (`compose.yaml`, `scripts/compose-up.sh`)
+
+```bash
+scripts/compose-up.sh              # pull authservice, build the services, start, wait for the seed, print the demo logins
+scripts/compose-up.sh seed         # run the seed again (idempotent); `reset` removes the [demo] data
+scripts/compose-up.sh logs web     # follow one service
+scripts/compose-up.sh down -v      # stop and delete the databases
+```
+
+Ports: authservice 5300, CollectionsService 5301, EnvironmentsService 5302, ExecutionService 5303, Web 5310 (PostgreSQL is not published).
+`AUTHSERVICE_IMAGE=<ref>` replaces the pinned image (for a host that cannot pull from `ghcr.io`); `COMPOSE_UP_ARGS=--no-build` uses images that
+are already built; `SEED_ENABLED=false` makes the seed container refuse and exit 2. The keys come from `.local-stack/secrets.env`, the
+same file the no-Docker script uses. authservice's log is `.local-stack/compose-logs/authservice.log`. CI runs this as `compose-e2e`.
 
 ### 4.5 The browser journeys (`tests/PostmanClone.Web.E2E`, ADR-0018)
 

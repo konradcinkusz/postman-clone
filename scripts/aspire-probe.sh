@@ -32,13 +32,27 @@ while [ "${SECONDS}" -lt "${deadline}" ]; do
   if ! kill -0 "${APPHOST_PID}" 2>/dev/null; then verdict="AppHost exited"; break; fi
   if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://localhost:5310/health || true)" = "200" ]; then
     verdict="sign-in failed"
-    # Give the one-shot seed time to finish, then sign in as the seeded owner. The Web answers a good sign-in with a 3xx and a cookie.
+    # Give the one-shot seed time to finish, then sign in as the seeded owner through the Web's own form: GET the page for the antiforgery
+    # token and cookie, POST the form with both. A good sign-in is answered with a redirect and a session cookie.
+    jar="${LOG_DIR}/probe.cookies"
     for _ in $(seq 1 60); do
-      code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -c "${LOG_DIR}/probe.cookies" -X POST \
-        -H 'Origin: http://localhost:5310' -H 'Referer: http://localhost:5310/sign-in' \
-        --data-urlencode 'email=demo.owner@postmanclone.test' --data-urlencode 'password=Demo-Passw0rd!' http://localhost:5310/sign-in || true)"
+      rm -f "${jar}"
+      token="$(curl -s --max-time 20 -c "${jar}" http://localhost:5310/sign-in | grep -o 'name="__RequestVerificationToken"[^>]*value="[^"]*"' | head -1 | sed 's/.*value="//; s/"$//')"
+      if [ -n "${token}" ]; then
+        code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 -b "${jar}" -c "${jar}" -X POST \
+          -H 'Origin: http://localhost:5310' -H 'Referer: http://localhost:5310/sign-in' \
+          --data-urlencode "__RequestVerificationToken=${token}" \
+          --data-urlencode 'email=demo.owner@postmanclone.test' --data-urlencode 'password=Demo-Passw0rd!' http://localhost:5310/sign-in || true)"
+      else
+        code="no-antiforgery-token"
+      fi
       echo "sign-in attempt -> ${code}"
-      if [ "${code}" = "302" ] || [ "${code}" = "303" ]; then verdict="works"; break; fi
+      if [ "${code}" = "302" ] || [ "${code}" = "303" ]; then
+        # The redirect target tells a sign-in from a refusal: a refusal goes back to /sign-in?error=...
+        loc="$(curl -s -o /dev/null -D - --max-time 5 -b "${jar}" http://localhost:5310/ | tr -d '\r' | grep -i '^location:' || true)"
+        echo "after sign-in, GET / -> ${loc:-200 (no redirect: signed in)}"
+        if ! echo "${loc}" | grep -qi 'sign-in'; then verdict="works"; break; fi
+      fi
       sleep 5
     done
     break
@@ -46,10 +60,13 @@ while [ "${SECONDS}" -lt "${deadline}" ]; do
   sleep 5
 done
 
-echo "--- AppHost log (last 60 lines) ---"
-tail -n 60 "${LOG}" || true
+echo "--- containers started by DCP ---"
+docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}' | head -20 || true
+echo "--- AppHost log: errors and seed lines ---"
+grep -i -E "error|fail|exception|seed|authservice" "${LOG}" | cut -c1-220 | head -40 || true
+echo "--- AppHost log (last 25 lines) ---"
+tail -n 25 "${LOG}" || true
 kill "${APPHOST_PID}" 2>/dev/null || true
 sleep 3
-docker ps -a --format '{{.Names}} {{.Status}}' | head -20 || true
 echo "PROBE-RESULT: ${verdict}"
 [ "${verdict}" = "works" ]
