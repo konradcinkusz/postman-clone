@@ -116,6 +116,33 @@ public sealed class AppHostComposeParityTests
     }
 
     [Fact]
+    public async Task The_web_trusts_the_same_issuer_and_finds_the_same_four_backends_in_both()
+    {
+        var model = await AppHostModel.BuildAsync();
+        var apphost = await model.EnvironmentAsync("web");
+        var compose = Compose.Environment("web");
+
+        foreach (var name in new[] { "Auth__MetadataAddress", "Auth__Issuer", "Auth__Audience", "Auth__RequireHttpsMetadata", "ASPNETCORE_ENVIRONMENT" })
+        {
+            Assert.True(apphost.ContainsKey(name), $"The AppHost does not set {name} on the Web.");
+            Assert.True(compose.ContainsKey(name), $"compose.yaml does not set {name} on the Web.");
+        }
+
+        Assert.Equal(apphost["Auth__Issuer"], compose["Auth__Issuer"]);
+        Assert.Equal(apphost["Auth__Audience"], compose["Auth__Audience"]);
+        Assert.Equal(apphost["ASPNETCORE_ENVIRONMENT"], compose["ASPNETCORE_ENVIRONMENT"]);
+
+        // The service-discovery names the Web resolves its typed clients through (CONTRACTS section 5).
+        var discovery = new[] { "authservice", "collections-service", "environments-service", "execution-service" }
+            .Select(n => $"services__{n}__http__0").ToArray();
+        foreach (var key in discovery)
+        {
+            Assert.True(apphost.ContainsKey(key), $"The AppHost gives the Web no {key}.");
+            Assert.True(compose.ContainsKey(key), $"compose.yaml gives the Web no {key}.");
+        }
+    }
+
+    [Fact]
     public async Task The_environments_encryption_key_is_a_required_secret_reference_in_both()
     {
         var model = await AppHostModel.BuildAsync();

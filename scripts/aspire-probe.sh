@@ -39,14 +39,14 @@ while [ "${SECONDS}" -lt "${deadline}" ]; do
       rm -f "${jar}"
       token="$(curl -s --max-time 20 -c "${jar}" http://localhost:5310/sign-in | grep -o 'name="__RequestVerificationToken"[^>]*value="[^"]*"' | head -1 | sed 's/.*value="//; s/"$//')"
       if [ -n "${token}" ]; then
-        code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 -b "${jar}" -c "${jar}" -X POST \
+        code="$(curl -s -o "${LOG_DIR}/probe-post.headers" -D "${LOG_DIR}/probe-post.headers" -w '%{http_code}' --max-time 30 -b "${jar}" -c "${jar}" -X POST \
           -H 'Origin: http://localhost:5310' -H 'Referer: http://localhost:5310/sign-in' \
           --data-urlencode "__RequestVerificationToken=${token}" \
           --data-urlencode 'email=demo.owner@postmanclone.test' --data-urlencode 'password=Demo-Passw0rd!' http://localhost:5310/sign-in || true)"
       else
         code="no-antiforgery-token"
       fi
-      echo "sign-in attempt -> ${code}"
+      echo "sign-in attempt -> ${code} $(tr -d '\r' < "${LOG_DIR}/probe-post.headers" 2>/dev/null | grep -i '^location:' | head -1)"
       if [ "${code}" = "302" ] || [ "${code}" = "303" ]; then
         # The redirect target tells a sign-in from a refusal: a refusal goes back to /sign-in?error=...
         loc="$(curl -s -o /dev/null -D - --max-time 5 -b "${jar}" http://localhost:5310/ | tr -d '\r' | grep -i '^location:' || true)"
@@ -60,6 +60,16 @@ while [ "${SECONDS}" -lt "${deadline}" ]; do
   sleep 5
 done
 
+echo "--- authservice, asked directly (the seed's result) ---"
+auth_container="$(docker ps --filter name=authservice --format '{{.Names}}' | head -1)"
+if [ -n "${auth_container}" ]; then
+  port="$(docker port "${auth_container}" 8080 | head -1 | sed 's/.*://')"
+  echo "authservice container ${auth_container} on host port ${port}"
+  curl -s -o /dev/null -w 'GET /health/ready -> %{http_code}\n' "http://localhost:${port}/health/ready" || true
+  curl -s -o /dev/null -w 'POST /api/v1/auth/login (demo owner) -> %{http_code}\n' -X POST -H 'Content-Type: application/json' \
+    --data '{"email":"demo.owner@postmanclone.test","password":"Demo-Passw0rd!"}' "http://localhost:${port}/api/v1/auth/login" || true
+  echo "invitation lines in authservice's console: $(docker logs "${auth_container}" 2>&1 | grep -c 'Invitation email to' || true)"
+fi
 echo "--- containers started by DCP ---"
 docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}' | head -20 || true
 echo "--- AppHost log: errors and seed lines ---"

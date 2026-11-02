@@ -16,8 +16,8 @@ var authService = builder.AddAuthService(authDatabase);
 
 var collectionsService = builder.AddCollectionsService(collectionsDatabase, authService);
 var environmentsService = builder.AddEnvironmentsService(environmentsDatabase, authService);
-builder.AddExecutionService(executionDatabase, authService, environmentsService);
-builder.AddWeb(authService);
+var executionService = builder.AddExecutionService(executionDatabase, authService, environmentsService);
+builder.AddWeb(authService, collectionsService, environmentsService, executionService);
 
 // The demo seed (ADR-0030): Development only, on unless Seed:Enabled=false. It waits for the services, creates the demo data through
 // their APIs and exits. compose.yaml (ADR-0031) runs the same seeder after the same services.
