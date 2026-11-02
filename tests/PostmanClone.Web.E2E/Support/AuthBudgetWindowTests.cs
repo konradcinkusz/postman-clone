@@ -55,4 +55,21 @@ public sealed class AuthBudgetWindowTests
     {
         Assert.Equal(18, AuthBudget.PerWindow);
     }
+
+    [Fact]
+    public async Task Calls_already_spent_before_the_suite_count_against_the_first_window()
+    {
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var window = new AuthBudgetWindow(clock, limit: 3, alreadySpent: 2);
+        var cancellation = TestContext.Current.CancellationToken;
+
+        await window.AcquireAsync(cancellation); // the one call that still fits
+        var next = window.AcquireAsync(cancellation);
+        await Task.Yield();
+        Assert.False(next.IsCompleted, "Two spent calls plus one leave no room: the next call waits.");
+
+        clock.Advance(TimeSpan.FromMinutes(1) + TimeSpan.FromSeconds(1));
+        await next.WaitAsync(TimeSpan.FromSeconds(5), cancellation);
+        Assert.True(next.IsCompletedSuccessfully);
+    }
 }
