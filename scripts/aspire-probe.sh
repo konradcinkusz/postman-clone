@@ -14,6 +14,9 @@ cd "${REPO_ROOT}"
 LOG_DIR="${REPO_ROOT}/.local-stack/logs"
 mkdir -p "${LOG_DIR}"
 LOG="${LOG_DIR}/apphost-probe.log"
+SUMMARY="${LOG_DIR}/probe-summary.txt"
+: > "${SUMMARY}"
+say() { echo "$*" | tee -a "${SUMMARY}"; }
 TIMEOUT="${PROBE_TIMEOUT:-900}"
 
 export DOTNET_ENVIRONMENT=Development
@@ -22,7 +25,7 @@ export ASPNETCORE_URLS="http://localhost:15888"
 export ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL="http://localhost:16888"
 export ASPIRE_ALLOW_UNSECURED_TRANSPORT=true
 
-echo "docker: $(docker version --format '{{.Server.Version}}' 2>&1)"
+say "docker: $(docker version --format '{{.Server.Version}}' 2>&1)"
 nohup dotnet run --project src/PostmanClone.AppHost --no-launch-profile > "${LOG}" 2>&1 &
 APPHOST_PID=$!
 
@@ -46,11 +49,11 @@ while [ "${SECONDS}" -lt "${deadline}" ]; do
       else
         code="no-antiforgery-token"
       fi
-      echo "sign-in attempt -> ${code} $(tr -d '\r' < "${LOG_DIR}/probe-post.headers" 2>/dev/null | grep -i '^location:' | head -1)"
+      say "sign-in attempt -> ${code} $(tr -d '\r' < "${LOG_DIR}/probe-post.headers" 2>/dev/null | grep -i '^location:' | head -1)"
       if [ "${code}" = "302" ] || [ "${code}" = "303" ]; then
         # The redirect target tells a sign-in from a refusal: a refusal goes back to /sign-in?error=...
         loc="$(curl -s -o /dev/null -D - --max-time 5 -b "${jar}" http://localhost:5310/ | tr -d '\r' | grep -i '^location:' || true)"
-        echo "after sign-in, GET / -> ${loc:-200 (no redirect: signed in)}"
+        say "after sign-in, GET / -> ${loc:-200 (no redirect: signed in)}"
         if ! echo "${loc}" | grep -qi 'sign-in'; then verdict="works"; break; fi
       fi
       sleep 5
@@ -60,6 +63,7 @@ while [ "${SECONDS}" -lt "${deadline}" ]; do
   sleep 5
 done
 
+{
 echo "--- authservice, asked directly (the seed's result) ---"
 auth_container="$(docker ps --filter name=authservice --format '{{.Names}}' | head -1)"
 if [ -n "${auth_container}" ]; then
@@ -76,7 +80,10 @@ echo "--- AppHost log: errors and seed lines ---"
 grep -i -E "error|fail|exception|seed|authservice" "${LOG}" | cut -c1-220 | head -40 || true
 echo "--- AppHost log (last 25 lines) ---"
 tail -n 25 "${LOG}" || true
+} >> "${SUMMARY}" 2>&1
 kill "${APPHOST_PID}" 2>/dev/null || true
 sleep 3
-echo "PROBE-RESULT: ${verdict}"
+say "PROBE-RESULT: ${verdict}"
+echo "=== PROBE SUMMARY ==="
+cat "${SUMMARY}"
 [ "${verdict}" = "works" ]
