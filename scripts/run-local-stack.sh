@@ -6,6 +6,7 @@
 #                                       (5301), EnvironmentsService (5302), ExecutionService (5303), the Web (5310)
 #   scripts/run-local-stack.sh up agent the same, then the local agent on 127.0.0.1:AGENT_PORT (default 47631), set up
 #                                       for the Web's origin and EnvironmentsService (WP32, ADR-0026, ADR-0028)
+#   scripts/run-local-stack.sh seed     (re)run the demo seed against the running estate; `reset` removes the demo collections and environments
 #   scripts/run-local-stack.sh down     stop the processes this script started (databases and .local-stack/ are kept)
 #   scripts/run-local-stack.sh status   whether each one runs and whether its health answers
 #
@@ -16,7 +17,10 @@
 #   E2E_SENDER_LOOPBACK=1   the sender may reach loopback addresses (Execution:Ssrf:AllowLoopback=true). This is the
 #                           test-only flag the E2E suite needs to send to its local target. The default refuses loopback
 #                           (ADR-0011), and the refusal is what the E2E suite checks when this flag is absent.
-#   AUTHSERVICE_ENVIRONMENT=Development   authservice logs invitation tokens locally (WP24, docs/AUTH.md).
+#   AUTHSERVICE_ENVIRONMENT=Development   authservice logs invitation tokens locally (WP24, docs/AUTH.md). It is the default
+#                           while the demo seed is on, because the seed adds the demo member by reading that token (ADR-0030).
+#   SEED_DEMO=0             do not seed. The default is on: `up` ends by running the seeder (src/PostmanClone.Seeder), which creates the
+#                           two demo accounts, the demo collection and the demo environment through the running APIs, once.
 #
 # The AppHost (src/PostmanClone.AppHost) runs the same authservice image through Docker. This script is the route
 # when there is no Docker daemon. It runs the same pinned tag, built from source into .local-stack/ (gitignored),
@@ -45,6 +49,7 @@ AGENT_PORT="${AGENT_PORT:-47631}"
 # gitleaks:allow — the default is a local development server, not a credential.
 PG_CONNECTION="${PG_CONNECTION:-Host=localhost;Username=postgres;Password=postgres}"
 SERVICE_DATABASES=(authdb collectionsdb environmentsdb executiondb)
+SEED_DEMO="${SEED_DEMO:-1}"
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "${REPO_ROOT}"
@@ -59,8 +64,10 @@ ENVIRONMENTS_BIN_DIR="${STACK_DIR}/environments-bin"
 EXEC_BIN_DIR="${STACK_DIR}/execution-bin"
 WEB_BIN_DIR="${STACK_DIR}/web-bin"
 AGENT_BIN_DIR="${STACK_DIR}/agent-bin"
+SEED_BIN_DIR="${STACK_DIR}/seeder-bin"
 AGENT_HOME_DIR="${STACK_DIR}/agent"
 
+SRC_SEEDER="${REPO_ROOT}/src/PostmanClone.Seeder/PostmanClone.Seeder.csproj"
 SRC_AGENT="${REPO_ROOT}/src/PostmanClone.Agent/PostmanClone.Agent.csproj"
 SRC_COLLECTIONS="${REPO_ROOT}/src/PostmanClone.CollectionsService/PostmanClone.CollectionsService.csproj"
 SRC_ENVIRONMENTS="${REPO_ROOT}/src/PostmanClone.EnvironmentsService/PostmanClone.EnvironmentsService.csproj"
@@ -204,6 +211,29 @@ up() {
   if [ "${1:-}" = "agent" ]; then
     up_agent
   fi
+  if [ "${SEED_DEMO}" = "1" ]; then
+    run_seeder seed
+  else
+    echo "Demo seed skipped (SEED_DEMO=${SEED_DEMO})."
+  fi
+}
+
+# The seeder is a client of the running APIs (ADR-0030). Development only, with the explicit switch; it reads the invitation token
+# for the demo member from authservice's log, which is why authservice runs as Development while the seed is on.
+run_seeder() {
+  require dotnet
+  mkdir -p "${LOG_DIR}"
+  build_into seeder dotnet publish "${SRC_SEEDER}" -c Release -o "${SEED_BIN_DIR}"
+  (
+    export DOTNET_ENVIRONMENT=Development
+    export Seed__Enabled=true
+    export Seed__AuthBaseUrl="http://localhost:${AUTH_PORT}"
+    export Seed__CollectionsBaseUrl="http://localhost:${COLLECTIONS_PORT}"
+    export Seed__EnvironmentsBaseUrl="http://localhost:${ENVIRONMENTS_PORT}"
+    export Seed__AuthLogPath="${LOG_DIR}/authservice.log"
+    set -o pipefail
+    dotnet "${SEED_BIN_DIR}/PostmanClone.Seeder.dll" "$1" 2>&1 | tee "${LOG_DIR}/seed.log"
+  )
 }
 
 up_authservice() {
@@ -231,7 +261,7 @@ up_authservice() {
     export FrontendBaseUrl="http://localhost:${WEB_PORT}"
     # Production withholds an invitation token from the log when no email provider is configured. Set
     # AUTHSERVICE_ENVIRONMENT=Development to read the token there locally (docs/AUTH.md, Invitations).
-    export ASPNETCORE_ENVIRONMENT="${AUTHSERVICE_ENVIRONMENT:-Production}"
+    export ASPNETCORE_ENVIRONMENT="${AUTHSERVICE_ENVIRONMENT:-$([ "${SEED_DEMO}" = "1" ] && echo Development || echo Production)}"
     start_detached authservice "${LOG_DIR}/authservice.log" dotnet "${AUTH_BIN_DIR}/AuthService.dll"
   )
   # Schema migration runs after Kestrel starts (MigrateAsync), so /health/ready answers 503 until it is done.
@@ -436,5 +466,7 @@ case "${1:-}" in
   up) up "${2:-}" ;;
   down) down ;;
   status) status ;;
-  *) echo "usage: $0 up|down|status" >&2; exit 2 ;;
+  seed) run_seeder seed ;;
+  reset) run_seeder reset ;;
+  *) echo "usage: $0 up|down|status|seed|reset" >&2; exit 2 ;;
 esac

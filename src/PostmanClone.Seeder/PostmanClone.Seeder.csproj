@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The demo-data seeder (ADR-0030): a one-shot console client of the running estate. It talks to authservice, CollectionsService and
+    EnvironmentsService over their HTTP APIs and never opens a database. It is development tooling: it refuses to run unless the
+    environment is Development and Seed:Enabled is true. It has no package references on purpose (no Web framework, no kernel).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>PostmanClone.Seeder</RootNamespace>
+    <AssemblyName>PostmanClone.Seeder</AssemblyName>
+    <Description>Idempotent demo-data seeder for the PostmanClone estate (development only).</Description>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PostmanClone.Seeder.Tests" />
+  </ItemGroup>
+</Project>
