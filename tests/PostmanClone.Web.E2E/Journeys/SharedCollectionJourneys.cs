@@ -10,6 +10,7 @@ namespace PostmanClone.Web.E2E.Journeys;
 /// workspace. The invitation token reaches the test through authservice's log, which holds it only when the stack runs with
 /// AUTHSERVICE_ENVIRONMENT=Development (CI and scripts/run-local-stack.sh set it for the E2E run; docs/TESTING.md §1).
 /// </summary>
+[Trait(E2ESettings.EstateTrait, E2ESettings.ComposeEstate)]
 public sealed class SharedCollectionJourneys : Journey
 {
     [Fact]
