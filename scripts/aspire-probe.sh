@@ -38,7 +38,7 @@ while [ "${SECONDS}" -lt "${deadline}" ]; do
     # Give the one-shot seed time to finish, then sign in as the seeded owner through the Web's own form: GET the page for the antiforgery
     # token and cookie, POST the form with both. A good sign-in is answered with a redirect and a session cookie.
     jar="${LOG_DIR}/probe.cookies"
-    for _ in $(seq 1 60); do
+    for _ in $(seq 1 12); do
       rm -f "${jar}"
       token="$(curl -s --max-time 20 -c "${jar}" http://localhost:5310/sign-in | grep -o 'name="__RequestVerificationToken"[^>]*value="[^"]*"' | head -1 | sed 's/.*value="//; s/"$//')"
       if [ -n "${token}" ]; then
