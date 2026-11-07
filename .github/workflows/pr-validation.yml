@@ -240,8 +240,10 @@ jobs:
       # sharing journey reads it from there. A throwaway CI estate only; production keeps the token withheld.
       AUTHSERVICE_ENVIRONMENT: Development
       # The demo seed runs at the end of `up` and makes about ten calls (four sign-ins, four registrations, two refreshes) in the same
-      # address's authservice window. The suite counts them so it does not queue behind them (Support/AuthBudget.cs).
-      E2E_AUTH_WINDOW_PRESPENT: '10'
+      # address's authservice window, and several journeys make more than one authservice call per counted action (a form registration
+      # signs in and refreshes). The suite therefore treats the whole window as spent at its start and first waits for it to pass, which
+      # costs one minute and removes the queueing that made journeys time out (Support/AuthBudget.cs).
+      E2E_AUTH_WINDOW_PRESPENT: '18'
     steps:
       - uses: actions/checkout@v7
 
@@ -261,17 +263,6 @@ jobs:
           E2E_SENDER_LOOPBACK: '1'
           WEB_AUTH_PERMITS_PER_MINUTE: '18'
         run: scripts/run-local-stack.sh up agent
-
-      - name: How long authservice takes to refuse a wrong password right after the seed (measurement)
-        run: |
-          for i in 1 2 3; do
-            t=$(curl -s -o /dev/null -w '%{http_code} %{time_total}s' -X POST -H 'Content-Type: application/json' \
-              --data '{"email":"nobody-'$i'@example.test","password":"Wrong-Passw0rd!1"}' http://localhost:5300/api/v1/auth/login)
-            echo "::notice title=login timing::attempt $i -> $t"
-          done
-          t=$(curl -s -o /dev/null -w '%{http_code} %{time_total}s' -X POST -H 'Content-Type: application/json' \
-            --data '{"email":"demo.owner@postmanclone.test","password":"Wrong-Passw0rd!1"}' http://localhost:5300/api/v1/auth/login)
-          echo "::notice title=login timing::known user, wrong password -> $t"
 
       - name: Journeys that send to the local target (loopback)
         run: |
@@ -337,7 +328,7 @@ jobs:
     env:
       POSTMANCLONE_E2E_REQUIRED: '1'
       E2E_LOG_DIR: ${{ github.workspace }}/.local-stack/compose-logs
-      E2E_AUTH_WINDOW_PRESPENT: '14'   # the seed's ten calls and the idempotent second run's four
+      E2E_AUTH_WINDOW_PRESPENT: '18'   # the seed's ten calls, the idempotent second run's four, and the form journeys' extra calls
     steps:
       - uses: actions/checkout@v7
 

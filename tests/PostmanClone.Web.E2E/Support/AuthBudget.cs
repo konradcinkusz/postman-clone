@@ -13,8 +13,8 @@ public static class AuthBudget
 
     /// <summary>
     /// The number of auth calls made just before the suite started, by the estate's demo seed (ADR-0030): the seed registers, signs in
-    /// and refreshes for two accounts, about ten calls in the same address's window. The job sets E2E_AUTH_WINDOW_PRESPENT so the
-    /// suite does not spend the whole window again on top of them (a request past the limit queues in authservice and the Web
+    /// and refreshes for two accounts, about ten calls in the same address's window. The job sets E2E_AUTH_WINDOW_PRESPENT (the whole window, 18) so the
+    /// suite does not spend the window again on top of them (a request past the limit queues in authservice and the Web
     /// gives up after 10 s). Unset means none.
     /// </summary>
     public const string PrespentSetting = "E2E_AUTH_WINDOW_PRESPENT";
