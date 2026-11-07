@@ -262,6 +262,17 @@ jobs:
           WEB_AUTH_PERMITS_PER_MINUTE: '18'
         run: scripts/run-local-stack.sh up agent
 
+      - name: How long authservice takes to refuse a wrong password right after the seed (measurement)
+        run: |
+          for i in 1 2 3; do
+            t=$(curl -s -o /dev/null -w '%{http_code} %{time_total}s' -X POST -H 'Content-Type: application/json' \
+              --data '{"email":"nobody-'$i'@example.test","password":"Wrong-Passw0rd!1"}' http://localhost:5300/api/v1/auth/login)
+            echo "::notice title=login timing::attempt $i -> $t"
+          done
+          t=$(curl -s -o /dev/null -w '%{http_code} %{time_total}s' -X POST -H 'Content-Type: application/json' \
+            --data '{"email":"demo.owner@postmanclone.test","password":"Wrong-Passw0rd!1"}' http://localhost:5300/api/v1/auth/login)
+          echo "::notice title=login timing::known user, wrong password -> $t"
+
       - name: Journeys that send to the local target (loopback)
         run: |
           set -o pipefail
