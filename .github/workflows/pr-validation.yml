@@ -274,6 +274,8 @@ jobs:
           sed 's/\x1b\[[0-9;]*m//g' e2e-loopback.log > e2e-loopback.plain.log || true
           grep -E "^\s*failed " e2e-loopback.plain.log | cut -c1-240 | while read -r line; do echo "::error title=Failed journey (loopback)::${line}"; done || true
           grep -n -E "Assert\.|Expected|Actual|Timeout|outcome|errorCode|Code:|Error Message" e2e-loopback.plain.log | cut -c1-260 | head -25 | while read -r line; do echo "::warning title=Reason (loopback)::${line}"; done || true
+          # What the estate itself logged: login timings and refusals (never a line that holds an invitation token).
+          grep -h -i -E "auth/login|RateLimit|Timeout|429" .local-stack/logs/authservice.log .local-stack/logs/web.log 2>/dev/null | grep -v "Invitation token" | cut -c1-230 | tail -20 | while read -r line; do echo "::warning title=Estate log (loopback)::${line}"; done || true
 
       - name: Stop the estate
         if: always()
