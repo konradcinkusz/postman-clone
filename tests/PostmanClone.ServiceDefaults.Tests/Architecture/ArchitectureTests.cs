@@ -304,6 +304,33 @@ public sealed class ArchitectureTests
     }
 
     [Fact]
+    public void R8_exempts_a_job_from_the_port_only_and_still_rejects_root_and_a_wrong_major()
+    {
+        const string job = """
+            FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+            RUN dotnet publish
+            FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
+            LABEL postmanclone.kind="job"
+            USER app
+            """;
+        const string badJob = """
+            FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+            RUN dotnet publish
+            FROM mcr.microsoft.com/dotnet/runtime:9.0 AS runtime
+            LABEL postmanclone.kind="job"
+            USER root
+            """;
+
+        Assert.Empty(ArchitectureRules.DockerfileSatisfiesP6("Fixture/Job", job, "net10.0"));
+        var violations = ArchitectureRules.DockerfileSatisfiesP6("Fixture/BadJob", badJob, "net10.0");
+        Assert.Equal(2, violations.Count);
+        Assert.DoesNotContain(violations, v => v.Detail.Contains("8080", StringComparison.Ordinal));
+        // The label is the only way out of the port check: the same file without it is refused for its port.
+        Assert.Contains(ArchitectureRules.DockerfileSatisfiesP6("Fixture/NoLabel", job.Replace("LABEL postmanclone.kind=\"job\"", string.Empty), "net10.0"),
+            v => v.Detail.Contains("8080", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void R8_fails_on_a_Dockerfile_with_the_wrong_runtime_major_no_port_and_root()
     {
         const string dockerfile = """

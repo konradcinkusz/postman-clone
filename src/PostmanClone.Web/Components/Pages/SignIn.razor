@@ -1,7 +1,10 @@
 @page "/sign-in"
 @attribute [AllowAnonymous]
 @using Microsoft.AspNetCore.Components.Forms
+@using PostmanClone.Web.Hosting
 @inject AntiforgeryStateProvider Antiforgery
+@inject Microsoft.Extensions.Hosting.IHostEnvironment HostEnvironment
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 
 <PageTitle>Sign in · PostmanClone</PageTitle>
 
@@ -30,6 +33,23 @@
 
 <p><a href="/register" data-testid="sign-in-register-link">Create an account</a></p>
 
+@if (_showDevHint)
+{
+    <section class="callout" aria-labelledby="dev-seed-hint-title" data-testid="dev-seed-hint">
+        <h2 id="dev-seed-hint-title">Demo accounts (development only)</h2>
+        <p>This estate was started with the demo seed. Every account below has the password <code data-testid="dev-seed-password">@DevSignInHint.Password</code>.</p>
+        <table>
+            <thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Workspace</th></tr></thead>
+            <tbody>
+                @foreach (var row in DevSignInHint.Accounts)
+                {
+                    <tr data-testid="dev-seed-account"><td>@row.Email</td><td>@row.Role</td><td>@row.Workspace</td></tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}
+
 @code {
     [SupplyParameterFromQuery(Name = "ReturnUrl")]
     public string? ReturnUrl { get; set; }
@@ -43,11 +63,13 @@
     private AntiforgeryRequestToken? _token;
     private string _returnUrl = ReturnUrlPolicy.Fallback;
     private (string Text, bool IsError)? _message;
+    private bool _showDevHint;
 
     protected override void OnInitialized()
     {
         _token = Antiforgery.GetAntiforgeryToken();
         _returnUrl = ReturnUrlPolicy.Sanitize(ReturnUrl);
         _message = AuthMessages.For(Error, Notice);
+        _showDevHint = DevSignInHint.IsEnabled(HostEnvironment, Configuration);
     }
 }

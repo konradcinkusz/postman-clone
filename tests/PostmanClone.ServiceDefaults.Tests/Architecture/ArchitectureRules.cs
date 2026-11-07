@@ -292,7 +292,8 @@ public static partial class ArchitectureRules
 
     /// <summary>
     /// R8. A Dockerfile's build stage and its runtime stage use the TargetFramework's major version; the image listens on
-    /// 8080; the last stage runs as a named non-root user.
+    /// 8080; the last stage runs as a named non-root user. A one-shot job (the demo seeder, ADR-0030) has no port: it declares
+    /// <c>LABEL postmanclone.kind="job"</c> and is exempt from the port check only. The framework major and the non-root user still apply.
     /// </summary>
     public static IReadOnlyList<Violation> DockerfileSatisfiesP6(string service, string dockerfileText, string targetFramework)
     {
@@ -320,7 +321,8 @@ public static partial class ArchitectureRules
         }
 
         var runtime = froms.Count == 0 ? string.Empty : dockerfileText[froms[^1].Index..];
-        if (!Regex.IsMatch(dockerfileText, @"^\s*EXPOSE\s+8080\b", RegexOptions.Multiline))
+        var isJob = Regex.IsMatch(dockerfileText, "^\\s*LABEL\\s+postmanclone\\.kind=\"job\"", RegexOptions.Multiline);
+        if (!isJob && !Regex.IsMatch(dockerfileText, @"^\s*EXPOSE\s+8080\b", RegexOptions.Multiline))
         {
             found.Add(new Violation("R8", service, "does not EXPOSE 8080"));
         }

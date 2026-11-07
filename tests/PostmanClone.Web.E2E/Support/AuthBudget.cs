@@ -11,7 +11,18 @@ public static class AuthBudget
 {
     public const int PerWindow = 18;
 
-    private static readonly AuthBudgetWindow Shared = new(TimeProvider.System, PerWindow);
+    /// <summary>
+    /// The number of auth calls made just before the suite started, by the estate's demo seed (ADR-0030): the seed registers, signs in
+    /// and refreshes for two accounts, about ten calls in the same address's window. The job sets E2E_AUTH_WINDOW_PRESPENT (the whole window, 18) so the
+    /// suite does not spend the window again on top of them (a request past the limit queues in authservice and the Web
+    /// gives up after 10 s). Unset means none.
+    /// </summary>
+    public const string PrespentSetting = "E2E_AUTH_WINDOW_PRESPENT";
+
+    private static readonly AuthBudgetWindow Shared = new(
+        TimeProvider.System,
+        PerWindow,
+        int.TryParse(Environment.GetEnvironmentVariable(PrespentSetting), out var spent) ? Math.Clamp(spent, 0, PerWindow) : 0);
 
     /// <summary>Waits, if needed, until one more auth call fits in the shared window, then counts it.</summary>
     public static Task AcquireAsync(CancellationToken cancellationToken) => Shared.AcquireAsync(cancellationToken);
@@ -21,10 +32,10 @@ public static class AuthBudget
 /// The budget's arithmetic, with the clock injected (TimeProvider, P-rules) so a test can move time: a fixed window of one
 /// minute, at most <see cref="Limit"/> counted calls in it. A call past the limit waits for the oldest counted call to age out.
 /// </summary>
-public sealed class AuthBudgetWindow(TimeProvider clock, int limit)
+public sealed class AuthBudgetWindow(TimeProvider clock, int limit, int alreadySpent = 0)
 {
     private static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
-    private readonly Queue<DateTimeOffset> _counted = new();
+    private readonly Queue<DateTimeOffset> _counted = new(Enumerable.Repeat(clock.GetUtcNow(), alreadySpent));
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     public int Limit { get; } = limit;

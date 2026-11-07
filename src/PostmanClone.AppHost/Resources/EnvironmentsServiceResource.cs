@@ -24,7 +24,9 @@ internal static class EnvironmentsServiceResource
         IResourceBuilder<ContainerResource> authservice)
     {
         // Optional for the service (P8): without it the service starts and secret variables answer 503.
-        var encryptionKey = builder.AddParameter(EncryptionKeyParameter, secret: true);
+        var encryptionKey = builder.AddParameter(EncryptionKeyParameter,
+            () => DevSecrets.GetOrCreate(key => builder.Configuration[key], DevSecrets.DefaultSecretsFile(), EncryptionKeyParameter, DevSecrets.GenerateEncryptionKey),
+            secret: true);
         var repositoryRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", ".."));
 
         var environments = builder.AddDockerfile(Name, repositoryRoot, DockerfilePath)

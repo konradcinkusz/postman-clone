@@ -27,7 +27,9 @@ public static class StackLogs
     /// <summary>The whole text of a log written by the stack. Empty when it does not exist yet.</summary>
     public static string ReadText(string name)
     {
-        var path = Path.Combine(Directory, "logs", name);
+        // The compose estate (scripts/compose-up.sh) writes authservice's log to .local-stack/compose-logs; E2E_LOG_DIR names that folder.
+        var overrideDirectory = Environment.GetEnvironmentVariable("E2E_LOG_DIR");
+        var path = string.IsNullOrWhiteSpace(overrideDirectory) ? Path.Combine(Directory, "logs", name) : Path.Combine(overrideDirectory, name);
         if (!File.Exists(path))
         {
             return string.Empty;

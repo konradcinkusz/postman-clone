@@ -1,5 +1,36 @@
 # postman-clone
 
+> ## Start it and sign in (development)
+>
+> Every local start seeds demo data and these accounts ([ADR-0030](docs/decisions/0030-demo-seed.md)). **No registration, no extra script.**
+> The same table is printed in the seed's log (the Aspire dashboard's `seed` resource, `docker compose logs seed`, `.local-stack/logs/seed.log`)
+> and shown on the sign-in page while the Web runs in Development with the seed on. The password is published on purpose and works only in
+> a Development estate.
+>
+> | Email | Role | Workspace | Password |
+> |---|---|---|---|
+> | `demo.owner@postmanclone.test` | Owner | Demo Workspace | `Demo-Passw0rd!` |
+> | `demo.admin@postmanclone.test` | Admin | Demo Workspace | `Demo-Passw0rd!` |
+> | `demo.member@postmanclone.test` | Member | Demo Workspace | `Demo-Passw0rd!` |
+> | `demo.other@postmanclone.test` | Owner | Other Workspace | `Demo-Passw0rd!` |
+>
+> The first three share one workspace: sign in as the owner in one browser and as the member in a private window to see the shared
+> collection. `demo.other` is in another workspace: its collection `[demo] Other workspace only` is *not found* to the first three, and
+> theirs to it.
+>
+> **Five steps to a first local request through the agent** (no Docker needed; PostgreSQL 16 and the .NET 10 SDK are):
+>
+> 1. `scripts/run-local-stack.sh up agent` — starts the estate and the local agent, seeds, and prints the table. The Web is at <http://localhost:5310>.
+> 2. Open <http://localhost:5310> and sign in as `demo.owner@postmanclone.test` (the page lists the accounts).
+> 3. Open **Agent**, choose *Create pairing code*, then *Pair this page*. The status in the top bar reads *Connected*.
+> 4. In the tree, open `[demo] Getting started` and select **Local health (needs the local agent)** (`GET http://localhost:5303/health`).
+> 5. Set **Send with** to *Agent (this computer)* and press **Send**: the response is `200` with the health body. The server's own sender
+>    refuses that URL (loopback), which is the point of the agent.
+>
+> `[demo] Getting started` also has a public GET and a POST with a JSON body, and the environment `[demo] Local demo` has a plain variable and a
+> secret `api_key` (a fake value) that is shown masked as `••••••`. Other ways to start: `scripts/compose-up.sh` (containers) and
+> `dotnet run --project src/PostmanClone.AppHost` (Aspire); see [Run it locally](#run-it-locally).
+
 An API client in the spirit of Postman, written from scratch as a **Blazor Web App (interactive server, no
 WebAssembly, no Node)**. It has three domain services behind a server-side session, an authentication
 service ([`authservice`](https://github.com/konradcinkusz/authservice), pinned to v0.3.4), a sender with SSRF
@@ -61,6 +92,25 @@ Every route, the limits and the error codes are in [`docs/implementation-plan/CO
 
 ## Run it locally
 
+### Demo data and the demo logins
+
+The accounts and the five-step quick start are at the top of this file. Every start path below ends by running a one-shot seed
+(`src/PostmanClone.Seeder`, [ADR-0030](docs/decisions/0030-demo-seed.md)): two workspaces, four accounts, the collection
+`[demo] Getting started` (a public GET, a POST with a JSON body, a request to a local URL for the agent), the environment `[demo] Local demo`
+and the other workspace's collection. The seed is Development only, idempotent, and keeps its data under the `[demo] ` name prefix.
+
+`scripts/run-local-stack.sh seed` runs it again; `scripts/run-local-stack.sh reset` (or `scripts/compose-up.sh reset`) removes the demo
+collections and environments and nothing else. `SEED_DEMO=0` (script), `SEED_ENABLED=false` (compose) and `Seed:Enabled=false` (AppHost)
+switch it off, and the sign-in page then lists no accounts.
+
+With compose or the AppHost, the agent is not part of the estate. Start it on your computer once the estate is up (compose ports shown;
+the AppHost assigns EnvironmentsService a port in the Aspire dashboard):
+
+```bash
+dotnet run --project src/PostmanClone.Agent -- setup --server http://localhost:5302 --web-origin http://localhost:5310 --allow-private true
+dotnet run --project src/PostmanClone.Agent -- run
+```
+
 ### Without Docker (the route the sessions use)
 
 Prerequisites: .NET SDK 10, PostgreSQL 16 at the default `PG_CONNECTION`, and `git`, `openssl`, `psql`, `curl`, `base64`.
@@ -84,15 +134,26 @@ The script starts EnvironmentsService (5302) and the Web (5310) too; `WEB_AUTH_P
 (default 10 a minute per address).
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md#4-running-locally) has the details, the logs, and the configuration reference.
 
+### As containers with docker compose (needs Docker)
+
+```bash
+scripts/compose-up.sh          # builds the services, pulls the pinned authservice image, starts, seeds, prints the demo logins
+scripts/compose-up.sh down -v  # stops and deletes the databases
+```
+
+[`compose.yaml`](compose.yaml) runs PostgreSQL, `ghcr.io/konradcinkusz/authservice:v0.3.4` as a container, the three services, the Web
+(`http://localhost:5310`) and the seed. It mirrors the AppHost (a test compares them, [ADR-0031](docs/decisions/0031-compose-estate-and-aspire-on-runners.md)).
+CI runs it as the `compose-e2e` job. The signing key and the encryption key are generated into the gitignored `.local-stack/`.
+
 ### With the AppHost (needs Docker)
 
 ```bash
 dotnet run --project src/PostmanClone.AppHost
 ```
 
-It starts PostgreSQL, the authservice container, the three services and the Web on port 5310. It needs the two AppHost
-parameters described in [OPERATIONS.md §3](docs/OPERATIONS.md#3-secrets-and-how-to-generate-them). **The AppHost has never
-been run in a development session**, because sessions have no Docker daemon.
+It starts PostgreSQL, the authservice container, the three services, the Web on port 5310 and the seed. The signing key and the
+encryption key are generated on the first run into this project's user secrets (outside the repository), so no parameter has to be typed.
+See [OPERATIONS.md §4.4](docs/OPERATIONS.md#44-the-apphost-srcpostmanclone-apphost-needs-docker) for what was and was not run.
 
 ## Test it
 

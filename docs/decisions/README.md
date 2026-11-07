@@ -42,4 +42,7 @@ Numbers are reserved per work package in
 | [0028](0028-web-agent-client.md) | The Web's agent client: one hand-written script (the exception to ADR-0009), the pairing token held in the circuit, the run record through the Web, the browser's limits | Accepted |
 | [0029](0029-fly-topology-and-manual-deployment.md) | Fly topology and manual deployment: private apps reached at `.flycast`, the Web the only public app, plain HTTP for the JWKS on 6PN (a deviation), a hand-bootstrapped PostgreSQL, a deploy-only workflow with a token check | Accepted |
 
+| [0030](0030-demo-seed.md) | Demo data is a seeder that calls the running APIs: its own project, a `[demo] ` namespace, idempotent, Development only with an explicit switch, the invitation token read from authservice's log | Accepted |
+| [0031](0031-compose-estate-and-aspire-on-runners.md) | The container estate: compose.yaml mirrors the AppHost and a test compares them; the pinned authservice image runs as a container in CI (`compose-e2e`); what was measured about Aspire's orchestrator on a GitHub runner | Accepted |
+
 Assigned (see WORK-PACKAGES.md): 0016 WP16, 0017 WP19, 0018 WP26, 0019 WP28, 0020 WP25, 0021 WP23, 0022 WP18b, 0023 WP20, 0024 WP22, 0025 WP21, 0026 WP29. 0027 WP30 (agent threat model and sending rules; written) and 0028 WP31 (the Web's agent client and its one script; written) are reserved; 0029 WP33 (Fly topology and manual deployment) is written; WP32 writes none.

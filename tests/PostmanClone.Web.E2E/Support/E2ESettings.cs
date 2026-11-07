@@ -35,4 +35,11 @@ public static class E2ESettings
     public const string ModeTrait = "Mode";
     public const string LoopbackMode = "loopback";
     public const string StrictMode = "strict";
+
+    /// <summary>
+    /// Journeys that also run against the container estate (compose.yaml, the `compose-e2e` job). The others need the local
+    /// stack's loopback target or the local agent, which a container estate cannot offer (ADR-0031).
+    /// </summary>
+    public const string EstateTrait = "Estate";
+    public const string ComposeEstate = "compose";
 }
