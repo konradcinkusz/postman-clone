@@ -3,26 +3,24 @@ using Aspire.Hosting.ApplicationModel;
 namespace PostmanClone.AppHost.Resources;
 
 /// <summary>
-/// The Blazor Web App (BLAZOR-WEB-APP §4). It is the only externally reachable service in the local composition, and
-/// it reads the authservice health through service discovery. The port is fixed (README §3, the launch profile).
+/// The Blazor Web App (BLAZOR-WEB-APP section 4), built from its Dockerfile and run in the same container network as the services
+/// (ADR-0031). It is the only externally reachable resource, on the fixed port 5310 (README section 3, the launch profile).
 /// </summary>
 internal static class WebResource
 {
     public const string Name = "web";
     public const int Port = 5310;
+    public const string DockerfilePath = "src/PostmanClone.Web/Dockerfile";
 
-    /// <summary>The Web is referenced by its project path, not by a project reference, so the AppHost does not build the Web's code.</summary>
-    private const string ProjectPath = "../PostmanClone.Web/PostmanClone.Web.csproj";
-
-    public static IResourceBuilder<ProjectResource> AddWeb(
+    public static IResourceBuilder<ContainerResource> AddWeb(
         this IDistributedApplicationBuilder builder,
         IResourceBuilder<ContainerResource> authservice,
         IResourceBuilder<ContainerResource> collections,
         IResourceBuilder<ContainerResource> environments,
-        IResourceBuilder<ProjectResource> execution)
+        IResourceBuilder<ContainerResource> execution)
     {
-        return builder.AddProject(Name, ProjectPath)
-            .WithHttpEndpoint(port: Port, name: "http")
+        return builder.AddDockerfile(Name, contextPath: "../..", dockerfilePath: DockerfilePath)
+            .WithHttpEndpoint(port: Port, targetPort: 8080, name: "http")
             .WithExternalHttpEndpoints()
             // The Web reaches its backends by service-discovery names (docs/OPERATIONS.md 4.3): the resource names.
             .WithReference(authservice.GetEndpoint("http"))

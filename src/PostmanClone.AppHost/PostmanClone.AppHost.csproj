@@ -12,7 +12,6 @@
     <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\PostmanClone.ExecutionService\PostmanClone.ExecutionService.csproj" />
     <ProjectReference Include="..\PostmanClone.Seeder\PostmanClone.Seeder.csproj" />
   </ItemGroup>
   <ItemGroup>
