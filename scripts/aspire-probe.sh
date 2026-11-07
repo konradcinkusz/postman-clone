@@ -6,7 +6,7 @@
 # src/PostmanClone.AppHost, waits up to PROBE_TIMEOUT seconds for the Web to answer /health, then signs in as the demo owner through the
 # Web's own sign-in form endpoint (which proves the seed ran and the token path works). It prints a verdict line:
 #   PROBE-RESULT: works | AppHost exited | Web never answered | sign-in failed
-# The AppHost's output goes to .local-stack/logs/apphost-probe.log. Needs docker, dotnet and curl. It leaves nothing running.
+# The AppHost's output goes to .local-stack/logs/apphost-probe.log (a short summary is printed last). Needs docker, dotnet and curl. It leaves nothing running.
 
 set -uo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"

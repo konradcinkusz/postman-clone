@@ -104,7 +104,7 @@ Two findings from the runs, both recorded in OPERATIONS and the open-items regis
 | `auth-smoke` | `scripts/run-local-stack.sh up`, `scripts/smoke-auth.sh`, `down` | PostgreSQL 16 service; authservice built from its tag |
 | `e2e` | `scripts/run-local-stack.sh up agent` with `E2E_SENDER_LOOPBACK=1`, the loopback set; `down`; `up agent` without the flag, the strict set; `down`. `AUTHSERVICE_ENVIRONMENT=Development` for the whole job (the invitation token, WP32). Chromium installed by `playwright.ps1 install --with-deps chromium`. `POSTMANCLONE_E2E_REQUIRED=1`. Logs (including `agent.log`) uploaded on failure | PostgreSQL 16 service; runs when `src/`, `tests/`, `scripts/` or this workflow changed on a pull request |
 | `compose-e2e` | pulls the pinned authservice image, `scripts/compose-up.sh` (builds the services, starts compose.yaml, seeds), a second seed run that must create 0 items, then the `Estate=compose` journeys (seeded sign-in as owner and member, the demo environment, the demo GET through the server sender, the shared-collection invitation) in Chromium. `POSTMANCLONE_E2E_REQUIRED=1`. Part of the aggregate | Docker on the runner; the sender needs outbound internet for the demo GET (`https://example.com/`) |
-| `aspire-apphost-probe` | `scripts/aspire-probe.sh`: `dotnet run` of the real AppHost, then a sign-in as the seeded owner | informational, not in the aggregate (ADR-0031) |
+| `aspire-apphost-probe` | `scripts/aspire-probe.sh`: `dotnet run` of the real AppHost (DCP, containers), then a sign-in as the seeded owner. Green on runners for heads 869162d, 98ab035 and 497bb0d | informational, not in the aggregate (ADR-0031) |
 | `docs-links` | `scripts/check-doc-links.sh` | |
 | `pr-validation` | aggregate of the above | the one required status check (owner action) |
 
@@ -133,6 +133,7 @@ No job runs the AppHost.
 
 | Item | Why | What would close it |
 |---|---|---|
+| The sign-in window: `E2E_AUTH_WINDOW_PRESPENT` | the e2e job sets 18, so the suite waits one minute at its start: the seed's ten calls and the form journeys' several calls per counted action overflowed authservice's 20 a minute (ADR-0031). A local run right after `up` may stall in the same way | `E2E_AUTH_WINDOW_PRESPENT=18` locally, or wait a minute after `up` |
 | The AppHost (`dotnet run --project src/PostmanClone.AppHost`) in a session | the sandbox's TLS proxy breaks `dotnet restore` inside `docker build`, and `ghcr.io` blobs are refused, so DCP cannot build or pull there | ADR-0031 records the measurement on a GitHub runner (`aspire-apphost-probe`); the in-memory model is compared with compose.yaml on every run |
 | The pulled `ghcr.io/konradcinkusz/authservice:v0.3.4` image in a session | the sandbox proxy answers 403 for the blob host `pkg-containers.githubusercontent.com` | the `compose-e2e` job pulls it on a runner; in a session an image built from the same tag stands in (`AUTHSERVICE_IMAGE`) |
 | The demo GET (`https://example.com/`) sent through the server sender in a session | the sandbox has no DNS for public names (`dns_failed`) | the `compose-e2e` and `e2e` jobs, which have internet |
