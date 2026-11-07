@@ -35,16 +35,50 @@ public sealed class SeedRunnerTests : IDisposable
 
         var summary = await runner.SeedAsync(CancellationToken.None);
 
-        Assert.Equal(["[demo] Getting started"], estate.CollectionNames);
+        Assert.Equal(["[demo] Getting started", "[demo] Other workspace only"], estate.CollectionNames.Order(StringComparer.Ordinal).ToArray());
         Assert.Equal(["[demo] Local demo"], estate.EnvironmentNames);
-        Assert.Equal(6, summary.TotalCreated); // collection, folder, two requests, environment, its variables
+        // collection, folder, three requests, the environment and its variables, and the other workspace's collection with its request
+        Assert.Equal(9, summary.TotalCreated);
         Assert.Contains(_lines, l => l.Contains("member sees the demo collection: yes", StringComparison.Ordinal));
+        Assert.Contains(_lines, l => l.Contains("admin sees the demo collection: yes", StringComparison.Ordinal));
+        Assert.Contains(_lines, l => l.Contains("other workspace's account sees the demo collection: no", StringComparison.Ordinal));
 
         var variables = estate.Environment(DemoData.EnvironmentName)!["variables"]!.AsArray();
         Assert.Equal(2, variables.Count);
         var secret = variables.Single(v => v!["key"]!.GetValue<string>() == DemoData.SecretKey)!;
         Assert.True(secret["isSecret"]!.GetValue<bool>());
         Assert.True(secret["hasValue"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task The_credentials_table_lists_every_persona_with_the_password()
+    {
+        var (runner, _) = Create();
+
+        await runner.SeedAsync(CancellationToken.None);
+
+        var table = string.Join('\n', _lines);
+        Assert.Contains("DEMO LOGINS", table, StringComparison.Ordinal);
+        foreach (var persona in DemoData.Cast)
+        {
+            Assert.Contains(persona.Email, table, StringComparison.Ordinal);
+            Assert.Contains(persona.Workspace, table, StringComparison.Ordinal);
+        }
+
+        Assert.Contains(DemoData.DefaultPassword, table, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_cast_has_an_owner_an_admin_and_a_member_in_one_workspace_and_one_account_in_another()
+    {
+        var (runner, estate) = Create();
+        await runner.SeedAsync(CancellationToken.None);
+
+        Assert.Equal(
+            ["Owner:Demo Workspace", "Admin:Demo Workspace", "Member:Demo Workspace", "Owner:Other Workspace"],
+            DemoData.Cast.Select(p => p.Role + ":" + p.Workspace).ToArray());
+        Assert.Contains(estate.Writes, w => w.EndsWith("/invite", StringComparison.Ordinal));
+        Assert.Equal(["Admin", "Member"], estate.InvitedRoles.Order(StringComparer.Ordinal).ToArray());
     }
 
     [Fact]
@@ -58,7 +92,7 @@ public sealed class SeedRunnerTests : IDisposable
 
         Assert.Equal(0, second.TotalCreated);
         Assert.Empty(estate.Writes);
-        Assert.Single(estate.CollectionNames);
+        Assert.Equal(2, estate.CollectionNames.Count);
         Assert.Single(estate.EnvironmentNames);
     }
 
@@ -73,7 +107,7 @@ public sealed class SeedRunnerTests : IDisposable
 
         var again = await runner.SeedAsync(CancellationToken.None);
 
-        Assert.Equal(6, again.TotalCreated);
+        Assert.Equal(9, again.TotalCreated);
         Assert.DoesNotContain(estate.Writes, w => w.Contains("/auth/register", StringComparison.Ordinal) || w.Contains("/invite", StringComparison.Ordinal));
     }
 
@@ -86,11 +120,11 @@ public sealed class SeedRunnerTests : IDisposable
 
         var reset = await runner.ResetAsync(CancellationToken.None);
 
-        Assert.Equal(1, reset.CollectionsRemoved);
+        Assert.Equal(2, reset.CollectionsRemoved); // the demo collection and the other workspace's
         Assert.Equal(1, reset.EnvironmentsRemoved);
         Assert.Equal(["Customer API"], estate.CollectionNames);
         Assert.Equal(["Production"], estate.EnvironmentNames);
-        Assert.Contains(_lines, l => l.Contains("removed 1 collection(s) from CollectionsService and 1 environment(s) from EnvironmentsService", StringComparison.Ordinal));
+        Assert.Contains(_lines, l => l.Contains("removed 2 collection(s) from CollectionsService and 1 environment(s) from EnvironmentsService", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -116,7 +150,8 @@ public sealed class SeedRunnerTests : IDisposable
         estate.Writes.Clear();
         await second.SeedAsync(CancellationToken.None);
 
-        Assert.DoesNotContain(estate.Writes, w => w.Contains("/invite", StringComparison.Ordinal));
+        // The admin's invitation was the pending one; only the member, not yet invited, gets a new invitation.
+        Assert.Single(estate.Writes, w => w.EndsWith("/invite", StringComparison.Ordinal));
         Assert.Contains(estate.Writes, w => w.Contains("/invitations/accept", StringComparison.Ordinal));
         Assert.Contains(_lines, l => l.Contains("accepted the invitation", StringComparison.Ordinal));
     }
@@ -133,7 +168,7 @@ public sealed class SeedRunnerTests : IDisposable
         await second.SeedAsync(CancellationToken.None);
 
         Assert.Contains(estate.Writes, w => w.Contains("/resend", StringComparison.Ordinal));
-        Assert.DoesNotContain(estate.Writes, w => w.Contains("/invite", StringComparison.Ordinal));
+        Assert.Single(estate.Writes, w => w.EndsWith("/invite", StringComparison.Ordinal)); // the member's, never the admin's again
     }
 
     private static async Task Register(FakeEstate estate, string email, string password)

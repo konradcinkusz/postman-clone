@@ -239,9 +239,9 @@ jobs:
       # authservice writes an invitation token to its log only in Development, with no email provider (docs/AUTH.md). The
       # sharing journey reads it from there. A throwaway CI estate only; production keeps the token withheld.
       AUTHSERVICE_ENVIRONMENT: Development
-      # The demo seed runs at the end of `up` and makes about six calls (two sign-ins, two registrations, two refreshes) in the same
+      # The demo seed runs at the end of `up` and makes about ten calls (four sign-ins, four registrations, two refreshes) in the same
       # address's authservice window. The suite counts them so it does not queue behind them (Support/AuthBudget.cs).
-      E2E_AUTH_WINDOW_PRESPENT: '6'
+      E2E_AUTH_WINDOW_PRESPENT: '10'
     steps:
       - uses: actions/checkout@v7
 
@@ -316,7 +316,7 @@ jobs:
     env:
       POSTMANCLONE_E2E_REQUIRED: '1'
       E2E_LOG_DIR: ${{ github.workspace }}/.local-stack/compose-logs
-      E2E_AUTH_WINDOW_PRESPENT: '8'   # the seed's six calls and the idempotent second run's two
+      E2E_AUTH_WINDOW_PRESPENT: '14'   # the seed's ten calls and the idempotent second run's four
     steps:
       - uses: actions/checkout@v7
 

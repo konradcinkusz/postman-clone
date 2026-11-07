@@ -122,7 +122,7 @@ public sealed class AppHostComposeParityTests
         var apphost = await model.EnvironmentAsync("web");
         var compose = Compose.Environment("web");
 
-        foreach (var name in new[] { "Auth__MetadataAddress", "Auth__Issuer", "Auth__Audience", "Auth__RequireHttpsMetadata", "ASPNETCORE_ENVIRONMENT" })
+        foreach (var name in new[] { "Auth__MetadataAddress", "Auth__Issuer", "Auth__Audience", "Auth__RequireHttpsMetadata", "ASPNETCORE_ENVIRONMENT", "Seed__Enabled" })
         {
             Assert.True(apphost.ContainsKey(name), $"The AppHost does not set {name} on the Web.");
             Assert.True(compose.ContainsKey(name), $"compose.yaml does not set {name} on the Web.");

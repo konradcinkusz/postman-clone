@@ -14,5 +14,6 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="PostmanClone.Seeder.Tests" />
+    <InternalsVisibleTo Include="PostmanClone.Web.Tests" />
   </ItemGroup>
 </Project>

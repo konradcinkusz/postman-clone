@@ -19,6 +19,8 @@
     <!-- ExecutionService's types, for the send round-trip test only (CONTRACTS §4). Same alias rule as above. -->
     <ProjectReference Include="..\..\src\PostmanClone.ExecutionService\PostmanClone.ExecutionService.csproj" Aliases="execution" />
     <ProjectReference Include="..\..\src\PostmanClone.Sending\PostmanClone.Sending.csproj" Aliases="sending" />
+    <!-- The seeder's cast, for the sign-in hint parity test only (ADR-0030). Same alias rule as above. -->
+    <ProjectReference Include="..\..\src\PostmanClone.Seeder\PostmanClone.Seeder.csproj" Aliases="seeder" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

@@ -24,14 +24,16 @@ internal sealed class FakeEstate : HttpMessageHandler
     public string LogPath { get; }
     public List<string> Writes { get; } = [];
     public bool WithholdTokens { get; set; }
+    public List<string> InvitedRoles { get; } = [];
     public IReadOnlyCollection<string> CollectionNames => _collections.Values.Select(c => c["name"]!.GetValue<string>()).ToList();
     public IReadOnlyCollection<string> EnvironmentNames => _environments.Values.Select(c => c["name"]!.GetValue<string>()).ToList();
     public JsonObject? Environment(string name) => _environments.Values.FirstOrDefault(e => e["name"]!.GetValue<string>() == name);
 
     public void AddUnrelatedData()
     {
-        _collections[Guid.NewGuid()] = new JsonObject { ["name"] = "Customer API", ["folders"] = new JsonArray(), ["requests"] = new JsonArray() };
-        _environments[Guid.NewGuid()] = new JsonObject { ["name"] = "Production", ["variables"] = new JsonArray() };
+        var org = _orgByName["Demo Workspace"].ToString();
+        _collections[Guid.NewGuid()] = new JsonObject { ["org"] = org, ["name"] = "Customer API", ["folders"] = new JsonArray(), ["requests"] = new JsonArray() };
+        _environments[Guid.NewGuid()] = new JsonObject { ["org"] = org, ["name"] = "Production", ["variables"] = new JsonArray() };
     }
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -65,7 +67,8 @@ internal sealed class FakeEstate : HttpMessageHandler
             return Json(HttpStatusCode.Forbidden, new JsonObject { ["code"] = "no_active_workspace" });
         }
 
-        return port == 5301 ? Collections(method, path, body) : Environments(method, path, body);
+        var org = _members.First(m => m.Value.Contains(user)).Key.ToString();
+        return port == 5301 ? Collections(method, path, body, org) : Environments(method, path, body, org);
     }
 
     private bool MemberOfAnyOrg(string user) => _members.Values.Any(m => m.Contains(user));
@@ -151,6 +154,7 @@ internal sealed class FakeEstate : HttpMessageHandler
             }
 
             var id = Guid.NewGuid();
+            InvitedRoles.Add(body["role"]!.GetValue<string>());
             _invitations[id] = (Guid.Parse(orgId), email, "tok-" + ++_tokenCounter);
             LogToken(email, _invitations[id].Token);
             return Json(HttpStatusCode.OK, new JsonObject { ["email"] = email });
@@ -169,17 +173,17 @@ internal sealed class FakeEstate : HttpMessageHandler
     private void LogToken(string email, string token) => File.AppendAllText(LogPath,
         $"warn: Email sending is not configured. Invitation email to {email} for organization Demo Workspace was not sent. Invitation token: {(WithholdTokens ? "[withheld]" : token)}. Share it.\n");
 
-    private HttpResponseMessage Collections(string method, string path, JsonNode? body)
+    private HttpResponseMessage Collections(string method, string path, JsonNode? body, string org)
     {
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         switch (method, segments)
         {
             case ("GET", ["api", "v1", "collections"]):
-                return Json(HttpStatusCode.OK, new JsonObject { ["items"] = new JsonArray(_collections.Select(c => (JsonNode)new JsonObject { ["id"] = c.Key.ToString(), ["name"] = c.Value["name"]!.GetValue<string>() }).ToArray()) });
+                return Json(HttpStatusCode.OK, new JsonObject { ["items"] = new JsonArray(_collections.Where(c => c.Value["org"]?.GetValue<string>() == org).Select(c => (JsonNode)new JsonObject { ["id"] = c.Key.ToString(), ["name"] = c.Value["name"]!.GetValue<string>() }).ToArray()) });
             case ("POST", ["api", "v1", "collections"]):
             {
                 var id = Guid.NewGuid();
-                _collections[id] = new JsonObject { ["name"] = body!["name"]!.GetValue<string>(), ["folders"] = new JsonArray(), ["requests"] = new JsonArray() };
+                _collections[id] = new JsonObject { ["org"] = org, ["name"] = body!["name"]!.GetValue<string>(), ["folders"] = new JsonArray(), ["requests"] = new JsonArray() };
                 return Json(HttpStatusCode.Created, new JsonObject { ["id"] = id.ToString() });
             }
 
@@ -211,17 +215,17 @@ internal sealed class FakeEstate : HttpMessageHandler
         return Json(HttpStatusCode.NotFound, new JsonObject());
     }
 
-    private HttpResponseMessage Environments(string method, string path, JsonNode? body)
+    private HttpResponseMessage Environments(string method, string path, JsonNode? body, string org)
     {
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         switch (method, segments)
         {
             case ("GET", ["api", "v1", "environments"]):
-                return Json(HttpStatusCode.OK, new JsonObject { ["items"] = new JsonArray(_environments.Select(e => (JsonNode)new JsonObject { ["id"] = e.Key.ToString(), ["name"] = e.Value["name"]!.GetValue<string>() }).ToArray()) });
+                return Json(HttpStatusCode.OK, new JsonObject { ["items"] = new JsonArray(_environments.Where(e => e.Value["org"]?.GetValue<string>() == org).Select(e => (JsonNode)new JsonObject { ["id"] = e.Key.ToString(), ["name"] = e.Value["name"]!.GetValue<string>() }).ToArray()) });
             case ("POST", ["api", "v1", "environments"]):
             {
                 var id = Guid.NewGuid();
-                _environments[id] = new JsonObject { ["name"] = body!["name"]!.GetValue<string>(), ["variables"] = new JsonArray() };
+                _environments[id] = new JsonObject { ["org"] = org, ["name"] = body!["name"]!.GetValue<string>(), ["variables"] = new JsonArray() };
                 return Json(HttpStatusCode.Created, new JsonObject { ["id"] = id.ToString() });
             }
 

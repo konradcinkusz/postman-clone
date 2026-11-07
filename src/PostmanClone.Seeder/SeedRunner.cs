@@ -16,7 +16,7 @@ internal sealed class SeedRunner(SeedOptions options, ApiClient api, Action<stri
         await WaitForEstateAsync(ct);
 
         var owner = await EnsureAccountAsync(DemoData.OwnerEmail, ct);
-        var (org, orgCreated) = await EnsureOrganizationAsync(owner, ct);
+        var (org, orgCreated) = await EnsureOrganizationAsync(owner, DemoData.OrganizationName, ct);
         // A token issued before the workspace existed has no organization claim. A run that finds the workspace already there signs in
         // with a token that has it, so it needs no refresh (and spends nothing of authservice's sign-in window).
         if (orgCreated)
@@ -24,56 +24,77 @@ internal sealed class SeedRunner(SeedOptions options, ApiClient api, Action<stri
             owner = await RefreshAsync(owner, ct);
         }
 
+        var admin = await EnsureAccountAsync(DemoData.AdminEmail, ct);
+        admin = await EnsureMemberAsync(owner, admin, org, "Admin", ct);
         var member = await EnsureAccountAsync(DemoData.MemberEmail, ct);
-        member = await EnsureMemberAsync(owner, member, org, ct);
+        member = await EnsureMemberAsync(owner, member, org, "Member", ct);
 
         var collections = await EnsureCollectionAsync(owner, ct);
         var environments = await EnsureEnvironmentAsync(owner, ct);
 
-        // The member must see what the owner seeded: they share the workspace (CONTRACTS §0). A seed that cannot show this is a failure.
-        var visible = await ListAsync(options.CollectionsBaseUrl, "/api/v1/collections?pageSize=100", member.Access, ct);
-        if (!visible.Any(c => c["name"]?.GetValue<string>() == DemoData.CollectionName))
+        // The second workspace, for the isolation check: one account, one collection that the first workspace must never see.
+        var other = await EnsureAccountAsync(DemoData.OtherEmail, ct);
+        var (_, otherOrgCreated) = await EnsureOrganizationAsync(other, DemoData.OtherOrganizationName, ct);
+        if (otherOrgCreated)
         {
-            throw new InvalidOperationException("The demo member cannot see the demo collection. The two accounts are not in the same workspace.");
+            other = await RefreshAsync(other, ct);
         }
 
-        log("member sees the demo collection: yes");
-        return new SeedSummary(org, collections, environments);
+        var otherItems = await EnsureOtherCollectionAsync(other, ct);
+
+        // The admin and the member must see what the owner seeded: they share the workspace (CONTRACTS section 0). The other workspace's
+        // account must not. A seed that cannot show both is a failure, not a success with a caveat.
+        foreach (var (who, account) in new[] { ("admin", admin), ("member", member) })
+        {
+            var visible = await ListAsync(options.CollectionsBaseUrl, "/api/v1/collections?pageSize=100", account.Access, ct);
+            if (!visible.Any(c => c["name"]?.GetValue<string>() == DemoData.CollectionName))
+            {
+                throw new InvalidOperationException($"The demo {who} cannot see the demo collection. The accounts are not in the same workspace.");
+            }
+
+            log($"{who} sees the demo collection: yes");
+        }
+
+        var otherSees = await ListAsync(options.CollectionsBaseUrl, "/api/v1/collections?pageSize=100", other.Access, ct);
+        if (otherSees.Any(c => c["name"]?.GetValue<string>() == DemoData.CollectionName))
+        {
+            throw new InvalidOperationException("The other workspace's account can see the demo workspace's collection. Isolation is broken.");
+        }
+
+        log("other workspace's account sees the demo collection: no (isolated)");
+        PrintCredentials();
+        return new SeedSummary(org, collections + otherItems, environments);
     }
 
     public async Task<ResetSummary> ResetAsync(CancellationToken ct)
     {
         await WaitForEstateAsync(ct);
-        var login = await TryLoginAsync(DemoData.OwnerEmail, ct);
-        if (login is null)
-        {
-            log("reset: the demo owner does not exist; nothing to remove");
-            return new ResetSummary(0, 0);
-        }
-
-        var org = await FindDemoOrganizationAsync(login, ct);
-        if (org is null)
-        {
-            log("reset: the demo owner has no demo workspace; nothing to remove");
-            return new ResetSummary(0, 0);
-        }
-
-        // Only names inside the reserved namespace are removed, whatever else the workspace holds.
         var removedCollections = 0;
-        foreach (var c in (await ListAsync(options.CollectionsBaseUrl, "/api/v1/collections?pageSize=100", login.Access, ct)).Where(c => DemoData.IsDemoName(c["name"]?.GetValue<string>())))
-        {
-            await api.SendAsync(Delete, options.CollectionsBaseUrl, $"/api/v1/collections/{c["id"]}", bearer: login.Access, cancellationToken: ct);
-            removedCollections++;
-        }
-
         var removedEnvironments = 0;
-        foreach (var e in (await ListAsync(options.EnvironmentsBaseUrl, "/api/v1/environments?pageSize=100", login.Access, ct)).Where(e => DemoData.IsDemoName(e["name"]?.GetValue<string>())))
+        foreach (var (email, workspace) in new[] { (DemoData.OwnerEmail, DemoData.OrganizationName), (DemoData.OtherEmail, DemoData.OtherOrganizationName) })
         {
-            await api.SendAsync(Delete, options.EnvironmentsBaseUrl, $"/api/v1/environments/{e["id"]}", bearer: login.Access, cancellationToken: ct);
-            removedEnvironments++;
+            var login = await TryLoginAsync(email, ct);
+            if (login is null || await FindDemoOrganizationAsync(login, workspace, ct) is null)
+            {
+                log($"reset: {email} has no demo workspace; nothing to remove there");
+                continue;
+            }
+
+            // Only names inside the reserved namespace are removed, whatever else the workspace holds.
+            foreach (var c in (await ListAsync(options.CollectionsBaseUrl, "/api/v1/collections?pageSize=100", login.Access, ct)).Where(c => DemoData.IsDemoName(c["name"]?.GetValue<string>())))
+            {
+                await api.SendAsync(Delete, options.CollectionsBaseUrl, $"/api/v1/collections/{c["id"]}", bearer: login.Access, cancellationToken: ct);
+                removedCollections++;
+            }
+
+            foreach (var e in (await ListAsync(options.EnvironmentsBaseUrl, "/api/v1/environments?pageSize=100", login.Access, ct)).Where(e => DemoData.IsDemoName(e["name"]?.GetValue<string>())))
+            {
+                await api.SendAsync(Delete, options.EnvironmentsBaseUrl, $"/api/v1/environments/{e["id"]}", bearer: login.Access, cancellationToken: ct);
+                removedEnvironments++;
+            }
         }
 
-        log($"reset: removed {removedCollections} collection(s) from CollectionsService and {removedEnvironments} environment(s) from EnvironmentsService; accounts and the workspace are kept");
+        log($"reset: removed {removedCollections} collection(s) from CollectionsService and {removedEnvironments} environment(s) from EnvironmentsService; accounts and workspaces are kept");
         return new ResetSummary(removedCollections, removedEnvironments);
     }
 
@@ -179,40 +200,40 @@ internal sealed class SeedRunner(SeedOptions options, ApiClient api, Action<stri
 
     // ── the workspace ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-    private async Task<(Guid Id, string Name)?> FindDemoOrganizationAsync(Account account, CancellationToken ct)
+    private async Task<(Guid Id, string Name)?> FindDemoOrganizationAsync(Account account, string name, CancellationToken ct)
     {
         var me = await api.SendAsync(Get, options.AuthBaseUrl, "/api/v1/auth/me", bearer: account.Access, cancellationToken: ct);
         foreach (var org in me?["organizations"]?.AsArray() ?? [])
         {
-            if (org?["name"]?.GetValue<string>() == DemoData.OrganizationName)
+            if (org?["name"]?.GetValue<string>() == name)
             {
-                return (Guid.Parse(org["id"]!.GetValue<string>()), DemoData.OrganizationName);
+                return (Guid.Parse(org["id"]!.GetValue<string>()), name);
             }
         }
 
         return null;
     }
 
-    private async Task<(Guid Id, bool Created)> EnsureOrganizationAsync(Account owner, CancellationToken ct)
+    private async Task<(Guid Id, bool Created)> EnsureOrganizationAsync(Account owner, string name, CancellationToken ct)
     {
-        var found = await FindDemoOrganizationAsync(owner, ct);
+        var found = await FindDemoOrganizationAsync(owner, name, ct);
         if (found is { } existing)
         {
-            log($"workspace '{DemoData.OrganizationName}': present");
+            log($"workspace '{name}': present");
             return (existing.Id, false);
         }
 
         var created = await api.SendAsync(Post, options.AuthBaseUrl, "/api/v1/organizations",
-            new JsonObject { ["name"] = DemoData.OrganizationName, ["description"] = "Demo data for a fresh start (seeded)." }, owner.Access, ct);
-        log($"workspace '{DemoData.OrganizationName}': created");
+            new JsonObject { ["name"] = name, ["description"] = "Demo data for a fresh start (seeded)." }, owner.Access, ct);
+        log($"workspace '{name}': created");
         return (Guid.Parse(created!["id"]!.GetValue<string>()), true);
     }
 
-    private async Task<Account> EnsureMemberAsync(Account owner, Account member, Guid orgId, CancellationToken ct)
+    private async Task<Account> EnsureMemberAsync(Account owner, Account member, Guid orgId, string role, CancellationToken ct)
     {
         if (await IsMemberAsync(member, orgId, ct))
         {
-            log($"member {member.Email}: already in the workspace");
+            log($"{role.ToLowerInvariant()} {member.Email}: already in the workspace");
             return member;
         }
 
@@ -223,20 +244,20 @@ internal sealed class SeedRunner(SeedOptions options, ApiClient api, Action<stri
         if (pending is null)
         {
             await api.SendAsync(Post, options.AuthBaseUrl, $"/api/v1/organizations/{orgId}/invite",
-                new JsonObject { ["email"] = member.Email, ["role"] = "Member" }, owner.Access, ct);
-            log($"member {member.Email}: invited by the owner");
+                new JsonObject { ["email"] = member.Email, ["role"] = role }, owner.Access, ct);
+            log($"{role.ToLowerInvariant()} {member.Email}: invited by the owner");
             token = null;
         }
         else if (token is null)
         {
             // A pending invitation whose token is not readable: ask authservice to send it again (it logs the token again).
             await api.SendAsync(Post, options.AuthBaseUrl, $"/api/v1/organizations/{orgId}/invitations/{pending}/resend", bearer: owner.Access, cancellationToken: ct);
-            log($"member {member.Email}: invitation re-sent");
+            log($"{role.ToLowerInvariant()} {member.Email}: invitation re-sent");
         }
 
         token = await WaitForTokenAsync(member.Email, token, ct);
         await api.SendAsync(Post, options.AuthBaseUrl, "/api/v1/organizations/invitations/accept", new JsonObject { ["token"] = token }, member.Access, ct);
-        log($"member {member.Email}: accepted the invitation");
+        log($"{role.ToLowerInvariant()} {member.Email}: accepted the invitation");
         return await RefreshAsync(member, ct);
     }
 
@@ -321,6 +342,7 @@ internal sealed class SeedRunner(SeedOptions options, ApiClient api, Action<stri
                  {
                      (DemoData.GetRequestName, null, DemoData.GetDefinition()),
                      (DemoData.PostRequestName, folderId, DemoData.PostDefinition()),
+                     (DemoData.LocalRequestName, null, DemoData.LocalDefinition()),
                  })
         {
             if (requests.Contains(name))
@@ -335,6 +357,41 @@ internal sealed class SeedRunner(SeedOptions options, ApiClient api, Action<stri
         }
 
         return created;
+    }
+
+    private async Task<int> EnsureOtherCollectionAsync(Account other, CancellationToken ct)
+    {
+        var existing = (await ListAsync(options.CollectionsBaseUrl, "/api/v1/collections?pageSize=100", other.Access, ct))
+            .FirstOrDefault(c => c["name"]?.GetValue<string>() == DemoData.OtherCollectionName);
+        if (existing is not null)
+        {
+            log($"collection '{DemoData.OtherCollectionName}': present");
+            return 0;
+        }
+
+        var made = await api.SendAsync(Post, options.CollectionsBaseUrl, "/api/v1/collections",
+            new JsonObject { ["name"] = DemoData.OtherCollectionName, ["description"] = "Belongs to the other workspace (seeded)." }, other.Access, ct);
+        await api.SendAsync(Post, options.CollectionsBaseUrl, $"/api/v1/collections/{made!["id"]}/requests",
+            new JsonObject { ["name"] = DemoData.OtherRequestName, ["description"] = "Seeded.", ["request"] = DemoData.OtherDefinition() }, other.Access, ct);
+        log($"collection '{DemoData.OtherCollectionName}': created in '{DemoData.OtherOrganizationName}'");
+        return 2;
+    }
+
+    /// <summary>The cast as a table, printed last so it is the first thing seen in the resource log (Aspire dashboard, compose logs).</summary>
+    private void PrintCredentials()
+    {
+        const string rule = "+----------------------------------+--------+------------------+-----------------+";
+        log("DEMO LOGINS (development only, published on purpose)");
+        log(rule);
+        log($"| {"Email",-32} | {"Role",-6} | {"Workspace",-16} | {"Password",-15} |");
+        log(rule);
+        foreach (var p in DemoData.Cast)
+        {
+            log($"| {p.Email,-32} | {p.Role,-6} | {p.Workspace,-16} | {options.DemoPassword,-15} |");
+        }
+
+        log(rule);
+        log("Sign in at the Web (http://localhost:5310). Open a second browser as another account to see sharing and isolation.");
     }
 
     // ── environments ─────────────────────────────────────────────────────────────────────────────────────────────────────

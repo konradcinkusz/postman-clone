@@ -33,7 +33,6 @@ try
     {
         var summary = await runner.SeedAsync(cancel.Token);
         Console.WriteLine($"seed: done ({summary.TotalCreated} item(s) created; 0 means the estate was already seeded)");
-        Console.WriteLine($"seed: sign in as {DemoData.OwnerEmail} or {DemoData.MemberEmail} (password in docs/AUTH.md)");
     }
 
     return 0;

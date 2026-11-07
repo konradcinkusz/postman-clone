@@ -23,8 +23,47 @@ public sealed class SeededJourneys : Journey
         await Expect(tree).ToContainTextAsync(DemoLogins.Collection);
         await Workspace.ExpandAsync(page, DemoLogins.Collection);
         await Expect(tree).ToContainTextAsync(DemoLogins.GetRequest);
+        await Expect(tree).ToContainTextAsync(DemoLogins.LocalRequest);
         await Workspace.ExpandAsync(page, DemoLogins.PostFolder);
         await Expect(tree).ToContainTextAsync(DemoLogins.PostRequest);
+        // The other workspace's collection is not in this tree.
+        await Expect(tree).Not.ToContainTextAsync(DemoLogins.OtherCollection);
+    }
+
+    [Fact]
+    public async Task The_sign_in_page_lists_the_demo_accounts_while_the_estate_runs_with_the_seed_in_Development()
+    {
+        var page = await NewPageAsync();
+        await Ui.OpenAsync(page, "/sign-in");
+
+        var hint = page.GetByTestId("dev-seed-hint");
+        await Expect(hint).ToBeVisibleAsync();
+        foreach (var email in new[] { DemoLogins.OwnerEmail, DemoLogins.AdminEmail, DemoLogins.MemberEmail, DemoLogins.OtherEmail })
+        {
+            await Expect(hint).ToContainTextAsync(email);
+        }
+
+        await Expect(page.GetByTestId("dev-seed-password")).ToHaveTextAsync(DemoLogins.Password);
+    }
+
+    [Fact]
+    public async Task The_seeded_admin_signs_in_and_sees_the_shared_collection()
+    {
+        var page = await NewPageAsync();
+        await Ui.SignInAsync(page, DemoLogins.AdminEmail, DemoLogins.Password);
+
+        await Expect(page.GetByTestId("tree")).ToContainTextAsync(DemoLogins.Collection);
+    }
+
+    [Fact]
+    public async Task The_account_in_the_other_workspace_sees_only_its_own_collection()
+    {
+        var page = await NewPageAsync();
+        await Ui.SignInAsync(page, DemoLogins.OtherEmail, DemoLogins.Password);
+
+        var tree = page.GetByTestId("tree");
+        await Expect(tree).ToContainTextAsync(DemoLogins.OtherCollection);
+        await Expect(tree).Not.ToContainTextAsync(DemoLogins.Collection);
     }
 
     [Fact]

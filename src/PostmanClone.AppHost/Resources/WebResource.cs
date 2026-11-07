@@ -36,6 +36,8 @@ internal static class WebResource
             .WithEnvironment("Auth__RequireHttpsMetadata", "false")
             // The session cookie is not Secure-only in Development, because this composition serves plain HTTP on localhost.
             .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+            // Shows the demo accounts on the sign-in page while the seed is on (ADR-0030).
+            .WithEnvironment("Seed__Enabled", SeedResource.IsEnabled(builder) ? "true" : "false")
             .WaitFor(authservice)
             .WaitFor(collections)
             .WaitFor(environments)

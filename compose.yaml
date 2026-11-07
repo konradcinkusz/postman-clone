@@ -127,6 +127,8 @@ services:
       <<: *auth-env
       # The browser journeys sign in from one address many times (scripts/run-local-stack.sh sets the same).
       RateLimiting__AuthPermitsPerMinute: ${WEB_AUTH_PERMITS_PER_MINUTE:-18}
+      # Shows the demo accounts on the sign-in page (Development only, ADR-0030). Off when the seed is off.
+      Seed__Enabled: ${SEED_ENABLED:-true}
       services__authservice__http__0: http://authservice:8080
       services__collections-service__http__0: http://collections-service:8080
       services__environments-service__http__0: http://environments-service:8080

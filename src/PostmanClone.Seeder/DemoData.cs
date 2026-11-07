@@ -13,12 +13,32 @@ internal static class DemoData
 
     public const string EmailDomain = "postmanclone.test";
     public const string OwnerEmail = "demo.owner@" + EmailDomain;
+    public const string AdminEmail = "demo.admin@" + EmailDomain;
     public const string MemberEmail = "demo.member@" + EmailDomain;
+    public const string OtherEmail = "demo.other@" + EmailDomain;
+
+    /// <summary>One entry of the seeded cast: who, their role, and the workspace they belong to.</summary>
+    public sealed record Persona(string Email, string Role, string Workspace, string Purpose);
+
+    /// <summary>
+    /// The cast (the sign-in hint and the README list the same four, a test pins that): three accounts in one workspace so a second
+    /// browser sees what the first shares, and one account in another workspace whose collections the first three must not see.
+    /// </summary>
+    public static IReadOnlyList<Persona> Cast { get; } =
+    [
+        new(OwnerEmail, "Owner", OrganizationName, "owns the demo workspace and its data"),
+        new(AdminEmail, "Admin", OrganizationName, "same workspace; may invite members"),
+        new(MemberEmail, "Member", OrganizationName, "same workspace; sees the shared collection"),
+        new(OtherEmail, "Owner", OtherOrganizationName, "another workspace: its collection is 'not found' to the other three"),
+    ];
 
     /// <summary>The published development password of both demo accounts. It meets authservice's rule (docs/AUTH.md).</summary>
     public const string DefaultPassword = "Demo-Passw0rd!"; // gitleaks:allow — a published local demo value, not a credential.
 
     public const string OrganizationName = "Demo Workspace";
+    public const string OtherOrganizationName = "Other Workspace";
+    public const string OtherCollectionName = Prefix + "Other workspace only";
+    public const string OtherRequestName = "Private to the other workspace";
 
     public const string CollectionName = Prefix + "Getting started";
     public const string FolderName = "Echo";
@@ -33,6 +53,10 @@ internal static class DemoData
     public const string GetRequestName = "Get example.com";
     public const string GetRequestUrl = "https://example.com/";
     public const string PostRequestName = "Post a JSON note";
+
+    /// <summary>A request to a local URL: the server's sender refuses loopback, so it is for the local agent (README quick start).</summary>
+    public const string LocalRequestName = "Local health (needs the local agent)";
+    public const string LocalRequestUrl = "http://localhost:5303/health";
 
     public static bool IsDemoName(string? name) => name is not null && name.StartsWith(Prefix, StringComparison.Ordinal);
 
@@ -55,6 +79,10 @@ internal static class DemoData
             ["raw"] = "{\n  \"note\": \"Hello from the demo workspace\",\n  \"demo\": true\n}",
             ["fields"] = new JsonArray(),
         });
+
+    public static JsonObject LocalDefinition() => Definition("GET", LocalRequestUrl, headers: [], body: None());
+
+    public static JsonObject OtherDefinition() => Definition("GET", "https://example.com/?workspace=other", headers: [], body: None());
 
     public static JsonArray EnvironmentVariables(bool keepExistingSecret) =>
     [

@@ -18,11 +18,14 @@ sets the pattern: a reserved namespace, reset by namespace, seed through the run
 2. **Through the APIs, not the database.** It calls authservice (register, login, organization, invite, accept), CollectionsService and
    EnvironmentsService with the bearer tokens those services issue. A seed that could create a state the services refuse would be a lie.
    Everything it creates passes the validation a user's request passes, including the secret-variable encryption.
-3. **The dataset** (`DemoData.cs`, nothing random): two accounts `demo.owner@postmanclone.test` and `demo.member@postmanclone.test` in
-   one organization `Demo Workspace` (the owner creates it, the member is invited as `Member` and accepts); a collection
-   `[demo] Getting started` with a folder `Echo`, a `GET https://example.com/` and a `POST {{base_url}}/post` with a JSON body; an
-   environment `[demo] Local demo` with the plain variable `base_url` and the secret `api_key` whose value is the obviously fake
-   `demo-not-a-real-key`. The member must see the demo collection at the end of the run, or the run fails.
+3. **The dataset** (`DemoData.cs`, nothing random). A cast of four, all able to sign in at once (authservice without an email provider
+   needs no confirmation): `demo.owner`, `demo.admin` (invited as `Admin`) and `demo.member` (invited as `Member`) in one organization
+   `Demo Workspace`, so a second browser sees what the first shares, and `demo.other` as owner of a second organization `Other Workspace`,
+   so another workspace's collection answers "not found". Data: a collection `[demo] Getting started` with a folder `Echo`, a
+   `GET https://example.com/`, a `POST {{base_url}}/post` with a JSON body and a `GET http://localhost:5303/health` (the server's sender
+   refuses loopback, so it is the request for the local agent); an environment `[demo] Local demo` with the plain variable `base_url` and the
+   secret `api_key` whose value is the obviously fake `demo-not-a-real-key`; and `[demo] Other workspace only` in the other workspace. The
+   run fails unless the admin and the member see the demo collection and the other account does not.
 4. **Reserved namespace.** Every collection and environment the seed creates starts with `[demo] `. `reset` signs in as the demo owner,
    and in the demo workspace only, deletes collections and environments whose name starts with that prefix, and logs the counts per
    store. It keeps the accounts and the workspace. Data in the same workspace under any other name is not touched (a test pins it).
@@ -41,7 +44,13 @@ sets the pattern: a reserved namespace, reset by namespace, seed through the run
    (`exec dotnet AuthService.dll > >(tee -a /logs/authservice.log)`), and the no-Docker script already writes `authservice.log`. The
    token is never printed. This is the one place the seed reads something other than an API answer; it is the same channel the browser
    journey for invitations uses, and it exists because no API offers the token.
-8. **The demo password is published** (`Demo-Passw0rd!`, meets authservice's rule) in the README and AUTH.md, with `gitleaks:allow` where it
+8. **The logins cannot be missed.** The seeder prints a table of the cast and the password last in its log (the Aspire dashboard's `seed`
+   resource, `docker compose logs seed`, `.local-stack/logs/seed.log`); the README lists it first; and the Web's sign-in page shows the
+   same accounts in a dev-only block, only when the Web runs in `Development` and `Seed:Enabled` is `true` (set by the AppHost, compose and
+   the script only while they seed). `DevSignInHintTests` proves the block is absent in Production and Staging, and without the switch, and
+   that it lists exactly the seeder's cast. The agent is never paired by the seed: pairing stays a user action on `/agent`
+   (the README's five steps, and `QuickStartJourneys` runs them).
+9. **The demo password is published** (`Demo-Passw0rd!`, meets authservice's rule) in the README and AUTH.md, with `gitleaks:allow` where it
    is written in code. Accounts with a published password exist only in a Development estate that the gate above enforces.
 
 ## Consequences

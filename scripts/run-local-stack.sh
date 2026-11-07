@@ -350,6 +350,8 @@ up_web() {
     auth_env
     export ASPNETCORE_URLS="http://localhost:${WEB_PORT}"
     export ASPNETCORE_ENVIRONMENT=Development
+    # Shows the demo accounts on the sign-in page (Development only, ADR-0030) while the seed is on.
+    export Seed__Enabled="$([ "${SEED_DEMO}" = "1" ] && echo true || echo false)"
     export Auth__MetadataAddress="http://localhost:${AUTH_PORT}/.well-known/openid-configuration"
     # The sign-in forms' window per client address (OI-02). 10 is the product default. The browser journeys sign in from one
     # address many times, so their run sets WEB_AUTH_PERMITS_PER_MINUTE=18 (just under the suite's own authservice budget).
