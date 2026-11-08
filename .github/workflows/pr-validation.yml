@@ -307,7 +307,7 @@ jobs:
 
       - name: Service logs and browser artifacts (on failure)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-logs
           path: |
@@ -379,7 +379,7 @@ jobs:
 
       - name: Browser artifacts (on failure)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: compose-e2e-logs
           path: |
@@ -411,7 +411,7 @@ jobs:
 
       - name: AppHost log (always)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: aspire-apphost-probe-log
           path: .local-stack/logs/
@@ -473,13 +473,13 @@ jobs:
           "$RUNNER_TEMP/agent-tool/postmanclone-agent" --version
           "$RUNNER_TEMP/agent-tool/postmanclone-agent" --help | head -3
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: postmanclone-agent-${{ matrix.rid }}
           path: artifacts/postmanclone-agent-${{ matrix.rid }}.zip
           if-no-files-found: error
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: matrix.rid == 'linux-x64'
         with:
           name: postmanclone-agent-dotnet-tool
